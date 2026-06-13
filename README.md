@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Anima Temple — Platform
 
-## Getting Started
+This is **the platform** ("the hosting thingy"): a web app where you — and later
+other people — can host a website, connect a domain, and run a business (clients,
+bookings, payments, courses, member portal) from one place.
 
-First, run the development server:
+> **This is a separate project from Divine Blueprint.** Divine Blueprint is a
+> product/shop with its own repo. Anima Temple is the platform that can, one day,
+> host sites like Divine Blueprint as customers. They share a brand, not a codebase.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## How "hosting" actually works here
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A hosting platform has two halves:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Control plane (this app)** — the dashboard, accounts, domains screen, billing,
+  the "add a website" button. This is the product we build and own.
+- **Engine** — the hard plumbing (build code → run containers, issue SSL, route
+  domains). We don't reinvent it; we drive **[Coolify](https://coolify.io)** (open
+  source, self-hosted on Hetzner) through its API.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+So we own the experience and the customer; Coolify does the server magic.
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+Next.js 14 (App Router) · TypeScript · Tailwind · Supabase (auth + Postgres) ·
+Docker (deploy to Hetzner via Coolify). Same proven stack as Divine Blueprint.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## What's here so far (foundation)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+- Magic-link login (`/login`), session middleware, auth callback/sign-out
+- A guarded portal: `/dashboard` (your future websites) and `/account`
+- Brand theme, landing page
+- Dockerfile + docker-compose + CI for self-hosting
 
-## Deploy on Vercel
+## Run it locally
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Copy `.env.local.example` → `.env.local` and fill in a **new** Supabase
+   project's keys.
+2. `npm install`
+3. `npm run dev` → http://localhost:3000
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+See `ARCHITECTURE.md` for the bigger picture and roadmap.
