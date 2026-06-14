@@ -27,6 +27,21 @@ export default async function DashboardPage() {
         <p className="font-body text-ash mt-3">Your temple. Let&apos;s put your work into the world.</p>
       </section>
 
+      {!dbError && sites.length > 0 && (
+        <section className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Total", value: sites.length },
+            { label: "Live", value: sites.filter((s) => s.status === "live").length },
+            { label: "Paused", value: sites.filter((s) => s.status === "stopped").length },
+          ].map((stat) => (
+            <div key={stat.label} className="border border-gold/15 rounded-sm p-5">
+              <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-2">{stat.label}</p>
+              <p className="font-display text-3xl text-parchment">{stat.value}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
       <section>
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold">
