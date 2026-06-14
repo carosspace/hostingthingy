@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { TEMPLATES } from '@/lib/sites/types'
 import { listSites } from '@/lib/sites/store'
@@ -82,7 +83,12 @@ export default async function SitesPage() {
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <p className="font-body text-parchment text-lg">{site.name}</p>
+                  <Link
+                    href={`/sites/${site.id}`}
+                    className="font-body text-parchment text-lg hover:text-gold transition-colors"
+                  >
+                    {site.name}
+                  </Link>
                   <StatusBadge status={site.status} />
                 </div>
                 <p className="font-body text-ash/60 text-sm mt-1 truncate">

@@ -82,6 +82,15 @@ export async function updateSiteStatus(
   if (error) throw error
 }
 
+export async function renameSiteRecord(id: string, name: string, slug: string): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ name, slug, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteSiteRecord(id: string): Promise<void> {
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.from('sites').delete().eq('id', id)
