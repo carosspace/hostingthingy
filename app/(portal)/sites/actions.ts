@@ -82,6 +82,22 @@ export async function redeploySiteAction(formData: FormData): Promise<void> {
   revalidatePath('/sites')
 }
 
+export async function pauseSiteAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  const site = await getSite(id)
+  if (!site) return
+
+  await updateSiteStatus(id, 'stopped', site.url)
+
+  revalidatePath(`/sites/${id}`)
+  revalidatePath('/sites')
+}
+
 export async function deleteSiteAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
   if (!user) return

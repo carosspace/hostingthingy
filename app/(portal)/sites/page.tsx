@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
-import { TEMPLATES } from '@/lib/sites/types'
+import { TEMPLATE_CARDS } from '@/lib/sites/types'
 import { listSites } from '@/lib/sites/store'
 import { createSiteAction, redeploySiteAction, deleteSiteAction } from './actions'
 
@@ -37,26 +37,33 @@ export default async function SitesPage() {
       {/* Add a website */}
       <section className="border border-gold/15 rounded-sm p-6">
         <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-4">Add a website</p>
-        <form action={createSiteAction} className="flex flex-col sm:flex-row gap-3">
+        <form action={createSiteAction} className="space-y-5">
           <input
             name="name"
             type="text"
             required
             placeholder="My beautiful website"
-            className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+            className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
           />
-          <select
-            name="template"
-            defaultValue={TEMPLATES[0]}
-            className="bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none"
-          >
-            {TEMPLATES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <div>
+            <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 mb-2">Choose a template</p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {TEMPLATE_CARDS.map((t, i) => (
+                <label key={t.name} className="cursor-pointer">
+                  <input type="radio" name="template" value={t.name} defaultChecked={i === 0} className="peer sr-only" />
+                  <div className="h-full border border-gold/20 peer-checked:border-gold peer-checked:bg-gold/10 rounded-sm p-4 transition-colors">
+                    <p className="font-body text-parchment text-sm">{t.icon}&nbsp; {t.name}</p>
+                    <p className="font-body text-ash/60 text-xs mt-1">{t.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
           <button
             type="submit"
             className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight transition-colors px-6 py-3 rounded-sm"
           >
-            Create →
+            Create website →
           </button>
         </form>
       </section>

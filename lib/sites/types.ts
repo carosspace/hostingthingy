@@ -24,3 +24,12 @@ export const TEMPLATES = [
   'Blog',
   'Blank',
 ] as const
+
+// Display metadata for the template picker.
+export const TEMPLATE_CARDS: { name: string; description: string; icon: string }[] = [
+  { name: 'Coming soon page', description: 'A simple "launching soon" page.', icon: '✦' },
+  { name: 'Portfolio', description: 'Show your work and how to reach you.', icon: '❖' },
+  { name: 'Business site', description: 'Home, about, services, contact.', icon: '⌘' },
+  { name: 'Blog', description: 'Write and publish posts.', icon: '✍' },
+  { name: 'Blank', description: 'Start from nothing.', icon: '◇' },
+]

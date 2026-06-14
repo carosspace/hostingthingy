@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
-import { renameSiteAction, redeploySiteAction, deleteSiteAction } from '../actions'
+import { renameSiteAction, redeploySiteAction, pauseSiteAction, deleteSiteAction } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,13 +81,30 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         </form>
       </section>
 
-      <section className="flex items-center gap-3">
-        <form action={redeploySiteAction}>
-          <input type="hidden" name="id" value={site.id} />
-          <button className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-3 rounded-sm transition-colors">
-            Redeploy
-          </button>
-        </form>
+      <section className="flex flex-wrap items-center gap-3">
+        {site.status === 'stopped' ? (
+          <form action={redeploySiteAction}>
+            <input type="hidden" name="id" value={site.id} />
+            <button className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-3 rounded-sm transition-colors">
+              Resume
+            </button>
+          </form>
+        ) : (
+          <form action={redeploySiteAction}>
+            <input type="hidden" name="id" value={site.id} />
+            <button className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-3 rounded-sm transition-colors">
+              Redeploy
+            </button>
+          </form>
+        )}
+        {site.status === 'live' && (
+          <form action={pauseSiteAction}>
+            <input type="hidden" name="id" value={site.id} />
+            <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
+              Pause
+            </button>
+          </form>
+        )}
         <form action={deleteSiteAction}>
           <input type="hidden" name="id" value={site.id} />
           <button className="font-label text-[10px] tracking-[3px] uppercase border border-red-500/30 text-red-400 hover:bg-red-500/10 px-5 py-3 rounded-sm transition-colors">
