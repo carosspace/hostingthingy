@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
+  const displayName =
+    (user?.user_metadata?.full_name as string | undefined) || user?.email;
 
   let sites: Site[] = [];
   let dbError = false;
@@ -21,7 +23,7 @@ export default async function DashboardPage() {
     <div className="space-y-14">
       <section>
         <p className="font-label text-[10px] tracking-[4px] uppercase text-gold/70 mb-3">Welcome</p>
-        <h1 className="font-display text-4xl italic text-parchment break-words">{user?.email}</h1>
+        <h1 className="font-display text-4xl italic text-parchment break-words">{displayName}</h1>
         <p className="font-body text-ash mt-3">Your temple. Let&apos;s put your work into the world.</p>
       </section>
 
