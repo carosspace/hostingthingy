@@ -50,7 +50,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-10">
           <Sigil size={50} />
-          <p className="font-label text-[10px] tracking-[5px] text-gold uppercase mt-4">Anima Temple</p>
+          <p className="font-label text-[10px] tracking-[5px] text-gold uppercase mt-4">Hosting Thingy</p>
         </div>
 
         {sent ? (

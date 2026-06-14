@@ -26,7 +26,7 @@ export default function Home() {
       {/* Hero */}
       <section className="px-6 pt-24 pb-20 text-center max-w-3xl mx-auto">
         <Mark size={64} />
-        <p className="font-label text-[11px] tracking-[6px] text-gold uppercase mt-6">Anima Temple</p>
+        <p className="font-label text-[11px] tracking-[6px] text-gold uppercase mt-6">Hosting Thingy</p>
         <h1 className="font-display text-5xl md:text-6xl italic text-parchment mt-6 leading-tight">
           Sacred hosting for your work
         </h1>
@@ -34,12 +34,18 @@ export default function Home() {
           Host your website, connect your domain, and run your whole practice from one
           quiet, beautiful place — yours, and one day your clients&apos; too.
         </p>
-        <div className="flex items-center justify-center gap-4 mt-10">
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-10">
           <Link
-            href="/login"
+            href="/preview"
             className="font-label text-[11px] tracking-[4px] uppercase bg-gold text-background hover:bg-goldLight transition-colors px-8 py-3 rounded-sm"
           >
-            Enter your temple →
+            See a preview →
+          </Link>
+          <Link
+            href="/login"
+            className="font-label text-[11px] tracking-[4px] uppercase border border-gold/40 text-gold hover:bg-gold/10 transition-colors px-8 py-3 rounded-sm"
+          >
+            Sign in
           </Link>
         </div>
       </section>

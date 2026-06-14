@@ -25,7 +25,7 @@ const cinzel = Cinzel({
 });
 
 export const metadata: Metadata = {
-  title: "Anima Temple — Sacred hosting for your work",
+  title: "Hosting Thingy — Sacred hosting for your work",
   description:
     "Host your website, connect your domain, and run your business from one calm place.",
 };
