@@ -16,6 +16,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
           <nav className="flex items-center gap-6 font-label text-[10px] tracking-[3px] uppercase">
             <Link href="/dashboard" className="text-ash hover:text-gold transition-colors">Dashboard</Link>
+            <Link href="/sites" className="text-ash hover:text-gold transition-colors">Sites</Link>
             <Link href="/account" className="text-ash hover:text-gold transition-colors">Account</Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors">

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,20 +19,22 @@ export default async function DashboardPage() {
       <section>
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold">Your websites</h2>
-          <button
-            disabled
-            title="Coming soon"
-            className="font-label text-[10px] tracking-[3px] uppercase border border-gold/30 text-gold/50 px-4 py-2 rounded-sm cursor-not-allowed"
+          <Link
+            href="/sites"
+            className="font-label text-[10px] tracking-[3px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm transition-colors"
           >
             + Add a website
-          </button>
+          </Link>
         </div>
-        <div className="border border-gold/15 rounded-sm p-10 text-center">
-          <p className="font-body text-ash">No websites yet.</p>
+        <Link
+          href="/sites"
+          className="block border border-gold/15 hover:border-gold/40 rounded-sm p-10 text-center transition-colors"
+        >
+          <p className="font-body text-ash">Manage your websites →</p>
           <p className="font-body text-ash/50 text-sm mt-2">
-            Soon you&apos;ll connect a domain and deploy a site here in a few clicks.
+            Create a site, watch it deploy, and put your work online.
           </p>
-        </div>
+        </Link>
       </section>
 
       <section>
