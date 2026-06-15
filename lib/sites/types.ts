@@ -23,11 +23,14 @@ export const DEFAULT_THEME: SiteTheme = 'sand'
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
+  brand?: string
   headline: string
   subheadline: string
   heroImage?: string
   sections: SiteSection[]
+  contactLabel?: string
   contactEmail: string
+  footer?: string
 }
 
 export interface Site {

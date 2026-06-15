@@ -91,11 +91,14 @@ export default function LiveEditor({
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
+      brand: read('brand') || undefined,
       headline: read('headline'),
       subheadline: read('subheadline'),
       heroImage: heroImage.trim() || undefined,
       sections: built,
+      contactLabel: read('contactLabel') || undefined,
       contactEmail: contactEmail.trim(),
+      footer: read('footer') || undefined,
     }
     const fd = new FormData()
     fd.set('id', siteId)
@@ -177,6 +180,12 @@ export default function LiveEditor({
       </p>
 
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text }}>
+        <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}33` }}>
+          <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+            {initial?.brand || siteName}
+          </div>
+        </div>
+
         {heroImage ? (
           <div className="relative" style={{ minHeight: 300 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -252,9 +261,9 @@ export default function LiveEditor({
           )}
         </div>
 
-        <div className="px-6 pb-16 text-center">
-          <span style={{ background: accent, color: t.bg, padding: '11px 26px', borderRadius: 3, display: 'inline-block', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
-            Get in touch
+        <div className="px-6 pb-12 text-center">
+          <span className="ht-ed" contentEditable suppressContentEditableWarning data-field="contactLabel" style={{ background: accent, color: t.bg, padding: '11px 26px', borderRadius: 3, display: 'inline-block', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', outline: 'none', cursor: 'text' }}>
+            {initial?.contactLabel || 'Get in touch'}
           </span>
           <div className="mt-3 flex justify-center">
             <input
@@ -267,6 +276,12 @@ export default function LiveEditor({
               className="text-xs px-3 py-1.5 rounded-sm"
               style={{ ...urlInput, width: 300 }}
             />
+          </div>
+        </div>
+
+        <div className="py-8 text-center" style={{ borderTop: `1px solid ${accent}22` }}>
+          <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="footer" style={{ ...edStyle, fontSize: 13, color: t.muted }}>
+            {initial?.footer || siteName}
           </div>
         </div>
       </div>

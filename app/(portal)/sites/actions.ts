@@ -155,13 +155,20 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     | 'sage'
     | 'rose'
 
+  // Preserve fields the simple form editor doesn't expose (set in the visual editor).
+  const existing = (await getSite(id))?.content ?? null
+
   await saveSiteContent(id, {
     theme,
+    accentColor: existing?.accentColor,
+    brand: existing?.brand,
     headline: String(formData.get('headline') ?? '').trim(),
     subheadline: String(formData.get('subheadline') ?? '').trim(),
     heroImage: String(formData.get('heroImage') ?? '').trim() || undefined,
     sections,
+    contactLabel: existing?.contactLabel,
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
+    footer: existing?.footer,
   })
 
   revalidatePath(`/sites/${id}`)
@@ -198,11 +205,14 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
   const content: SiteContent = {
     theme,
     accentColor: String(parsed.accentColor ?? '').trim() || undefined,
+    brand: String(parsed.brand ?? '').trim() || undefined,
     headline: String(parsed.headline ?? '').trim(),
     subheadline: String(parsed.subheadline ?? '').trim(),
     heroImage: String(parsed.heroImage ?? '').trim() || undefined,
     sections,
+    contactLabel: String(parsed.contactLabel ?? '').trim() || undefined,
     contactEmail: String(parsed.contactEmail ?? '').trim(),
+    footer: String(parsed.footer ?? '').trim() || undefined,
   }
 
   await saveSiteContent(id, content)
