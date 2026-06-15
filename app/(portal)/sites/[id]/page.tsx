@@ -33,7 +33,6 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
   }
 
   const st = STATUS[site.status]
-  const url = site.url ?? `https://${site.slug}.hostingthingy.app`
   const rows: [string, string][] = [
     ['Template', site.template],
     ['Address', `${site.slug}.hostingthingy.app`],
@@ -51,9 +50,18 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
           <h1 className="font-display text-4xl italic text-parchment">{site.name}</h1>
           <span className={`font-label text-[9px] tracking-[2px] uppercase ${st.cls}`}>{st.label}</span>
         </div>
-        <a href={url} target="_blank" rel="noreferrer" className="font-body text-gold/80 hover:text-gold text-sm mt-2 inline-block">
-          {url} ↗
-        </a>
+        {site.status === 'live' ? (
+          <a
+            href={`/s/${site.slug}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-body text-gold hover:text-goldLight text-sm mt-2 inline-block"
+          >
+            Visit your live site ↗
+          </a>
+        ) : (
+          <p className="font-body text-ash/50 text-sm mt-2">Not live yet — redeploy to publish.</p>
+        )}
       </div>
 
       <section className="border border-gold/15 rounded-sm divide-y divide-gold/10">
