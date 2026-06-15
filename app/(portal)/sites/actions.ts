@@ -10,6 +10,7 @@ import {
   updateSiteStatus,
   renameSiteRecord,
   setSiteDomain,
+  saveSiteContent,
   deleteSiteRecord,
   getSite,
 } from '@/lib/sites/store'
@@ -101,6 +102,30 @@ export async function setDomainAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/sites/${id}`)
+}
+
+export async function saveSiteContentAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  const sections = [1, 2, 3]
+    .map(i => ({
+      heading: String(formData.get(`s${i}h`) ?? '').trim(),
+      body: String(formData.get(`s${i}b`) ?? '').trim(),
+    }))
+    .filter(s => s.heading || s.body)
+
+  await saveSiteContent(id, {
+    headline: String(formData.get('headline') ?? '').trim(),
+    subheadline: String(formData.get('subheadline') ?? '').trim(),
+    sections,
+  })
+
+  revalidatePath(`/sites/${id}`)
+  revalidatePath(`/sites/${id}/edit`)
 }
 
 export async function pauseSiteAction(formData: FormData): Promise<void> {

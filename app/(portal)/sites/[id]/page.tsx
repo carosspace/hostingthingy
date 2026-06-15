@@ -64,6 +64,13 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         )}
       </div>
 
+      <Link
+        href={`/sites/${site.id}/edit`}
+        className="inline-block font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors"
+      >
+        ✎ Edit website content
+      </Link>
+
       <section className="border border-gold/15 rounded-sm divide-y divide-gold/10">
         {rows.map(([k, v]) => (
           <div key={k} className="px-5 py-4 flex justify-between gap-4">

@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import type { Site, SiteStatus } from './types'
+import type { Site, SiteStatus, SiteContent } from './types'
 
 // Persistence for sites, backed by Supabase Postgres with Row-Level Security
 // (a user only ever sees their own sites). Throws if Supabase isn't configured
@@ -14,6 +14,7 @@ interface SiteRow {
   status: SiteStatus
   url: string | null
   domain: string | null
+  content: SiteContent | null
   created_at: string
   updated_at: string
 }
@@ -28,6 +29,7 @@ function rowToSite(r: SiteRow): Site {
     status: r.status,
     url: r.url,
     domain: r.domain ?? null,
+    content: (r.content ?? null) as SiteContent | null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -98,6 +100,15 @@ export async function setSiteDomain(id: string, domain: string | null): Promise<
   const { error } = await supabase
     .from('sites')
     .update({ domain, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function saveSiteContent(id: string, content: SiteContent): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ content, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
 }

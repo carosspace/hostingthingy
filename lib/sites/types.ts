@@ -1,5 +1,16 @@
 export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 
+export interface SiteSection {
+  heading: string
+  body: string
+}
+
+export interface SiteContent {
+  headline: string
+  subheadline: string
+  sections: SiteSection[]
+}
+
 export interface Site {
   id: string
   ownerId: string
@@ -9,6 +20,7 @@ export interface Site {
   status: SiteStatus
   url: string | null
   domain: string | null
+  content: SiteContent | null
   createdAt: string
   updatedAt: string
 }
