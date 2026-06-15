@@ -130,12 +130,21 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
   const id = String(formData.get('id') ?? '')
   if (!id) return
 
-  const sections = [1, 2, 3]
-    .map(i => ({
-      heading: String(formData.get(`s${i}h`) ?? '').trim(),
-      body: String(formData.get(`s${i}b`) ?? '').trim(),
-    }))
-    .filter(s => s.heading || s.body)
+  let sections: { heading: string; body: string }[] = []
+  try {
+    const raw = JSON.parse(String(formData.get('sections') ?? '[]'))
+    if (Array.isArray(raw)) {
+      sections = raw
+        .map((s: { heading?: string; body?: string }) => ({
+          heading: String(s?.heading ?? '').trim(),
+          body: String(s?.body ?? '').trim(),
+        }))
+        .filter(s => s.heading || s.body)
+        .slice(0, 12)
+    }
+  } catch {
+    // ignore a malformed sections payload
+  }
 
   const themeRaw = String(formData.get('theme') ?? 'sand')
   const theme = (['sand', 'midnight', 'sage', 'rose'].includes(themeRaw) ? themeRaw : 'sand') as
