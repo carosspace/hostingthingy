@@ -22,6 +22,7 @@ export const DEFAULT_THEME: SiteTheme = 'sand'
 
 export interface SiteContent {
   theme: SiteTheme
+  accentColor?: string
   headline: string
   subheadline: string
   heroImage?: string

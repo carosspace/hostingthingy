@@ -64,12 +64,20 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         )}
       </div>
 
-      <Link
-        href={`/sites/${site.id}/edit`}
-        className="inline-block font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors"
-      >
-        ✎ Edit website content
-      </Link>
+      <div className="flex flex-wrap items-center gap-4">
+        <Link
+          href={`/sites/${site.id}/design`}
+          className="inline-block font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors"
+        >
+          ✎ Edit website (visual)
+        </Link>
+        <Link
+          href={`/sites/${site.id}/edit`}
+          className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors"
+        >
+          Form editor
+        </Link>
+      </div>
 
       <section className="border border-gold/15 rounded-sm divide-y divide-gold/10">
         {rows.map(([k, v]) => (

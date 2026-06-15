@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
+import type { SiteContent, SiteTheme } from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -165,6 +166,49 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/sites/${id}`)
   revalidatePath(`/sites/${id}/edit`)
+}
+
+// Save the whole content blob as JSON (used by the visual editor).
+export async function saveSiteContentJsonAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(String(formData.get('content') ?? '{}'))
+  } catch {
+    return
+  }
+
+  const themeRaw = String(parsed.theme ?? 'sand')
+  const theme = (['sand', 'midnight', 'sage', 'rose'].includes(themeRaw) ? themeRaw : 'sand') as SiteTheme
+
+  const rawSections = Array.isArray(parsed.sections) ? (parsed.sections as Record<string, unknown>[]) : []
+  const sections = rawSections
+    .map(s => ({
+      heading: String(s?.heading ?? '').trim(),
+      body: String(s?.body ?? '').trim(),
+      image: String(s?.image ?? '').trim() || undefined,
+    }))
+    .filter(s => s.heading || s.body || s.image)
+    .slice(0, 20)
+
+  const content: SiteContent = {
+    theme,
+    accentColor: String(parsed.accentColor ?? '').trim() || undefined,
+    headline: String(parsed.headline ?? '').trim(),
+    subheadline: String(parsed.subheadline ?? '').trim(),
+    heroImage: String(parsed.heroImage ?? '').trim() || undefined,
+    sections,
+    contactEmail: String(parsed.contactEmail ?? '').trim(),
+  }
+
+  await saveSiteContent(id, content)
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}/edit`)
+  revalidatePath(`/sites/${id}`)
 }
 
 export async function pauseSiteAction(formData: FormData): Promise<void> {
