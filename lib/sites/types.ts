@@ -3,6 +3,7 @@ export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 export interface SiteSection {
   heading: string
   body: string
+  image?: string
 }
 
 export type SiteTheme = 'sand' | 'midnight' | 'sage' | 'rose'
@@ -23,6 +24,7 @@ export interface SiteContent {
   theme: SiteTheme
   headline: string
   subheadline: string
+  heroImage?: string
   sections: SiteSection[]
   contactEmail: string
 }

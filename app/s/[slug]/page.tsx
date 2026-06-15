@@ -13,8 +13,6 @@ const TAGLINES: Record<string, string> = {
   Blank: 'A fresh beginning.',
 }
 
-// A real, public, viewable page for a hosted site. Themed by the owner's choice,
-// rendering their content when present, otherwise a tasteful placeholder.
 export default async function PublicSitePage({ params }: { params: { slug: string } }) {
   const site = await getPublicSite(params.slug)
   if (!site) notFound()
@@ -23,28 +21,58 @@ export default async function PublicSitePage({ params }: { params: { slug: strin
   const theme = THEMES[(c?.theme as SiteTheme) ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME]
   const sections = c?.sections ?? []
   const contactEmail = c?.contactEmail ?? ''
-  const hasContent = Boolean(c && (c.headline || c.subheadline || sections.length))
+  const heroImage = c?.heroImage
+  const hasContent = Boolean(c && (c.headline || c.subheadline || sections.length || heroImage))
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: theme.bg, color: theme.text }}>
       {hasContent ? (
         <main className="flex-1">
-          <section className="px-6 pt-28 pb-12 text-center max-w-3xl mx-auto">
-            <h1 className="font-display text-5xl md:text-6xl italic" style={{ color: theme.text }}>
-              {c?.headline || site.name}
-            </h1>
-            {c?.subheadline && (
-              <p className="font-body text-lg md:text-xl mt-6" style={{ color: theme.muted }}>
-                {c.subheadline}
-              </p>
-            )}
-            <div className="mx-auto mt-10 h-px w-16" style={{ background: theme.accent, opacity: 0.6 }} />
-          </section>
+          {heroImage ? (
+            <section className="relative" style={{ height: '62vh', minHeight: 380 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
+              <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
+                <h1 className="font-display text-5xl md:text-7xl italic" style={{ color: '#ffffff' }}>
+                  {c?.headline || site.name}
+                </h1>
+                {c?.subheadline && (
+                  <p className="font-body text-lg md:text-2xl mt-5" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                    {c.subheadline}
+                  </p>
+                )}
+              </div>
+            </section>
+          ) : (
+            <section className="px-6 pt-28 pb-12 text-center max-w-3xl mx-auto">
+              <h1 className="font-display text-5xl md:text-6xl italic" style={{ color: theme.text }}>
+                {c?.headline || site.name}
+              </h1>
+              {c?.subheadline && (
+                <p className="font-body text-lg md:text-xl mt-6" style={{ color: theme.muted }}>
+                  {c.subheadline}
+                </p>
+              )}
+              <div className="mx-auto mt-10 h-px w-16" style={{ background: theme.accent, opacity: 0.6 }} />
+            </section>
+          )}
 
           {sections.length > 0 && (
-            <div className="max-w-2xl mx-auto px-6 pb-16 space-y-12">
+            <div className="max-w-2xl mx-auto px-6 pt-16 pb-16 space-y-16">
               {sections.map((sec, i) => (
                 <section key={i}>
+                  {sec.image && (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={sec.image}
+                        alt=""
+                        className="w-full rounded-sm mb-5"
+                        style={{ maxHeight: 420, objectFit: 'cover' }}
+                      />
+                    </>
+                  )}
                   {sec.heading && (
                     <h2 className="font-display text-3xl italic mb-3" style={{ color: theme.accent }}>
                       {sec.heading}

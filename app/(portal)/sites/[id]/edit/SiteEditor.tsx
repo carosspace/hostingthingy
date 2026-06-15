@@ -21,12 +21,13 @@ export default function SiteEditor({
   const [theme, setTheme] = useState<SiteTheme>(initial?.theme ?? 'sand')
   const [headline, setHeadline] = useState(initial?.headline ?? '')
   const [subheadline, setSubheadline] = useState(initial?.subheadline ?? '')
+  const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
   const [contactEmail, setContactEmail] = useState(initial?.contactEmail ?? '')
   const [sections, setSections] = useState<SiteSection[]>(
     initial?.sections?.length ? initial.sections : [{ heading: '', body: '' }],
   )
 
-  function setSection(i: number, field: 'heading' | 'body', val: string) {
+  function setSection(i: number, field: 'heading' | 'body' | 'image', val: string) {
     setSections(prev => prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)))
   }
   function addSection() {
@@ -60,6 +61,11 @@ export default function SiteEditor({
       <div>
         <label className={labelCls}>Subheadline</label>
         <input name="subheadline" value={subheadline} onChange={e => setSubheadline(e.target.value)} placeholder="A short line about what you offer" className={inputCls} />
+      </div>
+
+      <div>
+        <label className={labelCls}>Hero image link (optional)</label>
+        <input name="heroImage" value={heroImage} onChange={e => setHeroImage(e.target.value)} placeholder="https://…  a big image for the top of your page" className={inputCls} />
       </div>
 
       <div>
@@ -97,6 +103,7 @@ export default function SiteEditor({
             </div>
             <input value={s.heading} onChange={e => setSection(i, 'heading', e.target.value)} placeholder="Section heading" className={inputCls} />
             <textarea value={s.body} onChange={e => setSection(i, 'body', e.target.value)} placeholder="Write something…" rows={4} className={`${inputCls} resize-none`} />
+            <input value={s.image ?? ''} onChange={e => setSection(i, 'image', e.target.value)} placeholder="Image link for this section (optional)" className={inputCls} />
           </div>
         ))}
         <button

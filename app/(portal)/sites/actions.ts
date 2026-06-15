@@ -135,11 +135,12 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     const raw = JSON.parse(String(formData.get('sections') ?? '[]'))
     if (Array.isArray(raw)) {
       sections = raw
-        .map((s: { heading?: string; body?: string }) => ({
+        .map((s: { heading?: string; body?: string; image?: string }) => ({
           heading: String(s?.heading ?? '').trim(),
           body: String(s?.body ?? '').trim(),
+          image: String(s?.image ?? '').trim() || undefined,
         }))
-        .filter(s => s.heading || s.body)
+        .filter(s => s.heading || s.body || s.image)
         .slice(0, 12)
     }
   } catch {
@@ -157,6 +158,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     theme,
     headline: String(formData.get('headline') ?? '').trim(),
     subheadline: String(formData.get('subheadline') ?? '').trim(),
+    heroImage: String(formData.get('heroImage') ?? '').trim() || undefined,
     sections,
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
   })
