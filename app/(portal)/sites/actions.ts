@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
+import { generateSiteContent } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import {
   createSiteRecord,
@@ -102,6 +103,24 @@ export async function setDomainAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/sites/${id}`)
+}
+
+export async function generateSiteAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  const id = String(formData.get('id') ?? '')
+  const description = String(formData.get('description') ?? '').trim()
+  if (!id || !description) return
+
+  const site = await getSite(id)
+  if (!site) return
+
+  const content = await generateSiteContent(site.name, description)
+  await saveSiteContent(id, content)
+
+  revalidatePath(`/sites/${id}`)
+  revalidatePath(`/sites/${id}/edit`)
 }
 
 export async function saveSiteContentAction(formData: FormData): Promise<void> {

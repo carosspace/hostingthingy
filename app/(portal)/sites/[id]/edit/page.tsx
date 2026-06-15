@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
-import { saveSiteContentAction } from '../../actions'
+import { saveSiteContentAction, generateSiteAction } from '../../actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +33,26 @@ export default async function EditSitePage({ params }: { params: { id: string } 
         <h1 className="font-display text-4xl italic text-parchment mt-4">Edit your website</h1>
         <p className="font-body text-ash/70 text-sm mt-2">Fill this in and save — it publishes instantly to your site address.</p>
       </div>
+
+      <section className="border border-gold/30 bg-gold/5 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">✨ Build with AI</p>
+        <p className="font-body text-ash/70 text-sm mb-4">
+          Describe your business in a sentence or two and Claude will write your whole website. You can edit it after.
+        </p>
+        <form action={generateSiteAction} className="space-y-3">
+          <input type="hidden" name="id" value={site.id} />
+          <textarea
+            name="description"
+            required
+            rows={3}
+            placeholder="e.g. I run a spiritual wellness practice called Anima Temple — Reiki, soul readings, and meditation circles in Lisbon."
+            className={`${input} resize-none`}
+          />
+          <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">
+            Generate with AI ✨
+          </button>
+        </form>
+      </section>
 
       <form action={saveSiteContentAction} className="space-y-6">
         <input type="hidden" name="id" value={site.id} />
