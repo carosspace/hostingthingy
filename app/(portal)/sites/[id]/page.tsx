@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
-import { renameSiteAction, redeploySiteAction, pauseSiteAction, deleteSiteAction } from '../actions'
+import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +74,27 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
             defaultValue={site.name}
             required
             className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none"
+          />
+          <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+            Save
+          </button>
+        </form>
+      </section>
+
+      <section className="border border-gold/15 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Custom domain</p>
+        <p className="font-body text-ash/60 text-xs mb-4">
+          {site.domain
+            ? `${site.domain} will point here once real hosting is connected.`
+            : 'Use your own web address (e.g. yourname.com). It hooks up for real when hosting goes live.'}
+        </p>
+        <form action={setDomainAction} className="flex flex-col sm:flex-row gap-3">
+          <input type="hidden" name="id" value={site.id} />
+          <input
+            name="domain"
+            defaultValue={site.domain ?? ''}
+            placeholder="yourname.com"
+            className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
           />
           <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
             Save

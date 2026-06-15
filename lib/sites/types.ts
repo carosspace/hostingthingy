@@ -8,6 +8,7 @@ export interface Site {
   template: string
   status: SiteStatus
   url: string | null
+  domain: string | null
   createdAt: string
   updatedAt: string
 }

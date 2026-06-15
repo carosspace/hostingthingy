@@ -9,6 +9,7 @@ import {
   createSiteRecord,
   updateSiteStatus,
   renameSiteRecord,
+  setSiteDomain,
   deleteSiteRecord,
   getSite,
 } from '@/lib/sites/store'
@@ -80,6 +81,26 @@ export async function redeploySiteAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/sites/${id}`)
   revalidatePath('/sites')
+}
+
+export async function setDomainAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  // Normalise: strip protocol/whitespace, lowercase.
+  const raw = String(formData.get('domain') ?? '').trim().toLowerCase()
+  const domain = raw.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
+
+  try {
+    await setSiteDomain(id, domain)
+  } catch {
+    // The `domain` column may not exist yet (migration 002 not run).
+  }
+
+  revalidatePath(`/sites/${id}`)
 }
 
 export async function pauseSiteAction(formData: FormData): Promise<void> {

@@ -13,6 +13,7 @@ interface SiteRow {
   template: string
   status: SiteStatus
   url: string | null
+  domain: string | null
   created_at: string
   updated_at: string
 }
@@ -26,6 +27,7 @@ function rowToSite(r: SiteRow): Site {
     template: r.template,
     status: r.status,
     url: r.url,
+    domain: r.domain ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -87,6 +89,15 @@ export async function renameSiteRecord(id: string, name: string, slug: string): 
   const { error } = await supabase
     .from('sites')
     .update({ name, slug, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function setSiteDomain(id: string, domain: string | null): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ domain, updated_at: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
 }
