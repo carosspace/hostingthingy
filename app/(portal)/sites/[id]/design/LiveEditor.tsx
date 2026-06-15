@@ -19,6 +19,91 @@ const urlInput: CSSProperties = {
   border: '1px solid rgba(0,0,0,0.1)',
 }
 
+// Resize an uploaded image in the browser and return a compact data URL.
+// Keeps the page self-contained (no storage bucket needed) while staying small.
+function resizeToDataUrl(file: File, maxW = 1600, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('read failed'))
+    reader.onload = () => {
+      const img = new window.Image()
+      img.onerror = () => reject(new Error('decode failed'))
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width)
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('no canvas'))
+          return
+        }
+        ctx.drawImage(img, 0, 0, w, h)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function ImageField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [drag, setDrag] = useState(false)
+  async function handle(file?: File | null) {
+    if (!file || !file.type.startsWith('image/')) return
+    setBusy(true)
+    try {
+      onChange(await resizeToDataUrl(file))
+    } catch {
+      /* ignore bad image */
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div
+      onDragOver={e => {
+        e.preventDefault()
+        setDrag(true)
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={e => {
+        e.preventDefault()
+        setDrag(false)
+        handle(e.dataTransfer.files?.[0])
+      }}
+      className="rounded-sm text-center"
+      style={{
+        border: `1.5px dashed ${drag ? '#c9a84c' : 'rgba(0,0,0,0.18)'}`,
+        background: drag ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.5)',
+        padding: 10,
+      }}
+    >
+      {value ? (
+        <div className="flex items-center justify-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" style={{ height: 40, width: 60, objectFit: 'cover', borderRadius: 3 }} />
+          <label style={{ cursor: 'pointer', fontSize: 11, color: '#444', textDecoration: 'underline' }}>
+            {busy ? 'replacing…' : 'replace'}
+            <input type="file" accept="image/*" hidden onChange={e => handle(e.target.files?.[0])} />
+          </label>
+          <button type="button" onClick={() => onChange('')} style={{ fontSize: 11, color: '#b3402f' }}>
+            remove
+          </button>
+        </div>
+      ) : (
+        <label style={{ cursor: 'pointer', fontSize: 11, color: '#555', display: 'block' }}>
+          {busy ? 'Adding…' : 'Drag an image here, or click to upload'}
+          <input type="file" accept="image/*" hidden onChange={e => handle(e.target.files?.[0])} />
+        </label>
+      )}
+    </div>
+  )
+}
+
 export default function LiveEditor({
   siteId,
   siteSlug,
@@ -212,17 +297,16 @@ export default function LiveEditor({
           </div>
         )}
 
-        <div className="px-6 py-2 flex justify-center" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <input
-            value={heroImage}
-            onChange={e => {
-              setHeroImage(e.target.value)
-              touched()
-            }}
-            placeholder="Hero image link (drag-drop upload coming soon)"
-            className="w-full max-w-md text-xs px-3 py-1.5 rounded-sm"
-            style={urlInput}
-          />
+        <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
+          <div className="max-w-md mx-auto">
+            <ImageField
+              value={heroImage}
+              onChange={v => {
+                setHeroImage(v)
+                touched()
+              }}
+            />
+          </div>
         </div>
 
         <div className="max-w-2xl mx-auto px-6 py-10 space-y-10">
@@ -245,13 +329,9 @@ export default function LiveEditor({
               <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
                 {s.body}
               </div>
-              <input
-                value={s.image}
-                onChange={e => setSectionImage(s.id, e.target.value)}
-                placeholder="Image link for this section (optional)"
-                className="mt-3 w-full text-xs px-3 py-1.5 rounded-sm"
-                style={urlInput}
-              />
+              <div className="mt-3">
+                <ImageField value={s.image} onChange={v => setSectionImage(s.id, v)} />
+              </div>
             </div>
           ))}
           {sections.length === 0 && (
