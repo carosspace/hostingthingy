@@ -20,6 +20,12 @@ const FEATURES = [
   { title: "Own your space", body: "Your data lives in Europe, on infrastructure you control. Built to grow with you." },
 ];
 
+const STEPS = [
+  { n: "1", title: "Create", body: "Pick a template and name your site." },
+  { n: "2", title: "Make it yours", body: "Rename, pause, redeploy — manage it your way." },
+  { n: "3", title: "Go live", body: "Connect a domain and share it with the world." },
+];
+
 export default function Home() {
   return (
     <main className="min-h-screen">
@@ -58,7 +64,7 @@ export default function Home() {
       </div>
 
       {/* Features */}
-      <section className="px-6 pb-28 max-w-4xl mx-auto grid md:grid-cols-3 gap-4">
+      <section className="px-6 pb-20 max-w-4xl mx-auto grid md:grid-cols-3 gap-4">
         {FEATURES.map((f) => (
           <div key={f.title} className="border border-gold/15 rounded-sm p-6">
             <h2 className="font-display text-2xl italic text-parchment mb-3">{f.title}</h2>
@@ -66,6 +72,26 @@ export default function Home() {
           </div>
         ))}
       </section>
+
+      {/* How it works */}
+      <section className="px-6 pb-24 max-w-4xl mx-auto">
+        <p className="font-label text-[10px] tracking-[4px] uppercase text-gold/70 text-center mb-10">How it works</p>
+        <div className="grid sm:grid-cols-3 gap-8">
+          {STEPS.map((s) => (
+            <div key={s.n} className="text-center">
+              <p className="font-display text-4xl italic text-gold/80">{s.n}</p>
+              <h3 className="font-display text-xl italic text-parchment mt-3">{s.title}</h3>
+              <p className="font-body text-ash text-sm mt-2 leading-relaxed">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gold/10 px-6 py-10 text-center">
+        <p className="font-label text-[10px] tracking-[5px] uppercase text-gold/70">Hosting Thingy</p>
+        <p className="font-body text-ash/40 text-xs mt-3">Sacred hosting &middot; made in Europe</p>
+      </footer>
     </main>
   );
 }
