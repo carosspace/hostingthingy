@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
+import { THEMES } from '@/lib/sites/types'
 import { saveSiteContentAction, generateSiteAction } from '../../actions'
 
 export const dynamic = 'force-dynamic'
@@ -66,6 +67,24 @@ export default async function EditSitePage({ params }: { params: { id: string } 
           <input name="subheadline" defaultValue={c?.subheadline ?? ''} placeholder="A short line about what you offer" className={input} />
         </div>
 
+        <div>
+          <label className={label}>Theme</label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {(Object.keys(THEMES) as Array<keyof typeof THEMES>).map(key => {
+              const t = THEMES[key]
+              return (
+                <label key={key} className="cursor-pointer">
+                  <input type="radio" name="theme" value={key} defaultChecked={(c?.theme ?? 'sand') === key} className="peer sr-only" />
+                  <div className="border border-gold/20 peer-checked:border-gold peer-checked:bg-gold/10 rounded-sm p-3 flex items-center gap-2 transition-colors">
+                    <span className="w-4 h-4 rounded-full shrink-0" style={{ background: t.accent, border: `1px solid ${t.bg}` }} />
+                    <span className="font-body text-parchment text-sm">{t.label}</span>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
         {[0, 1, 2].map(i => (
           <div key={i} className="border border-gold/10 rounded-sm p-5 space-y-3">
             <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/50">Section {i + 1}</p>
@@ -73,6 +92,11 @@ export default async function EditSitePage({ params }: { params: { id: string } 
             <textarea name={`s${i + 1}b`} defaultValue={s[i]?.body ?? ''} placeholder="Write something…" rows={4} className={`${input} resize-none`} />
           </div>
         ))}
+
+        <div>
+          <label className={label}>Contact email (optional)</label>
+          <input name="contactEmail" type="email" defaultValue={c?.contactEmail ?? ''} placeholder="hello@animatemple.com" className={input} />
+        </div>
 
         <div className="flex items-center gap-4">
           <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">

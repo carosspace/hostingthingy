@@ -137,10 +137,19 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     }))
     .filter(s => s.heading || s.body)
 
+  const themeRaw = String(formData.get('theme') ?? 'sand')
+  const theme = (['sand', 'midnight', 'sage', 'rose'].includes(themeRaw) ? themeRaw : 'sand') as
+    | 'sand'
+    | 'midnight'
+    | 'sage'
+    | 'rose'
+
   await saveSiteContent(id, {
+    theme,
     headline: String(formData.get('headline') ?? '').trim(),
     subheadline: String(formData.get('subheadline') ?? '').trim(),
     sections,
+    contactEmail: String(formData.get('contactEmail') ?? '').trim(),
   })
 
   revalidatePath(`/sites/${id}`)

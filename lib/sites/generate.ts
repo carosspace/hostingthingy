@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { SiteContent } from './types'
+import type { SiteContent, SiteTheme } from './types'
 
 // Turns a short business description into a full little website, using Claude.
 // A forced tool call guarantees clean, structured output (no parsing guesswork).
@@ -16,6 +16,11 @@ export async function generateSiteContent(siteName: string, description: string)
         input_schema: {
           type: 'object',
           properties: {
+            theme: {
+              type: 'string',
+              enum: ['sand', 'midnight', 'sage', 'rose'],
+              description: 'A colour mood that fits the business: sand (warm neutral), midnight (dark elegant), sage (calm green), rose (soft).',
+            },
             headline: { type: 'string', description: 'Short, evocative hero headline (~3-8 words).' },
             subheadline: { type: 'string', description: 'One warm sentence beneath the headline.' },
             sections: {
@@ -31,7 +36,7 @@ export async function generateSiteContent(siteName: string, description: string)
               },
             },
           },
-          required: ['headline', 'subheadline', 'sections'],
+          required: ['theme', 'headline', 'subheadline', 'sections'],
         },
       },
     ],
@@ -50,16 +55,23 @@ export async function generateSiteContent(siteName: string, description: string)
   }
 
   const input = block.input as {
+    theme?: string
     headline?: string
     subheadline?: string
     sections?: { heading?: string; body?: string }[]
   }
 
+  const theme: SiteTheme = (['sand', 'midnight', 'sage', 'rose'].includes(input.theme ?? '')
+    ? input.theme
+    : 'sand') as SiteTheme
+
   return {
+    theme,
     headline: (input.headline ?? '').trim(),
     subheadline: (input.subheadline ?? '').trim(),
     sections: (input.sections ?? [])
       .slice(0, 3)
       .map(s => ({ heading: (s.heading ?? '').trim(), body: (s.body ?? '').trim() })),
+    contactEmail: '',
   }
 }
