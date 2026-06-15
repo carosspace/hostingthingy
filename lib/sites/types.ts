@@ -20,10 +20,21 @@ export const THEMES: Record<
 
 export const DEFAULT_THEME: SiteTheme = 'sand'
 
+export interface SitePage {
+  id: string
+  title: string
+  slug: string
+  headline: string
+  subheadline: string
+  heroImage?: string
+  sections: SiteSection[]
+}
+
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
   brand?: string
+  // The home page's fields live at the top level (legacy + mirror of pages[0]).
   headline: string
   subheadline: string
   heroImage?: string
@@ -31,6 +42,25 @@ export interface SiteContent {
   contactLabel?: string
   contactEmail: string
   footer?: string
+  // When set, the full list of pages (pages[0] is home, slug ''). Migrated from
+  // the legacy top-level fields for older single-page sites.
+  pages?: SitePage[]
+}
+
+// Always returns the page list, migrating a legacy single-page site on the fly.
+export function getPages(content: SiteContent | null): SitePage[] {
+  if (content?.pages && content.pages.length) return content.pages
+  return [
+    {
+      id: 'home',
+      title: 'Home',
+      slug: '',
+      headline: content?.headline ?? '',
+      subheadline: content?.subheadline ?? '',
+      heroImage: content?.heroImage,
+      sections: content?.sections ?? [],
+    },
+  ]
 }
 
 export interface Site {

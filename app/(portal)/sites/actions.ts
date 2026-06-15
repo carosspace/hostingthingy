@@ -6,7 +6,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import type { SiteContent, SiteTheme } from '@/lib/sites/types'
+import { getPages } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, SitePage } from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -117,11 +118,29 @@ export async function generateSiteAction(formData: FormData): Promise<void> {
   const site = await getSite(id)
   if (!site) return
 
-  const content = await generateSiteContent(site.name, description)
-  await saveSiteContent(id, content)
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  const gen = await generateSiteContent(site.name, description)
+  const existing = site.content ?? null
+  const updatedPages: SitePage[] = getPages(existing).map(p =>
+    p.slug === pageSlug
+      ? { ...p, headline: gen.headline, subheadline: gen.subheadline, heroImage: gen.heroImage, sections: gen.sections }
+      : p,
+  )
+  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+  const base: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
 
+  await saveSiteContent(id, {
+    ...base,
+    theme: gen.theme,
+    headline: home.headline,
+    subheadline: home.subheadline,
+    heroImage: home.heroImage,
+    sections: home.sections,
+    pages: updatedPages,
+  })
+
+  revalidatePath(`/sites/${id}/design`)
   revalidatePath(`/sites/${id}`)
-  revalidatePath(`/sites/${id}/edit`)
 }
 
 export async function saveSiteContentAction(formData: FormData): Promise<void> {
@@ -155,20 +174,25 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     | 'sage'
     | 'rose'
 
-  // Preserve fields the simple form editor doesn't expose (set in the visual editor).
+  // Preserve fields the form editor doesn't expose, and update the home page.
   const existing = (await getSite(id))?.content ?? null
+  const homeFields = {
+    headline: String(formData.get('headline') ?? '').trim(),
+    subheadline: String(formData.get('subheadline') ?? '').trim(),
+    heroImage: String(formData.get('heroImage') ?? '').trim() || undefined,
+    sections,
+  }
+  const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === '' ? { ...p, ...homeFields } : p))
 
   await saveSiteContent(id, {
     theme,
     accentColor: existing?.accentColor,
     brand: existing?.brand,
-    headline: String(formData.get('headline') ?? '').trim(),
-    subheadline: String(formData.get('subheadline') ?? '').trim(),
-    heroImage: String(formData.get('heroImage') ?? '').trim() || undefined,
-    sections,
+    ...homeFields,
     contactLabel: existing?.contactLabel,
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
     footer: existing?.footer,
+    pages: updatedPages,
   })
 
   revalidatePath(`/sites/${id}`)
@@ -202,23 +226,76 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     .filter(s => s.heading || s.body || s.image)
     .slice(0, 20)
 
-  const content: SiteContent = {
-    theme,
-    accentColor: String(parsed.accentColor ?? '').trim() || undefined,
-    brand: String(parsed.brand ?? '').trim() || undefined,
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  const existing = (await getSite(id))?.content ?? null
+  const pageFields = {
     headline: String(parsed.headline ?? '').trim(),
     subheadline: String(parsed.subheadline ?? '').trim(),
     heroImage: String(parsed.heroImage ?? '').trim() || undefined,
     sections,
+  }
+  const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, ...pageFields } : p))
+  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+
+  const content: SiteContent = {
+    theme,
+    accentColor: String(parsed.accentColor ?? '').trim() || undefined,
+    brand: String(parsed.brand ?? '').trim() || undefined,
+    headline: home.headline,
+    subheadline: home.subheadline,
+    heroImage: home.heroImage,
+    sections: home.sections,
     contactLabel: String(parsed.contactLabel ?? '').trim() || undefined,
     contactEmail: String(parsed.contactEmail ?? '').trim(),
     footer: String(parsed.footer ?? '').trim() || undefined,
+    pages: updatedPages,
   }
 
   await saveSiteContent(id, content)
   revalidatePath(`/sites/${id}/design`)
   revalidatePath(`/sites/${id}/edit`)
   revalidatePath(`/sites/${id}`)
+}
+
+// Add a new page to a site.
+export async function addPageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  const title = String(formData.get('title') ?? '').trim() || 'New page'
+  const base = slugify(title) || 'page'
+  const existing = (await getSite(id))?.content ?? null
+  const pages = getPages(existing)
+  let slug = base
+  let n = 1
+  while (pages.some(p => p.slug === slug)) {
+    n += 1
+    slug = `${base}-${n}`
+  }
+
+  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [] }
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, pages: [...pages, newPage] })
+  revalidatePath(`/sites/${id}/design`)
+  redirect(`/sites/${id}/design?page=${slug}`)
+}
+
+// Remove a page (cannot remove the home page).
+export async function removePageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const slug = String(formData.get('slug') ?? '')
+  if (!id || !slug) return
+
+  const existing = (await getSite(id))?.content ?? null
+  const pages = getPages(existing).filter(p => p.slug !== slug)
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, pages })
+  revalidatePath(`/sites/${id}/design`)
+  redirect(`/sites/${id}/design`)
 }
 
 export async function pauseSiteAction(formData: FormData): Promise<void> {

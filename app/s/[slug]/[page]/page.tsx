@@ -1,25 +1,26 @@
 import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getPages } from '@/lib/sites/types'
-import PublicPage from './PublicPage'
+import PublicPage from '../PublicPage'
 
 export const dynamic = 'force-dynamic'
 
-export default async function HomePage({ params }: { params: { slug: string } }) {
+export default async function SubPage({ params }: { params: { slug: string; page: string } }) {
   const site = await getPublicSite(params.slug)
   if (!site) notFound()
 
   const pages = getPages(site.content)
-  const home = pages.find(p => p.slug === '') ?? pages[0]
+  const page = pages.find(p => p.slug === params.page)
+  if (!page) notFound()
 
   return (
     <PublicPage
       siteSlug={site.slug}
       siteName={site.name}
       content={site.content}
-      page={home}
+      page={page}
       pages={pages}
-      currentSlug={home.slug}
+      currentSlug={page.slug}
     />
   )
 }

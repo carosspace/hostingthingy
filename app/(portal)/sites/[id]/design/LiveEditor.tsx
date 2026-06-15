@@ -109,12 +109,14 @@ export default function LiveEditor({
   siteSlug,
   siteName,
   siteStatus,
+  pageSlug,
   initial,
 }: {
   siteId: string
   siteSlug: string
   siteName: string
   siteStatus: string
+  pageSlug: string
   initial: SiteContent | null
 }) {
   const idc = useRef(0)
@@ -187,6 +189,7 @@ export default function LiveEditor({
     }
     const fd = new FormData()
     fd.set('id', siteId)
+    fd.set('pageSlug', pageSlug)
     fd.set('content', JSON.stringify(content))
     try {
       await saveSiteContentJsonAction(fd)
@@ -250,7 +253,7 @@ export default function LiveEditor({
         </button>
         {siteStatus === 'live' && (
           <a
-            href={`/s/${siteSlug}`}
+            href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`}
             target="_blank"
             rel="noreferrer"
             className="font-label text-[10px] tracking-[2px] uppercase text-gold hover:text-goldLight"
