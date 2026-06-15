@@ -8,11 +8,18 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
 
+  // Behind a reverse proxy (Coolify/Traefik) request.url is the app's internal
+  // address (0.0.0.0:3000). Use the forwarded headers to get the real public
+  // origin so redirects land on the right domain.
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') ?? 'https'
+  const base = forwardedHost ? `${forwardedProto}://${forwardedHost}` : origin
+
   if (code) {
     const supabase = createSupabaseServerClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) return NextResponse.redirect(`${origin}${next}`)
+    if (!error) return NextResponse.redirect(`${base}${next}`)
   }
 
-  return NextResponse.redirect(`${origin}/login?error=link`)
+  return NextResponse.redirect(`${base}/login?error=link`)
 }
