@@ -77,7 +77,7 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
       }}
       className="rounded-sm text-center"
       style={{
-        border: `1.5px dashed ${drag ? '#c9a84c' : 'rgba(0,0,0,0.18)'}`,
+        border: `1.5px dashed ${drag ? '#a85c36' : 'rgba(0,0,0,0.18)'}`,
         background: drag ? 'rgba(201,168,76,0.1)' : 'rgba(255,255,255,0.5)',
         padding: 10,
       }}
@@ -227,7 +227,7 @@ export default function LiveEditor({
 
       <div
         className="sticky top-0 z-20 -mx-6 px-6 py-3 mb-3 border-b border-gold/15 flex flex-wrap items-center gap-3"
-        style={{ background: 'rgba(13,11,8,0.96)' }}
+        style={{ background: 'rgba(246,240,230,0.97)', backdropFilter: 'blur(4px)' }}
       >
         <span className="font-label text-[10px] tracking-[2px] uppercase text-gold/70">Look</span>
         {(Object.keys(THEMES) as Array<keyof typeof THEMES>).map(key => (

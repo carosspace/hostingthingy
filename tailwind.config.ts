@@ -11,12 +11,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0d0b08",
-        surface: "#1a1612",
-        parchment: "#faf7f2",
-        gold: "#c9a84c",
-        goldLight: "#e8c96a",
-        ash: "#6b6560",
+        // Warm sand & clay — soft, light, inviting (replaces the old dark/gold).
+        background: "#f6f0e6", // warm cream page background
+        surface: "#ffffff", // cards, inputs, panels
+        parchment: "#3a2e20", // primary text (warm deep brown)
+        gold: "#a85c36", // accent (soft clay/terracotta)
+        goldLight: "#c67b4d", // accent hover (lighter clay)
+        ash: "#786652", // muted text (warm taupe)
       },
       fontFamily: {
         display: ["var(--font-cormorant)", "Georgia", "serif"],

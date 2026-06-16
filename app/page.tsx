@@ -3,13 +3,13 @@ import Link from "next/link";
 function Mark({ size = 64 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="block mx-auto">
-      <circle cx="30" cy="30" r="27" stroke="#c9a84c" strokeWidth="1" />
-      <circle cx="30" cy="30" r="18" stroke="#c9a84c" strokeWidth="0.5" opacity="0.5" />
-      <circle cx="30" cy="30" r="3" fill="#c9a84c" />
-      <line x1="30" y1="3" x2="30" y2="13" stroke="#c9a84c" strokeWidth="0.75" />
-      <line x1="30" y1="47" x2="30" y2="57" stroke="#c9a84c" strokeWidth="0.75" />
-      <line x1="3" y1="30" x2="13" y2="30" stroke="#c9a84c" strokeWidth="0.75" />
-      <line x1="47" y1="30" x2="57" y2="30" stroke="#c9a84c" strokeWidth="0.75" />
+      <circle cx="30" cy="30" r="27" stroke="#a85c36" strokeWidth="1" />
+      <circle cx="30" cy="30" r="18" stroke="#a85c36" strokeWidth="0.5" opacity="0.5" />
+      <circle cx="30" cy="30" r="3" fill="#a85c36" />
+      <line x1="30" y1="3" x2="30" y2="13" stroke="#a85c36" strokeWidth="0.75" />
+      <line x1="30" y1="47" x2="30" y2="57" stroke="#a85c36" strokeWidth="0.75" />
+      <line x1="3" y1="30" x2="13" y2="30" stroke="#a85c36" strokeWidth="0.75" />
+      <line x1="47" y1="30" x2="57" y2="30" stroke="#a85c36" strokeWidth="0.75" />
     </svg>
   );
 }
