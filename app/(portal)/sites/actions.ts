@@ -7,7 +7,7 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout, SiteAlign } from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -279,11 +279,14 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     .map(s => {
       const ctRaw = String(s?.ctaType ?? '')
       const ct = (['booking', 'email', 'link'].includes(ctRaw) ? ctRaw : undefined) as CtaType | undefined
+      const alignRaw = String(s?.align ?? '')
       return {
         heading: String(s?.heading ?? '').trim(),
         body: String(s?.body ?? '').trim(),
         image: String(s?.image ?? '').trim() || undefined,
         bgImage: String(s?.bgImage ?? '').trim() || undefined,
+        bgColor: String(s?.bgColor ?? '').trim() || undefined,
+        align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         ctaType: ct,
         ctaLabel: ct ? String(s?.ctaLabel ?? '').trim() || 'Learn more' : undefined,
         ctaHref: ct === 'link' ? String(s?.ctaHref ?? '').trim() || undefined : undefined,
@@ -293,6 +296,12 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     .slice(0, 20)
 
   const layout: SiteLayout = parsed.layout === 'full' ? 'full' : 'contained'
+
+  const rawNavLinks = Array.isArray(parsed.navLinks) ? (parsed.navLinks as Record<string, unknown>[]) : []
+  const navLinks = rawNavLinks
+    .map(l => ({ label: String(l?.label ?? '').trim(), href: String(l?.href ?? '').trim(), newTab: Boolean(l?.newTab) }))
+    .filter(l => l.label && l.href)
+    .slice(0, 10)
 
   const ctaTypeRaw = String(parsed.ctaType ?? '')
   const ctaType = (['booking', 'email', 'link'].includes(ctaTypeRaw) ? ctaTypeRaw : undefined) as CtaType | undefined
@@ -317,6 +326,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     layout,
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,
+    logoImage: String(parsed.logoImage ?? '').trim() || undefined,
+    navLinks: navLinks.length ? navLinks : undefined,
     seoTitle: String(parsed.seoTitle ?? '').trim() || undefined,
     seoDescription: String(parsed.seoDescription ?? '').trim() || undefined,
     headline: home.headline,
@@ -377,6 +388,89 @@ export async function removePageAction(formData: FormData): Promise<void> {
   await saveSiteContent(id, { ...baseContent, pages })
   revalidatePath(`/sites/${id}/design`)
   redirect(`/sites/${id}/design`)
+}
+
+// Rename a page (its internal title) and/or its menu label, and toggle whether it
+// shows in the header menu. The slug (URL) stays the same so links don't break.
+export async function updatePageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const slug = String(formData.get('slug') ?? '')
+  if (!id) return
+
+  const title = String(formData.get('title') ?? '').trim()
+  const navLabel = String(formData.get('navLabel') ?? '').trim()
+  const hidden = String(formData.get('hidden') ?? '') === '1'
+
+  const existing = (await getSite(id))?.content ?? null
+  const pages = getPages(existing).map(p =>
+    p.slug === slug
+      ? { ...p, title: title || p.title, navLabel: navLabel || undefined, hidden: hidden || undefined }
+      : p,
+  )
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, pages })
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}`)
+}
+
+// Move a page earlier/later in the menu. Home (slug '') stays pinned first.
+export async function movePageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const slug = String(formData.get('slug') ?? '')
+  const dir = String(formData.get('dir') ?? '') === 'up' ? -1 : 1
+  if (!id || !slug) return
+
+  const existing = (await getSite(id))?.content ?? null
+  const pages = getPages(existing)
+  const i = pages.findIndex(p => p.slug === slug)
+  const j = i + dir
+  // Never move the home page, and never displace it from index 0.
+  if (i <= 0 || j <= 0 || j >= pages.length) {
+    revalidatePath(`/sites/${id}/design`)
+    return
+  }
+  const next = [...pages]
+  const tmp = next[i]
+  next[i] = next[j]
+  next[j] = tmp
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, pages: next })
+  revalidatePath(`/sites/${id}/design`)
+}
+
+// Save the owner's custom header menu links (external URLs, booking, mailto, etc.).
+export async function setNavLinksAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+
+  let links: { label: string; href: string; newTab?: boolean }[] = []
+  try {
+    const raw = JSON.parse(String(formData.get('navLinks') ?? '[]'))
+    if (Array.isArray(raw)) {
+      links = raw
+        .map((l: Record<string, unknown>) => ({
+          label: String(l?.label ?? '').trim(),
+          href: String(l?.href ?? '').trim(),
+          newTab: Boolean(l?.newTab),
+        }))
+        .filter(l => l.label && l.href)
+        .slice(0, 10)
+    }
+  } catch {
+    return
+  }
+
+  const existing = (await getSite(id))?.content ?? null
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, navLinks: links.length ? links : undefined })
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}`)
 }
 
 export async function pauseSiteAction(formData: FormData): Promise<void> {

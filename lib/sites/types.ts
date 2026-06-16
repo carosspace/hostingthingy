@@ -1,13 +1,25 @@
 export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 
+export type SiteAlign = 'left' | 'center' | 'right'
+
 export interface SiteSection {
   heading: string
   body: string
   image?: string // an inline image shown above the section text
   bgImage?: string // a full-width background photo behind the section (text overlaid)
+  bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
+  align?: SiteAlign // text alignment within the section
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string
+}
+
+// A header navigation link the owner adds by hand (external URL, mailto:, the
+// booking page, or an on-page anchor) — separate from the automatic page links.
+export interface NavLink {
+  label: string
+  href: string
+  newTab?: boolean
 }
 
 // A call-to-action button. 'booking' links to the site's /book page,
@@ -36,6 +48,8 @@ export interface SitePage {
   id: string
   title: string
   slug: string
+  navLabel?: string // the menu label (falls back to title); lets you rename without changing the URL
+  hidden?: boolean // keep the page reachable by URL but out of the header menu
   headline: string
   subheadline: string
   heroImage?: string
@@ -51,6 +65,8 @@ export interface SiteContent {
   layout?: SiteLayout
   fontSystem?: string
   brand?: string
+  logoImage?: string // a logo shown in the header instead of the brand text
+  navLinks?: NavLink[] // extra header links added by hand (in addition to the page menu)
   seoTitle?: string
   seoDescription?: string
   // The home page's fields live at the top level (legacy + mirror of pages[0]).

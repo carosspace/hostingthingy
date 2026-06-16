@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
@@ -183,6 +183,8 @@ export default function LiveEditor({
   siteName,
   siteStatus,
   pageSlug,
+  navPages,
+  navLinks,
   initial,
 }: {
   siteId: string
@@ -190,12 +192,16 @@ export default function LiveEditor({
   siteName: string
   siteStatus: string
   pageSlug: string
+  navPages: { slug: string; label: string }[]
+  navLinks: NavLink[]
   initial: SiteContent | null
 }) {
   const idc = useRef(0)
   const rootRef = useRef<HTMLDivElement>(null)
   const [theme, setTheme] = useState<SiteTheme>(initial?.theme ?? 'sand')
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
+  const [logoImage, setLogoImage] = useState(initial?.logoImage ?? '')
+  const [logoOpen, setLogoOpen] = useState(false)
   const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
   const [fontSystem, setFontSystem] = useState(initial?.fontSystem ?? 'serif')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
@@ -413,7 +419,9 @@ export default function LiveEditor({
       accentColor: accentColor || undefined,
       layout,
       fontSystem,
-      brand: read('brand') || undefined,
+      brand: read('brand') || initial?.brand || undefined,
+      logoImage: logoImage.trim() || undefined,
+      navLinks: navLinks.length ? navLinks : undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
       headline: read('headline'),
@@ -591,8 +599,45 @@ export default function LiveEditor({
 
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
         <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}33` }}>
-          <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-            {initial?.brand || siteName}
+          {logoImage ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} />
+          ) : (
+            <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+              {initial?.brand || siteName}
+            </div>
+          )}
+          {(navPages.length > 1 || navLinks.length > 0) && (
+            <div className="flex flex-wrap items-center justify-center gap-4 mt-3">
+              {navPages.map(p => (
+                <span key={p.slug} className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: p.slug === pageSlug ? accent : t.muted }}>
+                  {p.label}
+                </span>
+              ))}
+              {navLinks.map((l, i) => (
+                <span key={`nl-${i}`} className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: t.muted }}>
+                  {l.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
+          <div className="max-w-md mx-auto">
+            {logoImage || logoOpen ? (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span style={ctlLabel}>Logo (shown instead of the name)</span>
+                  {!logoImage && <button type="button" onClick={() => setLogoOpen(false)} style={cancelStyle}>× cancel</button>}
+                </div>
+                <ImageField value={logoImage} onChange={v => { setLogoImage(v); touched() }} />
+              </div>
+            ) : (
+              <div className="text-center">
+                <button type="button" onClick={() => setLogoOpen(true)} className="font-label" style={chipStyle}>+ Logo image</button>
+              </div>
+            )}
           </div>
         </div>
 

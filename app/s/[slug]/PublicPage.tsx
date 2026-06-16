@@ -28,6 +28,11 @@ export default function PublicPage({
   const hasContent = Boolean(page.headline || page.subheadline || sections.length || heroImage)
   const hrefFor = (p: SitePage) => (p.slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${p.slug}`)
 
+  const logo = content?.logoImage
+  const visiblePages = pages.filter(p => !p.hidden)
+  const navLinks = content?.navLinks ?? []
+  const showNav = visiblePages.length > 1 || navLinks.length > 0
+
   const layout = content?.layout ?? 'contained'
   const bodyMax = layout === 'full' ? 'max-w-6xl' : 'max-w-2xl'
 
@@ -63,19 +68,38 @@ export default function PublicPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className="px-6 py-5 flex flex-col items-center gap-3" style={{ borderBottom: `1px solid ${accent}2e` }}>
-        <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-          {brand}
-        </span>
-        {pages.length > 1 && (
+        <a href={`/s/${siteSlug}`} className="inline-block">
+          {logo ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={logo} alt={brand} style={{ height: 46, maxWidth: 220, objectFit: 'contain' }} />
+          ) : (
+            <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+              {brand}
+            </span>
+          )}
+        </a>
+        {showNav && (
           <nav className="flex flex-wrap items-center justify-center gap-5">
-            {pages.map(p => (
+            {visiblePages.map(p => (
               <a
                 key={p.id}
                 href={hrefFor(p)}
                 className="font-label"
                 style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: p.slug === currentSlug ? accent : theme.muted }}
               >
-                {p.title}
+                {p.navLabel || p.title}
+              </a>
+            ))}
+            {navLinks.map((l, i) => (
+              <a
+                key={`nl-${i}`}
+                href={l.href}
+                target={l.newTab ? '_blank' : undefined}
+                rel={l.newTab ? 'noreferrer' : undefined}
+                className="font-label"
+                style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: theme.muted }}
+              >
+                {l.label}
               </a>
             ))}
           </nav>

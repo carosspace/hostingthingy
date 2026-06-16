@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, type SiteContent } from '@/lib/sites/types'
-import { generateSiteAction, addPageAction, removePageAction } from '../../actions'
+import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction } from '../../actions'
 import LiveEditor from './LiveEditor'
+import NavLinksEditor from './NavLinksEditor'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,7 @@ export default async function DesignPage({
     layout: c?.layout,
     fontSystem: c?.fontSystem,
     brand: c?.brand,
+    logoImage: c?.logoImage,
     seoTitle: c?.seoTitle,
     seoDescription: c?.seoDescription,
     headline: current.headline,
@@ -61,41 +63,100 @@ export default async function DesignPage({
         <h1 className="font-display text-3xl italic text-parchment mt-2">Design your website</h1>
       </div>
 
-      {/* Pages */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-gold/10 pb-3">
-        <span className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mr-1">Pages</span>
-        {pages.map(p => (
-          <Link
-            key={p.id}
-            href={`/sites/${site.id}/design?page=${p.slug}`}
-            className={`font-label text-[10px] tracking-[2px] uppercase px-3 py-1.5 rounded-sm transition-colors ${
-              p.slug === current.slug ? 'bg-gold text-background' : 'border border-gold/20 text-ash hover:text-gold'
-            }`}
-          >
-            {p.title || 'Untitled'}
-          </Link>
-        ))}
-        <form action={addPageAction} className="flex items-center gap-1">
-          <input type="hidden" name="id" value={site.id} />
-          <input
-            name="title"
-            placeholder="New page name"
-            className="bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-xs px-3 py-1.5 rounded-sm outline-none placeholder:text-ash/40"
-            style={{ width: 130 }}
-          />
-          <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">
-            + Add
-          </button>
-        </form>
-        {current.slug !== '' && (
-          <form action={removePageAction} className="ml-auto">
+      {/* Pages & menu */}
+      <div className="space-y-3 border-b border-gold/10 pb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mr-1">Pages</span>
+          {pages.map(p => (
+            <Link
+              key={p.id}
+              href={`/sites/${site.id}/design?page=${p.slug}`}
+              className={`font-label text-[10px] tracking-[2px] uppercase px-3 py-1.5 rounded-sm transition-colors ${
+                p.slug === current.slug ? 'bg-gold text-background' : 'border border-gold/20 text-ash hover:text-gold'
+              }`}
+            >
+              {p.navLabel || p.title || 'Untitled'}
+              {p.hidden && <span className="opacity-50"> · hidden</span>}
+            </Link>
+          ))}
+          <form action={addPageAction} className="flex items-center gap-1">
             <input type="hidden" name="id" value={site.id} />
-            <input type="hidden" name="slug" value={current.slug} />
-            <button className="font-label text-[9px] tracking-[2px] uppercase text-red-400 hover:text-red-300 px-2 py-1.5">
-              Delete this page
+            <input
+              name="title"
+              placeholder="New page name"
+              className="bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-xs px-3 py-1.5 rounded-sm outline-none placeholder:text-ash/40"
+              style={{ width: 130 }}
+            />
+            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">
+              + Add
             </button>
           </form>
-        )}
+        </div>
+
+        {/* Edit the current page in the menu */}
+        <details key={current.slug} className="border border-gold/15 rounded-sm p-4">
+          <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">
+            Edit “{current.navLabel || current.title}” — name, menu label &amp; order
+          </summary>
+          <div className="mt-3 space-y-3">
+            <form action={updatePageAction} className="flex flex-wrap items-end gap-3">
+              <input type="hidden" name="id" value={site.id} />
+              <input type="hidden" name="slug" value={current.slug} />
+              <label className="block">
+                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">Page name</span>
+                <input
+                  name="title"
+                  defaultValue={current.title}
+                  className="mt-1 block bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none"
+                  style={{ width: 180 }}
+                />
+              </label>
+              <label className="block">
+                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">Menu label</span>
+                <input
+                  name="navLabel"
+                  defaultValue={current.navLabel ?? ''}
+                  placeholder={current.title}
+                  className="mt-1 block bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+                  style={{ width: 180 }}
+                />
+              </label>
+              <label className="flex items-center gap-2 font-body text-ash/70 text-sm pb-2">
+                <input type="checkbox" name="hidden" value="1" defaultChecked={!!current.hidden} style={{ accentColor: '#a85c36' }} />
+                Hide from menu
+              </label>
+              <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-2 rounded-sm">
+                Save
+              </button>
+            </form>
+
+            {current.slug !== '' ? (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <form action={movePageAction}>
+                  <input type="hidden" name="id" value={site.id} />
+                  <input type="hidden" name="slug" value={current.slug} />
+                  <input type="hidden" name="dir" value="up" />
+                  <button className="font-label text-[9px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">← Move earlier</button>
+                </form>
+                <form action={movePageAction}>
+                  <input type="hidden" name="id" value={site.id} />
+                  <input type="hidden" name="slug" value={current.slug} />
+                  <input type="hidden" name="dir" value="down" />
+                  <button className="font-label text-[9px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Move later →</button>
+                </form>
+                <form action={removePageAction} className="ml-auto">
+                  <input type="hidden" name="id" value={site.id} />
+                  <input type="hidden" name="slug" value={current.slug} />
+                  <button className="font-label text-[9px] tracking-[2px] uppercase text-red-400 hover:text-red-300 px-2 py-1.5">Delete page</button>
+                </form>
+              </div>
+            ) : (
+              <p className="font-body text-ash/40 text-xs">This is your home page — it always stays first in the menu.</p>
+            )}
+          </div>
+        </details>
+
+        <NavLinksEditor siteId={site.id} initial={c?.navLinks ?? []} />
       </div>
 
       <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
@@ -124,6 +185,8 @@ export default async function DesignPage({
         siteName={site.name}
         siteStatus={site.status}
         pageSlug={current.slug}
+        navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
+        navLinks={c?.navLinks ?? []}
         initial={pageView}
       />
     </div>
