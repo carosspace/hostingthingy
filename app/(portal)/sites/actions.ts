@@ -336,7 +336,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         heading: String(s?.heading ?? '').trim(),
         body: String(s?.body ?? '').trim(),
         image: String(s?.image ?? '').trim() || undefined,
-        bgImage: String(s?.bgImage ?? '').trim() || undefined,
+        // A full-bleed background photo only renders on prose sections; drop it on
+        // other kinds so it doesn't linger as invisible orphan data after a retype.
+        bgImage: !kind ? String(s?.bgImage ?? '').trim() || undefined : undefined,
         bgColor: String(s?.bgColor ?? '').trim() || undefined,
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         kind,

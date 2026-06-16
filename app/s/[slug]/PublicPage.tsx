@@ -115,13 +115,13 @@ export default function PublicPage({
     menuPos === 'scroll'
       ? 'sticky top-0 z-30 px-6 py-4 flex flex-col items-center gap-3'
       : menuPos === 'side'
-        ? 'px-6 py-5 flex flex-col items-center gap-4 md:fixed md:left-0 md:top-0 md:h-screen md:w-52 md:items-start md:justify-center'
+        ? 'px-6 py-5 flex flex-col items-center gap-4 border-b md:border-b-0 md:border-r md:fixed md:left-0 md:top-0 md:h-screen md:w-52 md:items-start md:justify-center'
         : 'px-6 py-5 flex flex-col items-center gap-3'
   const headerStyle: CSSProperties =
     menuPos === 'scroll'
       ? { borderBottom: `1px solid ${accent}2e`, background: `${theme.bg}e6`, backdropFilter: 'blur(6px)' }
       : menuPos === 'side'
-        ? { borderRight: `1px solid ${accent}2e`, background: theme.bg }
+        ? { borderColor: `${accent}2e`, background: theme.bg } // bottom on mobile, right on desktop (see headerCls)
         : { borderBottom: `1px solid ${accent}2e` }
   const contentPad = menuPos === 'side' ? 'md:pl-52' : ''
   const navCls = `flex flex-wrap items-center justify-center gap-5 ${menuPos === 'side' ? 'md:flex-col md:items-start' : ''}`
