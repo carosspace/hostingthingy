@@ -333,11 +333,15 @@ export default function LiveEditor({
     touched()
   }
   function setSectionField(id: string, patch: Partial<EdSection>) {
-    setSections(p => p.map(s => (s.id === id ? { ...s, ...patch } : s)))
+    // Capture the live (DOM) heading/body first, so a change that restructures the
+    // section (kind, image layout, background) doesn't drop unsaved contentEditable edits.
+    const h = domText('h-' + id)
+    const b = domText('b-' + id)
+    setSections(p => p.map(s => (s.id === id ? { ...s, heading: h, body: b, ...patch } : s)))
     touched()
   }
   function addItem(sectionId: string) {
-    setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: [...s.items, { id: newId(), title: '', body: '', image: '' }] } : s)))
+    setSections(p => p.map(s => (s.id === sectionId && s.items.length < 12 ? { ...s, items: [...s.items, { id: newId(), title: '', body: '', image: '' }] } : s)))
     touched()
   }
   function removeItem(sectionId: string, itemId: string) {
@@ -406,9 +410,12 @@ export default function LiveEditor({
         const sh = rootRef.current?.querySelector('[data-field="subheadline"]') as HTMLElement | null
         if (h) h.innerText = res.headline
         if (sh) sh.innerText = res.subheadline
+        const sameShape = res.sections.length === sections.length
         setSections(
           res.sections.map((sec, i) => {
-            const old = sections[i]
+            // Only carry a section's media/layout/items across the rewrite when the
+            // AI returned the same number of sections (so index i still maps 1:1).
+            const old = sameShape ? sections[i] : undefined
             return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
@@ -766,7 +773,7 @@ export default function LiveEditor({
 
         <div className={`${layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto px-6 py-10 space-y-10`}>
           {sections.map(s => {
-            const onBg = Boolean(s.bgImage)
+            const onBg = Boolean(s.bgImage) && s.kind === 'prose'
             const showImg = openImg.has(s.id) || Boolean(s.image)
             const showSecBg = openBg.has(s.id) || Boolean(s.bgImage)
             const showSecBtn = openBtn.has(s.id) || s.ctaType !== 'none'
@@ -821,9 +828,11 @@ export default function LiveEditor({
                       />
                     </div>
                   ))}
-                  <button type="button" onClick={() => addItem(s.id)} className="rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13 }}>
-                    + Add {s.kind === 'faq' ? 'question' : 'card'}
-                  </button>
+                  {s.items.length < 12 && (
+                    <button type="button" onClick={() => addItem(s.id)} className="rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13 }}>
+                      + Add {s.kind === 'faq' ? 'question' : 'card'}
+                    </button>
+                  )}
                 </div>
               ) : null
             return (
@@ -954,7 +963,7 @@ export default function LiveEditor({
                   {(!showImg || !showSecBg || !showSecBtn) && (
                     <div className="flex flex-wrap gap-2">
                       {!showImg && <button type="button" onClick={() => setOpenImg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Image</button>}
-                      {!showSecBg && <button type="button" onClick={() => setOpenBg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Background</button>}
+                      {!showSecBg && s.kind === 'prose' && <button type="button" onClick={() => setOpenBg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Background</button>}
                       {!showSecBtn && <button type="button" onClick={() => setOpenBtn(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Button</button>}
                     </div>
                   )}

@@ -184,34 +184,39 @@ export default function PublicPage({
                     <>
                       {headingEl}
                       {bodyEl}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8 text-left">
-                        {items.map((it, j) => (
-                          <div key={j} style={{ border: `1px solid ${accent}33`, borderRadius: 4, padding: 18 }}>
-                            {it.image && (
-                              /* eslint-disable-next-line @next/next/no-img-element */
-                              <img src={it.image} alt="" className="w-full rounded-sm mb-3" style={{ height: 150, objectFit: 'cover' }} />
-                            )}
-                            {it.title && <h3 className="font-display text-xl italic mb-2" style={{ color: accent }}>{it.title}</h3>}
-                            {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
-                          </div>
-                        ))}
-                      </div>
+                      {items.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8">
+                          {items.map((it, j) => (
+                            <div key={j} style={{ border: `1px solid ${accent}33`, borderRadius: 4, padding: 18 }}>
+                              {it.image && (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img src={it.image} alt="" className="w-full rounded-sm mb-3" style={{ height: 150, objectFit: 'cover' }} />
+                              )}
+                              {it.title && <h3 className="font-display text-xl italic mb-2" style={{ color: accent }}>{it.title}</h3>}
+                              {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {ctaEl}
                     </>
                   )
                 } else if (sec.kind === 'faq') {
+                  const faqItems = items.filter(it => it.title)
                   inner = (
                     <>
                       {headingEl}
                       {bodyEl}
-                      <div className="mt-8 text-left space-y-3">
-                        {items.map((it, j) => (
-                          <details key={j} style={{ borderBottom: `1px solid ${accent}22`, paddingBottom: 12 }}>
-                            <summary className="font-display text-lg italic cursor-pointer" style={{ color: accent }}>{it.title || 'Question'}</summary>
-                            {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap mt-2" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
-                          </details>
-                        ))}
-                      </div>
+                      {faqItems.length > 0 && (
+                        <div className="mt-8 space-y-3">
+                          {faqItems.map((it, j) => (
+                            <details key={j} style={{ borderBottom: `1px solid ${accent}22`, paddingBottom: 12 }}>
+                              <summary className="font-display text-lg italic cursor-pointer" style={{ color: accent }}>{it.title}</summary>
+                              {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap mt-2" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
+                            </details>
+                          ))}
+                        </div>
+                      )}
                       {ctaEl}
                     </>
                   )

@@ -77,12 +77,6 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         >
           ✨ Edit with AI
         </Link>
-        <Link
-          href={`/sites/${site.id}/edit`}
-          className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors ml-1"
-        >
-          Form editor
-        </Link>
       </div>
       <p className="font-body text-ash/50 text-xs -mt-6">
         Build it by hand, or let AI draft it — switch between both anytime.
