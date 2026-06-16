@@ -53,6 +53,8 @@ export default async function DesignPage({
     contactLabel: c?.contactLabel,
     contactEmail: c?.contactEmail ?? '',
     footer: c?.footer,
+    socials: c?.socials,
+    heroOverlay: c?.heroOverlay,
   }
 
   return (

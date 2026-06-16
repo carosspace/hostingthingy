@@ -221,8 +221,9 @@ export default function LiveEditor({
   const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
   const [faviconOpen, setFaviconOpen] = useState(false)
   const [socials, setSocials] = useState<Social[]>(initial?.socials ?? [])
-  const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 50)
-  const [undoStack, setUndoStack] = useState<EdSection[][]>([])
+  const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 42)
+  const [undoStack, setUndoStack] = useState<{ sections: EdSection[]; headline: string; subheadline: string }[]>([])
+  const [undoNonce, setUndoNonce] = useState(0)
   const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
   const [fontSystem, setFontSystem] = useState(initial?.fontSystem ?? 'serif')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
@@ -353,22 +354,26 @@ export default function LiveEditor({
     touched()
   }
   function setSectionField(id: string, patch: Partial<EdSection>) {
-    // Capture the live (DOM) heading/body first, so a change that restructures the
-    // section (kind, image layout, background) doesn't drop unsaved contentEditable edits.
-    const h = domText('h-' + id)
-    const b = domText('b-' + id)
-    setSections(p => p.map(s => (s.id === id ? { ...s, heading: h, body: b, ...patch } : s)))
+    // Only re-sync the editable heading/body when the change actually restructures the
+    // section (kind, image layout, background, image) — avoids a caret jump on other edits.
+    const structural = 'kind' in patch || 'imageLayout' in patch || 'bgImage' in patch || 'image' in patch
+    const sync = structural ? { heading: domText('h-' + id), body: domText('b-' + id) } : {}
+    setUndoStack([])
+    setSections(p => p.map(s => (s.id === id ? { ...s, ...sync, ...patch } : s)))
     touched()
   }
   function addItem(sectionId: string) {
+    setUndoStack([])
     setSections(p => p.map(s => (s.id === sectionId && s.items.length < 12 ? { ...s, items: [...s.items, { id: newId(), title: '', body: '', image: '' }] } : s)))
     touched()
   }
   function removeItem(sectionId: string, itemId: string) {
+    setUndoStack([])
     setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.filter(it => it.id !== itemId) } : s)))
     touched()
   }
   function updateItem(sectionId: string, itemId: string, patch: Partial<EdItem>) {
+    setUndoStack([])
     setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)) } : s)))
     touched()
   }
@@ -396,6 +401,9 @@ export default function LiveEditor({
       const b = rootRef.current?.querySelector(`[data-field="b-${id}"]`) as HTMLElement | null
       if (h && res.heading) h.innerText = res.heading
       if (b && res.body) b.innerText = res.body
+      // Keep state in sync (so a later remount doesn't lose it) and clear undo.
+      setUndoStack([])
+      setSections(p => p.map(s => (s.id === id ? { ...s, heading: res.heading || s.heading, body: res.body || s.body } : s)))
       touched()
     } finally {
       setAiBusy(false)
@@ -450,6 +458,7 @@ export default function LiveEditor({
   }
   // Drag a section onto another to drop it into that position.
   function reorder(srcId: string, destId: string) {
+    setUndoStack([])
     setSections(p => {
       const from = p.findIndex(s => s.id === srcId)
       const to = p.findIndex(s => s.id === destId)
@@ -462,14 +471,21 @@ export default function LiveEditor({
     setDragId('')
     touched()
   }
-  // Snapshot the current sections (with live DOM text) so a structural change can be undone.
+  // Snapshot the current sections + hero text (all with live DOM text) so a structural
+  // change can be undone. Cleared by any other edit (see setUndoStack([]) calls).
   function pushUndo() {
     const snap = sections.map(s => ({ ...s, heading: domText('h-' + s.id), body: domText('b-' + s.id), items: s.items.map(it => ({ ...it })) }))
-    setUndoStack(st => [...st.slice(-9), snap])
+    setUndoStack(st => [...st.slice(-9), { sections: snap, headline: domText('headline'), subheadline: domText('subheadline') }])
   }
   function undo() {
     if (!undoStack.length) return
-    setSections(undoStack[undoStack.length - 1])
+    const prev = undoStack[undoStack.length - 1]
+    setSections(prev.sections)
+    setUndoNonce(n => n + 1) // remount sections so the contentEditable text re-syncs from state
+    const h = rootRef.current?.querySelector('[data-field="headline"]') as HTMLElement | null
+    const sh = rootRef.current?.querySelector('[data-field="subheadline"]') as HTMLElement | null
+    if (h) h.innerText = prev.headline
+    if (sh) sh.innerText = prev.subheadline
     setUndoStack(st => st.slice(0, -1))
     touched()
   }
@@ -491,6 +507,7 @@ export default function LiveEditor({
     touched()
   }
   function move(id: string, dir: -1 | 1) {
+    setUndoStack([])
     setSections(p => {
       const i = p.findIndex(s => s.id === id)
       const j = i + dir
@@ -511,7 +528,7 @@ export default function LiveEditor({
     const built = sections
       .map(s => {
         const items =
-          s.kind === 'cards' || s.kind === 'faq'
+          s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery'
             ? s.items
                 .map(it => ({ title: it.title.trim() || undefined, body: it.body.trim() || undefined, image: it.image.trim() || undefined }))
                 .filter(it => it.title || it.body || it.image)
@@ -790,7 +807,7 @@ export default function LiveEditor({
           <div className="relative" style={{ minHeight: 300 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.42)' }} />
+            <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${heroOverlay / 100})` }} />
             <div className="relative px-6 py-24 text-center">
               <div className="ht-ed font-display text-4xl md:text-5xl italic" contentEditable suppressContentEditableWarning data-field="headline" style={{ ...edStyle, color: '#fff' }}>
                 {initial?.headline || siteName}
@@ -945,7 +962,7 @@ export default function LiveEditor({
               ) : null
             return (
               <div
-                key={s.id}
+                key={`${s.id}-${undoNonce}`}
                 className="group relative"
                 style={{ opacity: dragId === s.id ? 0.4 : 1 }}
                 onDragOver={e => { if (dragId && dragId !== s.id) e.preventDefault() }}
@@ -964,7 +981,7 @@ export default function LiveEditor({
                   <div className="relative rounded-sm overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                    <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+                    <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${s.overlay / 100})` }} />
                     <div className="relative px-6 py-16" style={{ textAlign: s.align || 'center' }}>
                       <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: '#fff' }}>
                         {s.heading}

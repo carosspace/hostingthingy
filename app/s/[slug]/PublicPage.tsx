@@ -2,15 +2,29 @@ import type { CSSProperties } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 
-// Turn a pasted media link into a safe iframe src — only known providers, never raw HTML.
+// Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
+function safeHref(href: string): string | null {
+  const v = (href || '').trim()
+  if (/^(https?:|mailto:|tel:)/i.test(v)) return v
+  if (/^\/(?!\/)/.test(v)) return v // same-origin relative path, but not //evil.com
+  return null
+}
+
+// Turn a pasted media link into a safe iframe src — only known providers, rebuilt from
+// a fixed host, never the raw pasted string.
 function embedSrc(url: string): string | null {
   const u = (url || '').trim()
   const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/)
   if (yt) return `https://www.youtube.com/embed/${yt[1]}`
   const vm = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)
   if (vm) return `https://player.vimeo.com/video/${vm[1]}`
-  if (/google\.[a-z.]+\/maps/.test(u) || u.includes('maps.google')) {
-    return u.includes('output=embed') ? u : u + (u.includes('?') ? '&' : '?') + 'output=embed'
+  try {
+    const parsed = new URL(u)
+    if (parsed.protocol === 'https:' && /^((www|maps)\.)?google\.[a-z.]+$/.test(parsed.hostname) && parsed.pathname.startsWith('/maps')) {
+      return parsed.href.includes('output=embed') ? parsed.href : parsed.href + (parsed.search ? '&' : '?') + 'output=embed'
+    }
+  } catch {
+    // not a valid absolute URL
   }
   return null
 }
@@ -117,18 +131,21 @@ export default function PublicPage({
                 {p.navLabel || p.title}
               </a>
             ))}
-            {navLinks.map((l, i) => (
-              <a
-                key={`nl-${i}`}
-                href={l.href}
-                target={l.newTab ? '_blank' : undefined}
-                rel={l.newTab ? 'noreferrer' : undefined}
-                className="font-label"
-                style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: theme.muted }}
-              >
-                {l.label}
-              </a>
-            ))}
+            {navLinks.map((l, i) => {
+              const href = safeHref(l.href)
+              return href ? (
+                <a
+                  key={`nl-${i}`}
+                  href={href}
+                  target={l.newTab ? '_blank' : undefined}
+                  rel={l.newTab ? 'noreferrer' : undefined}
+                  className="font-label"
+                  style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: theme.muted }}
+                >
+                  {l.label}
+                </a>
+              ) : null
+            })}
           </nav>
         )}
       </header>
@@ -272,10 +289,17 @@ export default function PublicPage({
                       {bodyEl}
                       {src ? (
                         <div className="mt-6" style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 4 }}>
-                          <iframe src={src} title="Embedded media" loading="lazy" allowFullScreen style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }} />
+                          <iframe
+                            src={src}
+                            title="Embedded media"
+                            loading="lazy"
+                            sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+                            allow="fullscreen; encrypted-media; picture-in-picture"
+                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+                          />
                         </div>
-                      ) : sec.embedUrl ? (
-                        <p className="mt-4"><a href={sec.embedUrl} target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: 'underline' }}>{sec.embedUrl}</a></p>
+                      ) : safeHref(sec.embedUrl ?? '') ? (
+                        <p className="mt-4"><a href={safeHref(sec.embedUrl ?? '') as string} target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: 'underline' }}>{sec.embedUrl}</a></p>
                       ) : null}
                       {ctaEl}
                     </>
@@ -344,18 +368,21 @@ export default function PublicPage({
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
         {content?.socials && content.socials.length > 0 && (
           <nav className="flex flex-wrap items-center justify-center gap-5 mb-4">
-            {content.socials.map((s, i) => (
-              <a
-                key={i}
-                href={socialHref(s)}
-                target={s.kind === 'email' ? undefined : '_blank'}
-                rel="noreferrer"
-                className="font-label"
-                style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}
-              >
-                {SOCIAL_LABEL[s.kind]}
-              </a>
-            ))}
+            {content.socials.map((s, i) => {
+              const href = safeHref(socialHref(s))
+              return href ? (
+                <a
+                  key={i}
+                  href={href}
+                  target={s.kind === 'email' ? undefined : '_blank'}
+                  rel="noreferrer"
+                  className="font-label"
+                  style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}
+                >
+                  {SOCIAL_LABEL[s.kind]}
+                </a>
+              ) : null
+            })}
           </nav>
         )}
         <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
