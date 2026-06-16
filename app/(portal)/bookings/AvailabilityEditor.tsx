@@ -51,8 +51,28 @@ function detectedTz(): string {
 
 const timeInput =
   'bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-2 py-1.5 rounded-sm outline-none'
-const numInput =
-  'w-20 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none'
+const selectCls =
+  'mt-1 w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none'
+const fieldHint = 'font-body text-ash/40 text-xs mt-1 block'
+
+function daysLabel(d: number): string {
+  if (d === 1) return '1 day'
+  if (d === 7) return '1 week'
+  if (d === 14) return '2 weeks'
+  if (d === 30) return '1 month'
+  if (d === 60) return '2 months'
+  if (d === 90) return '3 months'
+  return `${d} days`
+}
+function noticeLabel(h: number): string {
+  if (h === 0) return 'No notice needed'
+  if (h === 24) return '1 day before'
+  if (h === 48) return '2 days before'
+  return `${h} hour${h === 1 ? '' : 's'} before`
+}
+function slotLabel(m: number): string {
+  return m === 0 ? 'Match the service length' : `Every ${m} minutes`
+}
 
 export default function AvailabilityEditor({
   initialSettings,
@@ -79,9 +99,16 @@ export default function AvailabilityEditor({
   const [saved, setSaved] = useState(false)
 
   const tzOptions = TIMEZONES.includes(timezone) ? TIMEZONES : [timezone, ...TIMEZONES]
+  const windowOpts = Array.from(new Set([windowDays, 7, 14, 30, 60, 90])).sort((a, b) => a - b)
+  const noticeOpts = Array.from(new Set([minNoticeHours, 0, 2, 12, 24, 48])).sort((a, b) => a - b)
+  const slotOpts = Array.from(new Set([slotStepMin, 0, 15, 30, 60])).sort((a, b) => a - b)
 
   function touched() {
     setSaved(false)
+  }
+  function closeDay(wd: number) {
+    setDays(d => ({ ...d, [wd]: [] }))
+    touched()
   }
   function addRange(wd: number) {
     setDays(d => ({ ...d, [wd]: [...(d[wd] ?? []), { start: '09:00', end: '17:00' }] }))
@@ -143,14 +170,17 @@ export default function AvailabilityEditor({
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="rounded-sm border border-gold/10 divide-y divide-gold/5">
         {WEEKDAY_ORDER.map(wd => {
           const ranges = days[wd] ?? []
+          const open = ranges.length > 0
           return (
-            <div key={wd} className="flex items-start gap-3 py-1.5 border-b border-gold/5 last:border-0">
-              <span className="font-body text-parchment text-sm w-24 pt-2 shrink-0">{WEEKDAYS[wd]}</span>
+            <div key={wd} className="flex items-start gap-3 px-4 py-3">
+              <span className={`font-body text-sm w-24 pt-1.5 shrink-0 ${open ? 'text-parchment' : 'text-ash/40'}`}>
+                {WEEKDAYS[wd]}
+              </span>
               <div className="flex-1 space-y-2">
-                {ranges.length === 0 && <span className="font-body text-ash/40 text-sm inline-block pt-2">Closed</span>}
+                {!open && <span className="font-body text-ash/30 text-sm inline-block pt-1.5">Closed</span>}
                 {ranges.map((r, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <input
@@ -178,80 +208,94 @@ export default function AvailabilityEditor({
                     </button>
                   </div>
                 ))}
+                {open && (
+                  <button
+                    type="button"
+                    onClick={() => addRange(wd)}
+                    className="font-label text-[9px] tracking-[2px] uppercase text-gold/70 hover:text-gold"
+                  >
+                    + add another
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => addRange(wd)}
-                className="shrink-0 font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight pt-2"
-              >
-                + Add hours
-              </button>
+              {open ? (
+                <button
+                  type="button"
+                  onClick={() => closeDay(wd)}
+                  className="shrink-0 font-label text-[9px] tracking-[2px] uppercase text-ash/60 hover:text-red-300 pt-1.5"
+                >
+                  Close
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addRange(wd)}
+                  className="shrink-0 font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight pt-1.5"
+                >
+                  Open
+                </button>
+              )}
             </div>
           )
         })}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
         <label className="block">
           <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Your timezone</span>
           <select
             value={timezone}
-            onChange={e => {
-              setTimezone(e.target.value)
-              touched()
-            }}
-            className="mt-1 w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none"
+            onChange={e => { setTimezone(e.target.value); touched() }}
+            className={selectCls}
             style={{ colorScheme: 'dark' }}
           >
             {tzOptions.map(tz => (
-              <option key={tz} value={tz}>
-                {tz.replace(/_/g, ' ')}
-              </option>
+              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
             ))}
           </select>
+          <span className={fieldHint}>Slots are shown in this timezone.</span>
         </label>
         <label className="block">
-          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Book up to (days ahead)</span>
-          <input
-            type="number"
-            min={1}
-            max={180}
+          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">How far ahead can people book?</span>
+          <select
             value={windowDays}
-            onChange={e => {
-              setWindowDays(parseInt(e.target.value, 10) || 30)
-              touched()
-            }}
-            className={`mt-1 ${numInput}`}
-          />
+            onChange={e => { setWindowDays(parseInt(e.target.value, 10)); touched() }}
+            className={selectCls}
+            style={{ colorScheme: 'dark' }}
+          >
+            {windowOpts.map(d => (
+              <option key={d} value={d}>{daysLabel(d)}</option>
+            ))}
+          </select>
+          <span className={fieldHint}>The booking page shows openings this far out.</span>
         </label>
         <label className="block">
-          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Minimum notice (hours)</span>
-          <input
-            type="number"
-            min={0}
-            max={720}
+          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Minimum notice</span>
+          <select
             value={minNoticeHours}
-            onChange={e => {
-              setMinNoticeHours(parseInt(e.target.value, 10) || 0)
-              touched()
-            }}
-            className={`mt-1 ${numInput}`}
-          />
+            onChange={e => { setMinNoticeHours(parseInt(e.target.value, 10)); touched() }}
+            className={selectCls}
+            style={{ colorScheme: 'dark' }}
+          >
+            {noticeOpts.map(h => (
+              <option key={h} value={h}>{noticeLabel(h)}</option>
+            ))}
+          </select>
+          <span className={fieldHint}>Stops bookings that are too last-minute.</span>
         </label>
         <label className="block">
-          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Slot interval (min, 0 = service length)</span>
-          <input
-            type="number"
-            min={0}
-            max={480}
-            step={5}
+          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Time between slots</span>
+          <select
             value={slotStepMin}
-            onChange={e => {
-              setSlotStepMin(parseInt(e.target.value, 10) || 0)
-              touched()
-            }}
-            className={`mt-1 ${numInput}`}
-          />
+            onChange={e => { setSlotStepMin(parseInt(e.target.value, 10)); touched() }}
+            className={selectCls}
+            style={{ colorScheme: 'dark' }}
+          >
+            {slotOpts.map(m => (
+              <option key={m} value={m}>{slotLabel(m)}</option>
+            ))}
+          </select>
+          <span className={fieldHint}>How far apart each start time is.</span>
         </label>
       </div>
 
