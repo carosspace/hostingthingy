@@ -40,6 +40,7 @@ export default async function DesignPage({
     fontSystem: c?.fontSystem,
     brand: c?.brand,
     logoImage: c?.logoImage,
+    faviconImage: c?.faviconImage,
     seoTitle: c?.seoTitle,
     seoDescription: c?.seoDescription,
     headline: current.headline,

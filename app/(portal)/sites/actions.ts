@@ -355,6 +355,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,
     logoImage: String(parsed.logoImage ?? '').trim() || undefined,
+    faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,
     navLinks: navLinks.length ? navLinks : undefined,
     seoTitle: String(parsed.seoTitle ?? '').trim() || undefined,
     seoDescription: String(parsed.seoDescription ?? '').trim() || undefined,

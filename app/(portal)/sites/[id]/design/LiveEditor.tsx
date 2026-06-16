@@ -73,14 +73,14 @@ function resizeToDataUrl(file: File, maxW = 1600, quality = 0.82): Promise<strin
   })
 }
 
-function ImageField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ImageField({ value, onChange, maxW = 1600 }: { value: string; onChange: (v: string) => void; maxW?: number }) {
   const [busy, setBusy] = useState(false)
   const [drag, setDrag] = useState(false)
   async function handle(file?: File | null) {
     if (!file || !file.type.startsWith('image/')) return
     setBusy(true)
     try {
-      onChange(await resizeToDataUrl(file))
+      onChange(await resizeToDataUrl(file, maxW))
     } catch {
       /* ignore bad image */
     } finally {
@@ -214,6 +214,8 @@ export default function LiveEditor({
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
   const [logoImage, setLogoImage] = useState(initial?.logoImage ?? '')
   const [logoOpen, setLogoOpen] = useState(false)
+  const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
+  const [faviconOpen, setFaviconOpen] = useState(false)
   const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
   const [fontSystem, setFontSystem] = useState(initial?.fontSystem ?? 'serif')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
@@ -493,6 +495,7 @@ export default function LiveEditor({
       fontSystem,
       brand: read('brand') || initial?.brand || undefined,
       logoImage: logoImage.trim() || undefined,
+      faviconImage: faviconImage.trim() || undefined,
       navLinks: navLinks.length ? navLinks : undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
@@ -696,8 +699,14 @@ export default function LiveEditor({
         </div>
 
         <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto">
-            {logoImage || logoOpen ? (
+          <div className="max-w-md mx-auto space-y-2">
+            {((!logoImage && !logoOpen) || (!faviconImage && !faviconOpen)) && (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {!logoImage && !logoOpen && <button type="button" onClick={() => setLogoOpen(true)} className="font-label" style={chipStyle}>+ Logo image</button>}
+                {!faviconImage && !faviconOpen && <button type="button" onClick={() => setFaviconOpen(true)} className="font-label" style={chipStyle}>+ Favicon (tab icon)</button>}
+              </div>
+            )}
+            {(logoImage || logoOpen) && (
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span style={ctlLabel}>Logo (shown instead of the name)</span>
@@ -705,9 +714,14 @@ export default function LiveEditor({
                 </div>
                 <ImageField value={logoImage} onChange={v => { setLogoImage(v); touched() }} />
               </div>
-            ) : (
-              <div className="text-center">
-                <button type="button" onClick={() => setLogoOpen(true)} className="font-label" style={chipStyle}>+ Logo image</button>
+            )}
+            {(faviconImage || faviconOpen) && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span style={ctlLabel}>Favicon — browser-tab icon (a small square works best)</span>
+                  {!faviconImage && <button type="button" onClick={() => setFaviconOpen(false)} style={cancelStyle}>× cancel</button>}
+                </div>
+                <ImageField value={faviconImage} onChange={v => { setFaviconImage(v); touched() }} maxW={128} />
               </div>
             )}
           </div>

@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   return {
     title,
     description,
+    icons: c?.faviconImage ? { icon: c.faviconImage } : undefined,
     openGraph: { title, description, images: img, type: 'website' },
     twitter: { card: 'summary_large_image', title, description, images: img },
   }

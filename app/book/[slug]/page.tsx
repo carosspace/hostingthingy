@@ -30,9 +30,14 @@ export default async function BookPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}2e` }}>
-        <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-          {brand}
-        </span>
+        {content?.logoImage ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={content.logoImage} alt={brand} style={{ height: 40, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} />
+        ) : (
+          <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+            {brand}
+          </span>
+        )}
       </header>
 
       <main className="flex-1 max-w-xl mx-auto w-full px-6 py-14">

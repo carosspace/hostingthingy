@@ -82,6 +82,7 @@ export interface SiteContent {
   fontSystem?: string
   brand?: string
   logoImage?: string // a logo shown in the header instead of the brand text
+  faviconImage?: string // the little icon shown in the browser tab
   navLinks?: NavLink[] // extra header links added by hand (in addition to the page menu)
   seoTitle?: string
   seoDescription?: string
