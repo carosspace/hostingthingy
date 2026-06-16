@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
@@ -13,6 +13,8 @@ interface EdSection {
   body: string
   image: string
   bgImage: string
+  bgColor: string
+  align: '' | SiteAlign
   ctaLabel: string
   ctaType: CtaType
   ctaHref: string
@@ -218,6 +220,8 @@ export default function LiveEditor({
       body: s.body,
       image: s.image ?? '',
       bgImage: s.bgImage ?? '',
+      bgColor: s.bgColor ?? '',
+      align: (s.align ?? '') as '' | SiteAlign,
       ctaLabel: s.ctaLabel ?? '',
       ctaType: s.ctaType ?? 'none',
       ctaHref: s.ctaHref ?? '',
@@ -270,11 +274,11 @@ export default function LiveEditor({
     return 'n' + idc.current
   }
   function addSection() {
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
-    setSections(p => [...p, { id: newId(), heading: b.heading, body: b.body, image: '', bgImage: '', ctaLabel: b.ctaLabel ?? '', ctaType: b.ctaType ?? 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: b.heading, body: b.body, image: '', bgImage: '', bgColor: '', align: '', ctaLabel: b.ctaLabel ?? '', ctaType: b.ctaType ?? 'none', ctaHref: '' }])
     setBlocksOpen(false)
     touched()
   }
@@ -333,7 +337,7 @@ export default function LiveEditor({
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -357,7 +361,7 @@ export default function LiveEditor({
         setSections(
           res.sections.map((sec, i) => {
             const old = sections[i]
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -409,6 +413,8 @@ export default function LiveEditor({
         body: read('b-' + s.id),
         image: s.image.trim() || undefined,
         bgImage: s.bgImage.trim() || undefined,
+        bgColor: s.bgColor.trim() || undefined,
+        align: s.align || undefined,
         ctaType: s.ctaType === 'none' ? undefined : s.ctaType,
         ctaLabel: s.ctaType === 'none' ? undefined : s.ctaLabel.trim() || 'Learn more',
         ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
@@ -735,7 +741,7 @@ export default function LiveEditor({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
-                    <div className="relative px-6 py-16 text-center">
+                    <div className="relative px-6 py-16" style={{ textAlign: s.align || 'center' }}>
                       <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: '#fff' }}>
                         {s.heading}
                       </div>
@@ -746,7 +752,7 @@ export default function LiveEditor({
                     </div>
                   </div>
                 ) : (
-                  <>
+                  <div style={{ background: s.bgColor || undefined, borderRadius: s.bgColor ? 6 : undefined, padding: s.bgColor ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
                     {s.image && (
                       <>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -760,10 +766,42 @@ export default function LiveEditor({
                       {s.body}
                     </div>
                     {btnPreview}
-                  </>
+                  </div>
                 )}
 
                 <div className="mt-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span style={ctlLabel}>Align</span>
+                    {(['left', 'center', 'right'] as const).map(a => {
+                      const on = (s.align || (onBg ? 'center' : 'left')) === a
+                      return (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => setSectionField(s.id, { align: a })}
+                          className="font-label"
+                          style={{ ...chipStyle, ...(on ? { background: accent, color: t.bg, border: `1px solid ${accent}` } : {}) }}
+                        >
+                          {a[0].toUpperCase()}
+                        </button>
+                      )
+                    })}
+                    {!onBg && (
+                      <>
+                        <span style={{ ...ctlLabel, marginLeft: 8 }}>Tint</span>
+                        <input
+                          type="color"
+                          value={s.bgColor || '#ffffff'}
+                          onChange={e => setSectionField(s.id, { bgColor: e.target.value })}
+                          style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', cursor: 'pointer', padding: 0 }}
+                          title="Panel colour behind this section"
+                        />
+                        {s.bgColor && (
+                          <button type="button" onClick={() => setSectionField(s.id, { bgColor: '' })} style={cancelStyle}>× no tint</button>
+                        )}
+                      </>
+                    )}
+                  </div>
                   {(!showImg || !showSecBg || !showSecBtn) && (
                     <div className="flex flex-wrap gap-2">
                       {!showImg && <button type="button" onClick={() => setOpenImg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Image</button>}

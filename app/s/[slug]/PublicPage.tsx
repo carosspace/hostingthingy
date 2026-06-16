@@ -150,7 +150,7 @@ export default function PublicPage({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={sec.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
                       <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
-                      <div className={`relative ${bodyMax} mx-auto px-6 py-20 text-center`}>
+                      <div className={`relative ${bodyMax} mx-auto px-6 py-20`} style={{ textAlign: sec.align || 'center' }}>
                         {sec.heading && (
                           <h2 className="font-display text-3xl md:text-4xl italic mb-3" style={{ color: '#ffffff' }}>
                             {sec.heading}
@@ -167,24 +167,30 @@ export default function PublicPage({
                   )
                 }
                 return (
-                  <section key={i} className={`${bodyMax} mx-auto px-6`}>
-                    {sec.image && (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={sec.image} alt="" className="w-full rounded-sm mb-5" style={{ maxHeight: 420, objectFit: 'cover' }} />
-                      </>
-                    )}
-                    {sec.heading && (
-                      <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>
-                        {sec.heading}
-                      </h2>
-                    )}
-                    {sec.body && (
-                      <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>
-                        {sec.body}
-                      </p>
-                    )}
-                    {secCta && <div className="mt-5">{secCta}</div>}
+                  <section
+                    key={i}
+                    className={sec.bgColor ? '' : `${bodyMax} mx-auto px-6`}
+                    style={sec.bgColor ? { background: sec.bgColor } : undefined}
+                  >
+                    <div className={sec.bgColor ? `${bodyMax} mx-auto px-6 py-16` : ''} style={{ textAlign: sec.align || 'left' }}>
+                      {sec.image && (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={sec.image} alt="" className="w-full rounded-sm mb-5" style={{ maxHeight: 420, objectFit: 'cover' }} />
+                        </>
+                      )}
+                      {sec.heading && (
+                        <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>
+                          {sec.heading}
+                        </h2>
+                      )}
+                      {sec.body && (
+                        <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>
+                          {sec.body}
+                        </p>
+                      )}
+                      {secCta && <div className="mt-5">{secCta}</div>}
+                    </div>
                   </section>
                 )
               })}
