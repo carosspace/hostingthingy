@@ -1,5 +1,13 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import type { Service, Appointment, PublicService } from './types'
+import {
+  DEFAULT_BOOKING_SETTINGS,
+  type Service,
+  type Appointment,
+  type PublicService,
+  type AvailabilityWindow,
+  type BookingSettings,
+  type BookingPageData,
+} from './types'
 
 // ---- Owner side (RLS: owner_id = auth.uid()) ----
 
@@ -50,10 +58,70 @@ export async function listAppointments(): Promise<Appointment[]> {
     clientName: r.client_name,
     clientEmail: r.client_email,
     requestedAt: r.requested_at ?? null,
+    slotDate: r.slot_date ?? null,
+    slotTime: r.slot_time ?? null,
+    durationMin: r.duration_min ?? null,
     note: r.note ?? null,
     status: r.status,
     createdAt: r.created_at,
   }))
+}
+
+// ---- Availability & settings (owner) ----
+
+export async function getAvailability(): Promise<AvailabilityWindow[]> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('booking_availability')
+    .select('weekday, start_min, end_min')
+    .order('weekday', { ascending: true })
+    .order('start_min', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map(r => ({ weekday: r.weekday, startMin: r.start_min, endMin: r.end_min }))
+}
+
+export async function getSettings(): Promise<BookingSettings> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('booking_settings')
+    .select('timezone, window_days, min_notice_hours, slot_step_min')
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return { ...DEFAULT_BOOKING_SETTINGS }
+  return {
+    timezone: data.timezone ?? 'UTC',
+    windowDays: data.window_days ?? 30,
+    minNoticeHours: data.min_notice_hours ?? 12,
+    slotStepMin: data.slot_step_min ?? 0,
+  }
+}
+
+// Replace the whole weekly schedule + settings in one shot.
+export async function saveSchedule(
+  ownerId: string,
+  settings: BookingSettings,
+  windows: AvailabilityWindow[],
+): Promise<void> {
+  const supabase = createSupabaseServerClient()
+
+  const { error: upErr } = await supabase.from('booking_settings').upsert({
+    owner_id: ownerId,
+    timezone: settings.timezone,
+    window_days: settings.windowDays,
+    min_notice_hours: settings.minNoticeHours,
+    slot_step_min: settings.slotStepMin,
+    updated_at: new Date().toISOString(),
+  })
+  if (upErr) throw upErr
+
+  const { error: delErr } = await supabase.from('booking_availability').delete().eq('owner_id', ownerId)
+  if (delErr) throw delErr
+
+  if (windows.length) {
+    const rows = windows.map(w => ({ owner_id: ownerId, weekday: w.weekday, start_min: w.startMin, end_min: w.endMin }))
+    const { error: insErr } = await supabase.from('booking_availability').insert(rows)
+    if (insErr) throw insErr
+  }
 }
 
 export async function setAppointmentStatus(id: string, status: 'confirmed' | 'cancelled'): Promise<void> {
@@ -96,4 +164,41 @@ export async function requestBooking(input: {
     p_note: input.note,
   })
   return !error
+}
+
+// Everything the public booking page needs (services + availability + taken slots).
+export async function getBookingPage(slug: string): Promise<BookingPageData | null> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('get_booking_page', { p_slug: slug })
+  if (error || !data) return null
+  const d = data as Partial<BookingPageData>
+  return {
+    services: d.services ?? [],
+    settings: d.settings ?? { ...DEFAULT_BOOKING_SETTINGS },
+    availability: d.availability ?? [],
+    taken: d.taken ?? [],
+  }
+}
+
+export async function requestBookingSlot(input: {
+  slug: string
+  serviceId: string
+  name: string
+  email: string
+  slotDate: string
+  slotTime: string
+  note: string
+}): Promise<'ok' | 'taken' | 'error'> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('request_booking_slot', {
+    p_slug: input.slug,
+    p_service_id: input.serviceId,
+    p_name: input.name,
+    p_email: input.email,
+    p_slot_date: input.slotDate,
+    p_slot_time: input.slotTime,
+    p_note: input.note,
+  })
+  if (error) return 'error'
+  return data === 'taken' ? 'taken' : data === 'ok' ? 'ok' : 'error'
 }

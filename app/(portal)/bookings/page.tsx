@@ -1,6 +1,15 @@
 import Link from 'next/link'
-import { listServices, listAppointments } from '@/lib/bookings/repo'
-import { formatPrice, type Service, type Appointment } from '@/lib/bookings/types'
+import { listServices, listAppointments, getAvailability, getSettings } from '@/lib/bookings/repo'
+import {
+  formatPrice,
+  formatDayLabel,
+  formatTimeLabel,
+  DEFAULT_BOOKING_SETTINGS,
+  type Service,
+  type Appointment,
+  type AvailabilityWindow,
+  type BookingSettings,
+} from '@/lib/bookings/types'
 import { listSites } from '@/lib/sites/store'
 import {
   createServiceAction,
@@ -8,8 +17,15 @@ import {
   confirmAppointmentAction,
   cancelAppointmentAction,
 } from './actions'
+import AvailabilityEditor from './AvailabilityEditor'
 
 export const dynamic = 'force-dynamic'
+
+function appointmentWhen(a: Appointment): string {
+  if (a.slotDate && a.slotTime) return `${formatDayLabel(a.slotDate)} · ${formatTimeLabel(a.slotTime)}`
+  if (a.requestedAt) return `prefers ${a.requestedAt}`
+  return ''
+}
 
 const input =
   'w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-2.5 rounded-sm outline-none placeholder:text-ash/40'
@@ -23,6 +39,15 @@ export default async function BookingsPage() {
     appointments = await listAppointments()
   } catch {
     dbError = true
+  }
+
+  let availability: AvailabilityWindow[] = []
+  let settings: BookingSettings = { ...DEFAULT_BOOKING_SETTINGS }
+  try {
+    availability = await getAvailability()
+    settings = await getSettings()
+  } catch {
+    // booking_availability / booking_settings tables not migrated yet (006)
   }
 
   let bookingSlug = ''
@@ -100,6 +125,11 @@ export default async function BookingsPage() {
       </section>
 
       <section>
+        <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-4">Availability</h2>
+        <AvailabilityEditor initialSettings={settings} initialWindows={availability} />
+      </section>
+
+      <section>
         <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-4">Requests</h2>
         <div className="space-y-2">
           {appointments.length === 0 && <p className="font-body text-ash/60 text-sm">No requests yet.</p>}
@@ -112,7 +142,7 @@ export default async function BookingsPage() {
                   </p>
                   <p className="font-body text-ash/60 text-sm mt-0.5">
                     {a.clientEmail}
-                    {a.requestedAt ? ` · prefers ${a.requestedAt}` : ''}
+                    {appointmentWhen(a) ? ` · ${appointmentWhen(a)}` : ''}
                   </p>
                   {a.note && <p className="font-body text-ash/50 text-sm mt-1 italic">“{a.note}”</p>}
                 </div>

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
-import { createService, deleteService, setAppointmentStatus } from '@/lib/bookings/repo'
+import { createService, deleteService, setAppointmentStatus, saveSchedule } from '@/lib/bookings/repo'
+import type { AvailabilityWindow } from '@/lib/bookings/types'
 
 export async function createServiceAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -41,5 +42,45 @@ export async function cancelAppointmentAction(formData: FormData): Promise<void>
   const id = String(formData.get('id') ?? '')
   if (!id) return
   await setAppointmentStatus(id, 'cancelled')
+  revalidatePath('/bookings')
+}
+
+export async function saveScheduleAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+
+  let parsed: { settings?: Record<string, unknown>; windows?: Record<string, unknown>[] }
+  try {
+    parsed = JSON.parse(String(formData.get('schedule') ?? '{}'))
+  } catch {
+    return
+  }
+
+  const s = parsed.settings ?? {}
+  const settings = {
+    timezone: String(s.timezone ?? 'UTC') || 'UTC',
+    windowDays: Math.min(180, Math.max(1, parseInt(String(s.windowDays ?? 30), 10) || 30)),
+    minNoticeHours: Math.min(720, Math.max(0, parseInt(String(s.minNoticeHours ?? 12), 10) || 0)),
+    slotStepMin: Math.min(480, Math.max(0, parseInt(String(s.slotStepMin ?? 0), 10) || 0)),
+  }
+
+  const windows: AvailabilityWindow[] = (Array.isArray(parsed.windows) ? parsed.windows : [])
+    .map(w => ({
+      weekday: parseInt(String(w.weekday), 10),
+      startMin: parseInt(String(w.startMin), 10),
+      endMin: parseInt(String(w.endMin), 10),
+    }))
+    .filter(
+      w =>
+        Number.isInteger(w.weekday) &&
+        w.weekday >= 0 &&
+        w.weekday <= 6 &&
+        Number.isFinite(w.startMin) &&
+        Number.isFinite(w.endMin) &&
+        w.endMin > w.startMin,
+    )
+    .slice(0, 50)
+
+  await saveSchedule(user.id, settings, windows)
   revalidatePath('/bookings')
 }
