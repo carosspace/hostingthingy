@@ -1,4 +1,4 @@
-import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme } from '@/lib/sites/types'
+import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType } from '@/lib/sites/types'
 
 export default function PublicPage({
   siteSlug,
@@ -26,29 +26,35 @@ export default function PublicPage({
   const hasContent = Boolean(page.headline || page.subheadline || sections.length || heroImage)
   const hrefFor = (p: SitePage) => (p.slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${p.slug}`)
 
-  // Resolve the hero call-to-action button.
-  const ctaLabel = (page.ctaLabel ?? '').trim()
-  const ctaType = page.ctaType ?? 'none'
-  const ctaHref =
-    ctaType === 'booking'
-      ? `/book/${siteSlug}`
-      : ctaType === 'email'
-        ? contactEmail
-          ? `mailto:${contactEmail}`
-          : ''
-        : ctaType === 'link'
-          ? (page.ctaHref ?? '').trim()
-          : ''
-  const ctaButton =
-    ctaLabel && ctaHref ? (
+  const layout = content?.layout ?? 'contained'
+  const bodyMax = layout === 'full' ? 'max-w-6xl' : 'max-w-2xl'
+
+  // Resolve any call-to-action button (used by the hero and by each section).
+  function makeCta(label?: string, type?: CtaType, href?: string) {
+    const l = (label ?? '').trim()
+    const ty = type ?? 'none'
+    const h =
+      ty === 'booking'
+        ? `/book/${siteSlug}`
+        : ty === 'email'
+          ? contactEmail
+            ? `mailto:${contactEmail}`
+            : ''
+          : ty === 'link'
+            ? (href ?? '').trim()
+            : ''
+    if (!l || !h) return null
+    return (
       <a
-        href={ctaHref}
+        href={h}
         className="inline-block font-label"
         style={{ background: accent, color: theme.bg, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', padding: '13px 30px', borderRadius: 3 }}
       >
-        {ctaLabel}
+        {l}
       </a>
-    ) : null
+    )
+  }
+  const ctaButton = makeCta(page.ctaLabel, page.ctaType, page.ctaHref)
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: theme.bg, color: theme.text }}>
@@ -107,27 +113,53 @@ export default function PublicPage({
           )}
 
           {sections.length > 0 && (
-            <div className="max-w-2xl mx-auto px-6 pt-16 pb-16 space-y-16">
-              {sections.map((sec, i) => (
-                <section key={i}>
-                  {sec.image && (
-                    <>
+            <div className="pt-16 pb-16 space-y-16">
+              {sections.map((sec, i) => {
+                const secCta = makeCta(sec.ctaLabel, sec.ctaType, sec.ctaHref)
+                if (sec.bgImage) {
+                  return (
+                    <section key={i} className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={sec.image} alt="" className="w-full rounded-sm mb-5" style={{ maxHeight: 420, objectFit: 'cover' }} />
-                    </>
-                  )}
-                  {sec.heading && (
-                    <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>
-                      {sec.heading}
-                    </h2>
-                  )}
-                  {sec.body && (
-                    <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>
-                      {sec.body}
-                    </p>
-                  )}
-                </section>
-              ))}
+                      <img src={sec.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+                      <div className={`relative ${bodyMax} mx-auto px-6 py-20 text-center`}>
+                        {sec.heading && (
+                          <h2 className="font-display text-3xl md:text-4xl italic mb-3" style={{ color: '#ffffff' }}>
+                            {sec.heading}
+                          </h2>
+                        )}
+                        {sec.body && (
+                          <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                            {sec.body}
+                          </p>
+                        )}
+                        {secCta && <div className="mt-6">{secCta}</div>}
+                      </div>
+                    </section>
+                  )
+                }
+                return (
+                  <section key={i} className={`${bodyMax} mx-auto px-6`}>
+                    {sec.image && (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={sec.image} alt="" className="w-full rounded-sm mb-5" style={{ maxHeight: 420, objectFit: 'cover' }} />
+                      </>
+                    )}
+                    {sec.heading && (
+                      <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>
+                        {sec.heading}
+                      </h2>
+                    )}
+                    {sec.body && (
+                      <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>
+                        {sec.body}
+                      </p>
+                    )}
+                    {secCta && <div className="mt-5">{secCta}</div>}
+                  </section>
+                )
+              })}
             </div>
           )}
 

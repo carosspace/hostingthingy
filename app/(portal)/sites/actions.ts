@@ -7,7 +7,7 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, SitePage, CtaType } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout } from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -187,6 +187,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
   await saveSiteContent(id, {
     theme,
     accentColor: existing?.accentColor,
+    layout: existing?.layout,
     brand: existing?.brand,
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription,
@@ -223,13 +224,23 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
 
   const rawSections = Array.isArray(parsed.sections) ? (parsed.sections as Record<string, unknown>[]) : []
   const sections = rawSections
-    .map(s => ({
-      heading: String(s?.heading ?? '').trim(),
-      body: String(s?.body ?? '').trim(),
-      image: String(s?.image ?? '').trim() || undefined,
-    }))
-    .filter(s => s.heading || s.body || s.image)
+    .map(s => {
+      const ctRaw = String(s?.ctaType ?? '')
+      const ct = (['booking', 'email', 'link'].includes(ctRaw) ? ctRaw : undefined) as CtaType | undefined
+      return {
+        heading: String(s?.heading ?? '').trim(),
+        body: String(s?.body ?? '').trim(),
+        image: String(s?.image ?? '').trim() || undefined,
+        bgImage: String(s?.bgImage ?? '').trim() || undefined,
+        ctaType: ct,
+        ctaLabel: ct ? String(s?.ctaLabel ?? '').trim() || 'Learn more' : undefined,
+        ctaHref: ct === 'link' ? String(s?.ctaHref ?? '').trim() || undefined : undefined,
+      }
+    })
+    .filter(s => s.heading || s.body || s.image || s.bgImage)
     .slice(0, 20)
+
+  const layout: SiteLayout = parsed.layout === 'full' ? 'full' : 'contained'
 
   const ctaTypeRaw = String(parsed.ctaType ?? '')
   const ctaType = (['booking', 'email', 'link'].includes(ctaTypeRaw) ? ctaTypeRaw : undefined) as CtaType | undefined
@@ -251,6 +262,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
   const content: SiteContent = {
     theme,
     accentColor: String(parsed.accentColor ?? '').trim() || undefined,
+    layout,
     brand: String(parsed.brand ?? '').trim() || undefined,
     seoTitle: String(parsed.seoTitle ?? '').trim() || undefined,
     seoDescription: String(parsed.seoDescription ?? '').trim() || undefined,

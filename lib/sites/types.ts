@@ -3,12 +3,20 @@ export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 export interface SiteSection {
   heading: string
   body: string
-  image?: string
+  image?: string // an inline image shown above the section text
+  bgImage?: string // a full-width background photo behind the section (text overlaid)
+  ctaLabel?: string
+  ctaType?: CtaType
+  ctaHref?: string
 }
 
-// A hero call-to-action button. 'booking' links to the site's /book page,
+// A call-to-action button. 'booking' links to the site's /book page,
 // 'email' opens a mail to the contact address, 'link' uses ctaHref, 'none' hides it.
 export type CtaType = 'booking' | 'email' | 'link' | 'none'
+
+// The content column width: 'contained' = a centred middle column,
+// 'full' = the content spreads across the whole page.
+export type SiteLayout = 'contained' | 'full'
 
 export type SiteTheme = 'sand' | 'midnight' | 'sage' | 'rose'
 
@@ -40,6 +48,7 @@ export interface SitePage {
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
+  layout?: SiteLayout
   brand?: string
   seoTitle?: string
   seoDescription?: string

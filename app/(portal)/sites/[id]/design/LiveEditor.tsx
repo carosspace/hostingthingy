@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
 import { saveSiteContentJsonAction } from '../../actions'
 
 interface EdSection {
@@ -10,6 +10,16 @@ interface EdSection {
   heading: string
   body: string
   image: string
+  bgImage: string
+  ctaLabel: string
+  ctaType: CtaType
+  ctaHref: string
+}
+
+interface BtnPatch {
+  type?: CtaType
+  label?: string
+  href?: string
 }
 
 const edStyle: CSSProperties = { outline: 'none', cursor: 'text', minHeight: '1em' }
@@ -104,6 +114,67 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
   )
 }
 
+// A small reusable "button" editor (target + label + custom link). Used for the
+// hero button and for every section button.
+function ButtonControl({
+  title,
+  type,
+  label,
+  href,
+  siteSlug,
+  onChange,
+}: {
+  title: string
+  type: CtaType
+  label: string
+  href: string
+  siteSlug: string
+  onChange: (patch: BtnPatch) => void
+}) {
+  return (
+    <div className="rounded-sm" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.1)', padding: 10 }}>
+      <div className="flex items-center justify-between gap-2">
+        <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>{title}</span>
+        <select
+          value={type}
+          onChange={e => onChange({ type: e.target.value as CtaType })}
+          style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}
+        >
+          <option value="none">No button</option>
+          <option value="booking">→ Booking page</option>
+          <option value="email">→ Email me</option>
+          <option value="link">→ Custom link</option>
+        </select>
+      </div>
+      {type !== 'none' && (
+        <>
+          <input
+            value={label}
+            onChange={e => onChange({ label: e.target.value })}
+            placeholder="Button text"
+            className="w-full mt-2"
+            style={{ ...urlInput, fontSize: 13, padding: '7px 10px', borderRadius: 3 }}
+          />
+          {type === 'link' && (
+            <input
+              value={href}
+              onChange={e => onChange({ href: e.target.value })}
+              placeholder="https://example.com  or  mailto:you@email.com"
+              className="w-full mt-2"
+              style={{ ...urlInput, fontSize: 12, padding: '7px 10px', borderRadius: 3 }}
+            />
+          )}
+          <p style={{ fontSize: 11, color: '#666', marginTop: 6 }}>
+            {type === 'booking' && `Goes to your booking page (/book/${siteSlug}).`}
+            {type === 'email' && 'Opens an email to your contact address.'}
+            {type === 'link' && 'Goes to the link above.'}
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function LiveEditor({
   siteId,
   siteSlug,
@@ -123,6 +194,7 @@ export default function LiveEditor({
   const rootRef = useRef<HTMLDivElement>(null)
   const [theme, setTheme] = useState<SiteTheme>(initial?.theme ?? 'sand')
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
+  const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
   const [contactEmail, setContactEmail] = useState(initial?.contactEmail ?? '')
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? '')
@@ -131,7 +203,16 @@ export default function LiveEditor({
   const [ctaType, setCtaType] = useState<CtaType>(initial?.ctaType ?? 'none')
   const [ctaHref, setCtaHref] = useState(initial?.ctaHref ?? '')
   const [sections, setSections] = useState<EdSection[]>(
-    (initial?.sections ?? []).map((s, i) => ({ id: 'i' + i, heading: s.heading, body: s.body, image: s.image ?? '' })),
+    (initial?.sections ?? []).map((s, i) => ({
+      id: 'i' + i,
+      heading: s.heading,
+      body: s.body,
+      image: s.image ?? '',
+      bgImage: s.bgImage ?? '',
+      ctaLabel: s.ctaLabel ?? '',
+      ctaType: s.ctaType ?? 'none',
+      ctaHref: s.ctaHref ?? '',
+    })),
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -159,7 +240,38 @@ export default function LiveEditor({
     return 'n' + idc.current
   }
   function addSection() {
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    touched()
+  }
+  function duplicate(id: string) {
+    const root = rootRef.current
+    const read = (f: string) => ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '')
+    setSections(p => {
+      const i = p.findIndex(s => s.id === id)
+      if (i < 0) return p
+      const src = p[i]
+      const copy: EdSection = { ...src, id: newId(), heading: read('h-' + id) || src.heading, body: read('b-' + id) || src.body }
+      const n = [...p]
+      n.splice(i + 1, 0, copy)
+      return n
+    })
+    touched()
+  }
+  function setSectionField(id: string, patch: Partial<EdSection>) {
+    setSections(p => p.map(s => (s.id === id ? { ...s, ...patch } : s)))
+    touched()
+  }
+  function sectionBtnChange(id: string, patch: BtnPatch) {
+    setSectionField(id, {
+      ...(patch.type !== undefined ? { ctaType: patch.type } : {}),
+      ...(patch.label !== undefined ? { ctaLabel: patch.label } : {}),
+      ...(patch.href !== undefined ? { ctaHref: patch.href } : {}),
+    })
+  }
+  function heroBtnChange(patch: BtnPatch) {
+    if (patch.type !== undefined) setCtaType(patch.type)
+    if (patch.label !== undefined) setCtaLabel(patch.label)
+    if (patch.href !== undefined) setCtaHref(patch.href)
     touched()
   }
   function removeSection(id: string) {
@@ -179,22 +291,26 @@ export default function LiveEditor({
     })
     touched()
   }
-  function setSectionImage(id: string, val: string) {
-    setSections(p => p.map(s => (s.id === id ? { ...s, image: val } : s)))
-    touched()
-  }
-
   async function save() {
     setSaving(true)
     const root = rootRef.current
     const read = (f: string) =>
       ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '').trim()
     const built = sections
-      .map(s => ({ heading: read('h-' + s.id), body: read('b-' + s.id), image: s.image.trim() || undefined }))
-      .filter(s => s.heading || s.body || s.image)
+      .map(s => ({
+        heading: read('h-' + s.id),
+        body: read('b-' + s.id),
+        image: s.image.trim() || undefined,
+        bgImage: s.bgImage.trim() || undefined,
+        ctaType: s.ctaType === 'none' ? undefined : s.ctaType,
+        ctaLabel: s.ctaType === 'none' ? undefined : s.ctaLabel.trim() || 'Learn more',
+        ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
+      }))
+      .filter(s => s.heading || s.body || s.image || s.bgImage)
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
+      layout,
       brand: read('brand') || undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
@@ -257,6 +373,23 @@ export default function LiveEditor({
             style={{ border: '1px solid rgba(201,168,76,0.3)' }}
           />
         </label>
+        <span className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
+          width
+          <button
+            type="button"
+            onClick={() => { setLayout('contained'); touched() }}
+            className={`px-2 py-1 rounded-sm ${layout === 'contained' ? 'bg-gold text-background' : 'border border-gold/30 text-gold'}`}
+          >
+            Middle
+          </button>
+          <button
+            type="button"
+            onClick={() => { setLayout('full'); touched() }}
+            className={`px-2 py-1 rounded-sm ${layout === 'full' ? 'bg-gold text-background' : 'border border-gold/30 text-gold'}`}
+          >
+            Full
+          </button>
+        </span>
         <div className="flex-1" />
         <button
           type="button"
@@ -356,82 +489,80 @@ export default function LiveEditor({
         </div>
 
         <div className="px-6 py-3" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto rounded-sm" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.1)', padding: 12 }}>
-            <div className="flex items-center justify-between gap-2">
-              <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>Hero button</span>
-              <select
-                value={ctaType}
-                onChange={e => {
-                  setCtaType(e.target.value as CtaType)
-                  touched()
-                }}
-                style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}
-              >
-                <option value="none">No button</option>
-                <option value="booking">→ Booking page</option>
-                <option value="email">→ Email me</option>
-                <option value="link">→ Custom link</option>
-              </select>
-            </div>
-            {ctaType !== 'none' && (
-              <>
-                <input
-                  value={ctaLabel}
-                  onChange={e => {
-                    setCtaLabel(e.target.value)
-                    touched()
-                  }}
-                  placeholder="Book a session"
-                  className="w-full mt-2"
-                  style={{ ...urlInput, fontSize: 13, padding: '7px 10px', borderRadius: 3 }}
-                />
-                {ctaType === 'link' && (
-                  <input
-                    value={ctaHref}
-                    onChange={e => {
-                      setCtaHref(e.target.value)
-                      touched()
-                    }}
-                    placeholder="https://example.com  or  mailto:you@email.com"
-                    className="w-full mt-2"
-                    style={{ ...urlInput, fontSize: 12, padding: '7px 10px', borderRadius: 3 }}
-                  />
-                )}
-                <p style={{ fontSize: 11, color: '#666', marginTop: 6 }}>
-                  {ctaType === 'booking' && `Sends visitors to your booking page (/book/${siteSlug}).`}
-                  {ctaType === 'email' && 'Opens an email to your contact address (set below).'}
-                  {ctaType === 'link' && 'Sends visitors to the link above.'}
-                </p>
-              </>
-            )}
+          <div className="max-w-md mx-auto">
+            <ButtonControl title="Hero button" type={ctaType} label={ctaLabel} href={ctaHref} siteSlug={siteSlug} onChange={heroBtnChange} />
           </div>
         </div>
 
-        <div className="max-w-2xl mx-auto px-6 py-10 space-y-10">
-          {sections.map(s => (
-            <div key={s.id} className="group relative">
-              <div className="absolute right-0 -top-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button type="button" onClick={() => move(s.id, -1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↑</button>
-                <button type="button" onClick={() => move(s.id, 1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↓</button>
-                <button type="button" onClick={() => removeSection(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: '#b3402f', color: '#fff' }}>✕</button>
+        <div className={`${layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto px-6 py-10 space-y-10`}>
+          {sections.map(s => {
+            const onBg = Boolean(s.bgImage)
+            const btnPreview =
+              s.ctaType !== 'none' ? (
+                <div className="mt-4">
+                  <span className="font-label inline-block" style={{ background: accent, color: t.bg, padding: '10px 24px', borderRadius: 3, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}>
+                    {s.ctaLabel || 'Learn more'}
+                  </span>
+                </div>
+              ) : null
+            return (
+              <div key={s.id} className="group relative">
+                <div className="absolute right-0 -top-3 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" title="Move up" onClick={() => move(s.id, -1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↑</button>
+                  <button type="button" title="Move down" onClick={() => move(s.id, 1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↓</button>
+                  <button type="button" title="Duplicate" onClick={() => duplicate(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>⧉</button>
+                  <button type="button" title="Delete" onClick={() => removeSection(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: '#b3402f', color: '#fff' }}>✕</button>
+                </div>
+
+                {onBg ? (
+                  <div className="relative rounded-sm overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+                    <div className="relative px-6 py-16 text-center">
+                      <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: '#fff' }}>
+                        {s.heading}
+                      </div>
+                      <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: 'rgba(255,255,255,0.92)' }}>
+                        {s.body}
+                      </div>
+                      {btnPreview}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {s.image && (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={s.image} alt="" className="w-full rounded-sm mb-4" style={{ maxHeight: 360, objectFit: 'cover' }} />
+                      </>
+                    )}
+                    <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: accent }}>
+                      {s.heading}
+                    </div>
+                    <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
+                      {s.body}
+                    </div>
+                    {btnPreview}
+                  </>
+                )}
+
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>Inline image</p>
+                    <ImageField value={s.image} onChange={v => setSectionField(s.id, { image: v })} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>Background photo</p>
+                    <ImageField value={s.bgImage} onChange={v => setSectionField(s.id, { bgImage: v })} />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <ButtonControl title="Section button" type={s.ctaType} label={s.ctaLabel} href={s.ctaHref} siteSlug={siteSlug} onChange={patch => sectionBtnChange(s.id, patch)} />
+                </div>
               </div>
-              {s.image && (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={s.image} alt="" className="w-full rounded-sm mb-4" style={{ maxHeight: 360, objectFit: 'cover' }} />
-                </>
-              )}
-              <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: accent }}>
-                {s.heading}
-              </div>
-              <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
-                {s.body}
-              </div>
-              <div className="mt-3">
-                <ImageField value={s.image} onChange={v => setSectionImage(s.id, v)} />
-              </div>
-            </div>
-          ))}
+            )
+          })}
           {sections.length === 0 && (
             <button type="button" onClick={addSection} className="w-full py-10 rounded-sm text-sm" style={{ border: `2px dashed ${accent}`, color: accent }}>
               + Add your first section
