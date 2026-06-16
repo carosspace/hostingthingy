@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 
@@ -223,7 +223,44 @@ export default function PublicPage({
                 const ctaEl = secCta ? <div className="mt-6">{secCta}</div> : null
                 const items = sec.items ?? []
                 let inner
-                if (sec.kind === 'cards') {
+                if (sec.kind === 'layout') {
+                  const cols = sec.columns || 1
+                  const renderBlock = (it: (typeof items)[number], j: number) => {
+                    let el: ReactNode = null
+                    if (it.block === 'heading') el = it.title ? <h2 className="font-display text-2xl md:text-3xl italic" style={{ color: accent }}>{it.title}</h2> : null
+                    else if (it.block === 'image') el = it.image ? (/* eslint-disable-next-line @next/next/no-img-element */ <img src={it.image} alt="" className="w-full rounded-sm" style={{ objectFit: 'cover' }} />) : null
+                    else if (it.block === 'button') el = makeCta(it.title, it.ctaType, it.href)
+                    else if (it.block === 'divider') el = <div style={{ height: 1, background: accent, opacity: 0.35 }} />
+                    else if (it.block === 'spacer') el = <div style={{ height: 32 }} />
+                    else if (it.block === 'banner') el = (
+                      <div className="relative rounded-sm overflow-hidden" style={{ minHeight: 200 }}>
+                        {it.image && (/* eslint-disable-next-line @next/next/no-img-element */ <img src={it.image} alt="" className="absolute inset-0 w-full h-full object-cover" />)}
+                        <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.4)' }} />
+                        <div className="relative px-6 py-12 text-center">
+                          {it.title && <h2 className="font-display text-3xl italic" style={{ color: '#ffffff' }}>{it.title}</h2>}
+                          {it.body && <p className="font-body mt-2 whitespace-pre-wrap" style={{ color: 'rgba(255,255,255,0.92)' }}>{it.body}</p>}
+                        </div>
+                      </div>
+                    )
+                    else el = it.body ? <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>{it.body}</p> : null
+                    if (!el) return null
+                    const boxed = it.boxColor || it.outline
+                    return (
+                      <div key={j} style={boxed ? { background: it.outline ? 'transparent' : it.boxColor, border: it.outline ? `1px solid ${accent}55` : undefined, borderRadius: 6, padding: 16 } : undefined}>
+                        {el}
+                      </div>
+                    )
+                  }
+                  inner = (
+                    <div className={`flex flex-col gap-6 ${cols >= 2 ? 'md:flex-row md:items-start' : ''}`}>
+                      {Array.from({ length: cols }).map((_, c) => (
+                        <div key={c} className="flex-1 min-w-0 space-y-4">
+                          {items.filter(it => (it.col ?? 0) === c).map((it, j) => renderBlock(it, j))}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                } else if (sec.kind === 'cards') {
                   inner = (
                     <>
                       {headingEl}

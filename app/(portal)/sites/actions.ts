@@ -21,6 +21,7 @@ import type {
   ImageFit,
   Social,
   SocialKind,
+  BlockType,
 } from '@/lib/sites/types'
 import {
   createSiteRecord,
@@ -295,7 +296,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
       const ct = (['booking', 'email', 'link'].includes(ctRaw) ? ctRaw : undefined) as CtaType | undefined
       const alignRaw = String(s?.align ?? '')
       const kindRaw = String(s?.kind ?? '')
-      const kind = (['cards', 'faq', 'gallery', 'embed'].includes(kindRaw) ? kindRaw : undefined) as SectionKind | undefined
+      const kind = (['cards', 'faq', 'gallery', 'embed', 'layout'].includes(kindRaw) ? kindRaw : undefined) as SectionKind | undefined
+      const colsRaw = Number(s?.columns)
+      const columns = colsRaw >= 1 && colsRaw <= 3 ? (Math.round(colsRaw) as 1 | 2 | 3) : undefined
       const ov = Number(s?.overlay)
       const imgLayoutRaw = String(s?.imageLayout ?? '')
       const imageLayout = (['imageLeft', 'imageRight'].includes(imgLayoutRaw) ? imgLayoutRaw : undefined) as
@@ -303,13 +306,24 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         | undefined
       const rawItems = Array.isArray(s?.items) ? (s.items as Record<string, unknown>[]) : []
       const items: SectionItem[] = rawItems
-        .map(it => ({
-          title: String(it?.title ?? '').trim() || undefined,
-          body: String(it?.body ?? '').trim() || undefined,
-          image: String(it?.image ?? '').trim() || undefined,
-        }))
-        .filter(it => it.title || it.body || it.image)
-        .slice(0, 12)
+        .map(it => {
+          const itCtRaw = String(it?.ctaType ?? '')
+          const colN = Number(it?.col)
+          const bc = String(it?.boxColor ?? '').trim()
+          return {
+            title: String(it?.title ?? '').trim() || undefined,
+            body: String(it?.body ?? '').trim() || undefined,
+            image: String(it?.image ?? '').trim() || undefined,
+            block: (['text', 'heading', 'image', 'button', 'banner', 'divider', 'spacer'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
+            col: colN >= 0 && colN <= 2 ? (Math.round(colN) as 0 | 1 | 2) : undefined,
+            href: String(it?.href ?? '').trim() || undefined,
+            ctaType: (['booking', 'email', 'link'].includes(itCtRaw) ? itCtRaw : undefined) as CtaType | undefined,
+            boxColor: /^#[0-9a-f]{6}$/i.test(bc) ? bc : undefined,
+            outline: it?.outline ? true : undefined,
+          }
+        })
+        .filter(it => it.block || it.title || it.body || it.image)
+        .slice(0, 16)
       return {
         heading: String(s?.heading ?? '').trim(),
         body: String(s?.body ?? '').trim(),
@@ -318,6 +332,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         bgColor: String(s?.bgColor ?? '').trim() || undefined,
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         kind,
+        columns,
         imageLayout,
         items: items.length ? items : undefined,
         imageSize: (['sm', 'md', 'full'].includes(String(s?.imageSize)) ? String(s?.imageSize) : undefined) as ImageSize | undefined,

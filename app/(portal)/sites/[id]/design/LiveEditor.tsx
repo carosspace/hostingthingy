@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
@@ -12,6 +12,12 @@ interface EdItem {
   title: string
   body: string
   image: string
+  block?: BlockType
+  col?: 0 | 1 | 2
+  href?: string
+  ctaType?: CtaType
+  boxColor?: string
+  outline?: boolean
 }
 
 interface EdSection {
@@ -24,6 +30,7 @@ interface EdSection {
   align: '' | SiteAlign
   kind: SectionKind
   items: EdItem[]
+  columns: number
   imageLayout: '' | SectionImageLayout
   imageSize: '' | ImageSize
   imageFit: '' | ImageFit
@@ -39,6 +46,16 @@ interface BtnPatch {
   label?: string
   href?: string
 }
+
+const BLOCK_CHIPS: { type: BlockType; label: string }[] = [
+  { type: 'text', label: 'Text' },
+  { type: 'heading', label: 'Heading' },
+  { type: 'image', label: 'Picture' },
+  { type: 'button', label: 'Button' },
+  { type: 'banner', label: 'Banner' },
+  { type: 'divider', label: 'Line' },
+  { type: 'spacer', label: 'Spacer' },
+]
 
 const edStyle: CSSProperties = { outline: 'none', cursor: 'text', minHeight: '1em' }
 const urlInput: CSSProperties = {
@@ -243,7 +260,8 @@ export default function LiveEditor({
       bgColor: s.bgColor ?? '',
       align: (s.align ?? '') as '' | SiteAlign,
       kind: s.kind ?? 'prose',
-      items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '' })),
+      items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, col: it.col, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
+      columns: typeof s.columns === 'number' ? s.columns : 1,
       imageLayout: (s.imageLayout ?? '') as '' | SectionImageLayout,
       imageSize: (s.imageSize ?? '') as '' | ImageSize,
       imageFit: (s.imageFit ?? '') as '' | ImageFit,
@@ -262,6 +280,7 @@ export default function LiveEditor({
   const [addAiOpen, setAddAiOpen] = useState(false)
   const [addAiText, setAddAiText] = useState('')
   const [blocksOpen, setBlocksOpen] = useState(false)
+  const [blockMenu, setBlockMenu] = useState('') // `${sectionId}:${col}` of an open + block menu
   const [pageAiText, setPageAiText] = useState('')
   const [pageAiBusy, setPageAiBusy] = useState(false)
   const [dragId, setDragId] = useState('')
@@ -302,7 +321,7 @@ export default function LiveEditor({
   }
   function addSection() {
     pushUndo()
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
@@ -324,6 +343,7 @@ export default function LiveEditor({
         imageFit: '',
         overlay: 50,
         embedUrl: '',
+        columns: 1,
         ctaLabel: b.ctaLabel ?? '',
         ctaType: b.ctaType ?? 'none',
         ctaHref: '',
@@ -377,6 +397,56 @@ export default function LiveEditor({
     setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)) } : s)))
     touched()
   }
+  // Add a typed block to a column of a 'layout' section.
+  function addLayoutBlock(sectionId: string, col: 0 | 1 | 2, block: BlockType) {
+    setUndoStack([])
+    setSections(p =>
+      p.map(s =>
+        s.id === sectionId && s.items.length < 16
+          ? {
+              ...s,
+              items: [
+                ...s.items,
+                {
+                  id: newId(),
+                  title: block === 'heading' ? 'Heading' : block === 'banner' ? 'Banner title' : block === 'button' ? 'Button' : '',
+                  body: block === 'text' ? 'Your text here…' : '',
+                  image: '',
+                  block,
+                  col,
+                  href: '',
+                  ctaType: (block === 'button' ? 'email' : 'none') as CtaType,
+                  boxColor: '',
+                  outline: false,
+                },
+              ],
+            }
+          : s,
+      ),
+    )
+    setBlockMenu('')
+    touched()
+  }
+  // Convert a normal section into a free-layout one, seeding heading + text blocks.
+  function toLayout(id: string) {
+    const h = domText('h-' + id)
+    const b = domText('b-' + id)
+    setUndoStack([])
+    setSections(p =>
+      p.map(s => {
+        if (s.id !== id) return s
+        const hasBlocks = s.items.some(it => it.block)
+        const items: EdItem[] = hasBlocks
+          ? s.items
+          : [
+              { id: newId(), title: h || s.heading || 'Heading', body: '', image: '', block: 'heading', col: 0, href: '', ctaType: 'none', boxColor: '', outline: false },
+              { id: newId(), title: '', body: b || s.body || 'Your text here…', image: '', block: 'text', col: 0, href: '', ctaType: 'none', boxColor: '', outline: false },
+            ]
+        return { ...s, kind: 'layout', columns: s.columns || 1, items }
+      }),
+    )
+    touched()
+  }
   function sectionBtnChange(id: string, patch: BtnPatch) {
     setSectionField(id, {
       ...(patch.type !== undefined ? { ctaType: patch.type } : {}),
@@ -418,7 +488,7 @@ export default function LiveEditor({
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -446,7 +516,7 @@ export default function LiveEditor({
             // Only carry a section's media/layout/items across the rewrite when the
             // AI returned the same number of sections (so index i still maps 1:1).
             const old = sameShape ? sections[i] : undefined
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', columns: typeof old?.columns === 'number' ? old.columns : 1, ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -527,12 +597,22 @@ export default function LiveEditor({
       ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '').trim()
     const built = sections
       .map(s => {
-        const items =
-          s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery'
-            ? s.items
-                .map(it => ({ title: it.title.trim() || undefined, body: it.body.trim() || undefined, image: it.image.trim() || undefined }))
-                .filter(it => it.title || it.body || it.image)
-            : []
+        const isItemKind = s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery' || s.kind === 'layout'
+        const items = isItemKind
+          ? s.items
+              .map(it => ({
+                title: it.title.trim() || undefined,
+                body: it.body.trim() || undefined,
+                image: it.image.trim() || undefined,
+                block: it.block,
+                col: it.col,
+                href: it.href?.trim() || undefined,
+                ctaType: it.ctaType && it.ctaType !== 'none' ? it.ctaType : undefined,
+                boxColor: it.boxColor || undefined,
+                outline: it.outline || undefined,
+              }))
+              .filter(it => it.block || it.title || it.body || it.image)
+          : []
         return {
           heading: read('h-' + s.id),
           body: read('b-' + s.id),
@@ -541,6 +621,7 @@ export default function LiveEditor({
           bgColor: s.bgColor.trim() || undefined,
           align: s.align || undefined,
           kind: s.kind === 'prose' ? undefined : s.kind,
+          columns: s.kind === 'layout' ? (Math.min(3, Math.max(1, s.columns || 1)) as 1 | 2 | 3) : undefined,
           imageLayout: s.imageLayout || undefined,
           items: items.length ? items : undefined,
           imageSize: s.imageSize || undefined,
@@ -960,6 +1041,76 @@ export default function LiveEditor({
                   )}
                 </div>
               ) : null
+            const layoutEditor =
+              s.kind === 'layout' ? (
+                <div className={`flex flex-col gap-4 mt-2 ${(s.columns || 1) >= 2 ? 'md:flex-row md:items-start' : ''}`} style={{ textAlign: 'left' }}>
+                  {Array.from({ length: s.columns || 1 }).map((_, col) => (
+                    <div key={col} className="flex-1 min-w-0 space-y-3">
+                      {s.items.filter(it => (it.col ?? 0) === col).map(it => (
+                        <div key={it.id} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)', background: it.boxColor || 'rgba(255,255,255,0.55)', padding: 10 }}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#999' }}>{it.block || 'text'}</span>
+                            <div className="flex items-center gap-2">
+                              {(s.columns || 1) >= 2 && (
+                                <button type="button" title="Move to next column" onClick={() => updateItem(s.id, it.id, { col: (((it.col ?? 0) + 1) % (s.columns || 1)) as 0 | 1 | 2 })} style={{ fontSize: 13, color: accent }}>⇄</button>
+                              )}
+                              {it.block !== 'divider' && it.block !== 'spacer' && (
+                                <input type="color" value={it.boxColor || '#ffffff'} onChange={e => updateItem(s.id, it.id, { boxColor: e.target.value })} title="Box colour" style={{ width: 20, height: 18, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', padding: 0 }} />
+                              )}
+                              {it.boxColor && <button type="button" onClick={() => updateItem(s.id, it.id, { boxColor: '' })} title="No box" style={{ fontSize: 11, color: '#888' }}>×</button>}
+                              <button type="button" onClick={() => removeItem(s.id, it.id)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove block">✕</button>
+                            </div>
+                          </div>
+                          {it.block === 'heading' && (
+                            <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Heading" className="w-full" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: accent }} />
+                          )}
+                          {(it.block === 'text' || !it.block) && (
+                            <textarea value={it.body} onChange={e => updateItem(s.id, it.id, { body: e.target.value })} placeholder="Your text…" rows={3} className="w-full resize-none" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }} />
+                          )}
+                          {it.block === 'image' && <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />}
+                          {it.block === 'button' && (
+                            <div className="space-y-1">
+                              <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Button text" className="w-full" style={{ ...urlInput, fontSize: 13, padding: '6px 8px', borderRadius: 3 }} />
+                              <select value={it.ctaType || 'none'} onChange={e => updateItem(s.id, it.id, { ctaType: e.target.value as CtaType })} style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}>
+                                <option value="none">No link</option>
+                                <option value="booking">→ Booking page</option>
+                                <option value="email">→ Email me</option>
+                                <option value="link">→ Custom link</option>
+                              </select>
+                              {it.ctaType === 'link' && <input value={it.href || ''} onChange={e => updateItem(s.id, it.id, { href: e.target.value })} placeholder="https://…" className="w-full" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />}
+                            </div>
+                          )}
+                          {it.block === 'banner' && (
+                            <div className="space-y-1">
+                              <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
+                              <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Banner title" className="w-full" style={{ ...urlInput, fontSize: 13, padding: '6px 8px', borderRadius: 3 }} />
+                              <textarea value={it.body} onChange={e => updateItem(s.id, it.id, { body: e.target.value })} placeholder="Banner text" rows={2} className="w-full resize-none" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />
+                            </div>
+                          )}
+                          {it.block === 'divider' && <div style={{ height: 1, background: accent, opacity: 0.4 }} />}
+                          {it.block === 'spacer' && <div style={{ height: 24, background: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.05) 4px, rgba(0,0,0,0.05) 8px)' }} />}
+                        </div>
+                      ))}
+                      {blockMenu === `${s.id}:${col}` ? (
+                        <div className="flex flex-wrap gap-1 rounded-sm" style={{ border: `1px dashed ${accent}`, padding: 8 }}>
+                          {BLOCK_CHIPS.map(bc => (
+                            <button key={bc.type} type="button" onClick={() => addLayoutBlock(s.id, col as 0 | 1 | 2, bc.type)} className="font-label" style={{ ...chipStyle, fontSize: 11 }}>
+                              {bc.label}
+                            </button>
+                          ))}
+                          <button type="button" onClick={() => setBlockMenu('')} style={{ fontSize: 11, color: '#888' }}>cancel</button>
+                        </div>
+                      ) : (
+                        s.items.length < 16 && (
+                          <button type="button" onClick={() => setBlockMenu(`${s.id}:${col}`)} className="w-full rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 10, fontSize: 13 }}>
+                            + block
+                          </button>
+                        )
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null
             return (
               <div
                 key={`${s.id}-${undoNonce}`}
@@ -994,7 +1145,12 @@ export default function LiveEditor({
                   </div>
                 ) : (
                   <div style={{ background: s.bgColor || undefined, borderRadius: s.bgColor ? 6 : undefined, padding: s.bgColor ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
-                    {sideBySide ? (
+                    {s.kind === 'layout' ? (
+                      <>
+                        {layoutEditor}
+                        {btnPreview}
+                      </>
+                    ) : sideBySide ? (
                       <div className={`flex flex-col gap-6 md:items-center ${s.imageLayout === 'imageRight' ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
                         <div className="md:w-1/2 w-full">{imageEl}</div>
                         <div className="md:w-1/2 w-full">
@@ -1078,6 +1234,28 @@ export default function LiveEditor({
                         </button>
                       )
                     })}
+                    <button
+                      type="button"
+                      onClick={() => toLayout(s.id)}
+                      className="font-label"
+                      style={{ ...chipStyle, ...(s.kind === 'layout' ? { background: accent, color: t.bg, border: `1px solid ${accent}` } : {}) }}
+                    >
+                      ⊞ Free layout
+                    </button>
+                    {s.kind === 'layout' && (
+                      <>
+                        <span style={{ ...ctlLabel, marginLeft: 8 }}>Columns</span>
+                        <select
+                          value={s.columns || 1}
+                          onChange={e => setSectionField(s.id, { columns: parseInt(e.target.value, 10) })}
+                          style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}
+                        >
+                          <option value={1}>1</option>
+                          <option value={2}>2</option>
+                          <option value={3}>3</option>
+                        </select>
+                      </>
+                    )}
                     {s.kind === 'prose' && s.image && (
                       <>
                         <span style={{ ...ctlLabel, marginLeft: 8 }}>Image</span>

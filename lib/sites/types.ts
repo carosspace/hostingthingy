@@ -2,10 +2,12 @@ export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 
 export type SiteAlign = 'left' | 'center' | 'right'
 
-// How a section lays out: prose (one block), cards (a grid of items), faq (an
-// accordion of question/answer items), gallery (a grid of photos), embed (a video
-// or map).
-export type SectionKind = 'prose' | 'cards' | 'faq' | 'gallery' | 'embed'
+// How a section lays out: prose, cards, faq, gallery, embed, or 'layout' (free
+// composition of typed blocks in columns — the Canva-style mode).
+export type SectionKind = 'prose' | 'cards' | 'faq' | 'gallery' | 'embed' | 'layout'
+
+// In a 'layout' section, each SectionItem becomes a typed block placed in a column.
+export type BlockType = 'text' | 'heading' | 'image' | 'button' | 'banner' | 'divider' | 'spacer'
 
 export type ImageSize = 'sm' | 'md' | 'full'
 export type ImageFit = 'cover' | 'contain'
@@ -17,6 +19,13 @@ export interface SectionItem {
   title?: string
   body?: string
   image?: string
+  // --- 'layout' section block fields (absent on cards/faq/gallery items) ---
+  block?: BlockType
+  col?: 0 | 1 | 2 // which column (free left/right composition)
+  href?: string // button custom target
+  ctaType?: CtaType // button uses the shared makeCta resolver
+  boxColor?: string // recolour this block's box (hex); absent = no box
+  outline?: boolean // outlined box instead of a filled one
 }
 
 export interface SiteSection {
@@ -26,8 +35,9 @@ export interface SiteSection {
   bgImage?: string // a full-width background photo behind the section (text overlaid)
   bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
   align?: SiteAlign // text alignment within the section
-  kind?: SectionKind // cards/faq/gallery/embed change the section layout
-  items?: SectionItem[] // repeatable items for cards/faq, or photos for gallery
+  kind?: SectionKind // cards/faq/gallery/embed/layout change the section layout
+  items?: SectionItem[] // repeatable items for cards/faq, photos for gallery, or blocks for layout
+  columns?: 1 | 2 | 3 // number of columns in a 'layout' section
   imageLayout?: SectionImageLayout // for a prose section with an image
   imageSize?: ImageSize // inline image width
   imageFit?: ImageFit // inline image crop vs fit
