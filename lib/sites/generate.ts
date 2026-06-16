@@ -75,3 +75,96 @@ export async function generateSiteContent(siteName: string, description: string)
     contactEmail: '',
   }
 }
+
+export interface GeneratedPage {
+  headline: string
+  subheadline: string
+  sections: { heading: string; body: string }[]
+}
+
+// Generates copy for a whole multi-page site in one call. Returns one entry per
+// requested page, in the SAME order as `pageSpecs` (we control titles/slugs, the
+// AI only writes the words). The chosen visual style is handled separately.
+export async function generateSitePages(opts: {
+  siteName: string
+  type: string
+  description: string
+  styleName: string
+  pageSpecs: { title: string; purpose: string }[]
+}): Promise<GeneratedPage[]> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const n = opts.pageSpecs.length
+
+  const pageList = opts.pageSpecs.map((p, i) => `${i + 1}. ${p.title} — ${p.purpose}`).join('\n')
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4096,
+    tools: [
+      {
+        name: 'build_site',
+        description: 'Provide the written content for every page of a small, elegant website.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            pages: {
+              type: 'array',
+              description: `Exactly ${n} pages, in the same order as the requested list.`,
+              items: {
+                type: 'object',
+                properties: {
+                  headline: { type: 'string', description: 'Short, evocative page hero headline (~3-8 words).' },
+                  subheadline: { type: 'string', description: 'One warm sentence beneath the headline.' },
+                  sections: {
+                    type: 'array',
+                    description: '2-4 sections for this page.',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        heading: { type: 'string' },
+                        body: { type: 'string', description: '2-4 warm, clear sentences.' },
+                      },
+                      required: ['heading', 'body'],
+                    },
+                  },
+                },
+                required: ['headline', 'subheadline', 'sections'],
+              },
+            },
+          },
+          required: ['pages'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'build_site' },
+    messages: [
+      {
+        role: 'user',
+        content: `Write the content for a beautiful "${opts.type}" website. Use warm, clear, professional copy in a "${opts.styleName}" style.\n\nBusiness name: ${opts.siteName}\nWhat it is: ${opts.description}\n\nWrite these ${n} pages, in this exact order:\n${pageList}\n\nReturn exactly ${n} pages in the pages array, matching the order above.`,
+      },
+    ],
+  })
+
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    throw new Error('The AI did not return website content. Please try again.')
+  }
+
+  const input = block.input as {
+    pages?: { headline?: string; subheadline?: string; sections?: { heading?: string; body?: string }[] }[]
+  }
+  const pages = input.pages ?? []
+
+  // Always return one entry per requested page (fall back to empties if the AI under-delivers).
+  return opts.pageSpecs.map((_, i) => {
+    const p = pages[i] ?? {}
+    return {
+      headline: (p.headline ?? '').trim(),
+      subheadline: (p.subheadline ?? '').trim(),
+      sections: (p.sections ?? [])
+        .slice(0, 6)
+        .map(s => ({ heading: (s.heading ?? '').trim(), body: (s.body ?? '').trim() }))
+        .filter(s => s.heading || s.body),
+    }
+  })
+}

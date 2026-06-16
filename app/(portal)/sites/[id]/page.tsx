@@ -64,20 +64,29 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/sites/${site.id}/design`}
           className="inline-block font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors"
         >
-          ✎ Edit website (visual)
+          ✎ Edit website
+        </Link>
+        <Link
+          href={`/sites/${site.id}/ai`}
+          className="inline-block font-label text-[11px] tracking-[3px] uppercase border border-gold text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors"
+        >
+          ✨ Edit with AI
         </Link>
         <Link
           href={`/sites/${site.id}/edit`}
-          className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors"
+          className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors ml-1"
         >
           Form editor
         </Link>
       </div>
+      <p className="font-body text-ash/50 text-xs -mt-6">
+        Build it by hand, or let AI draft it — switch between both anytime.
+      </p>
 
       <section className="border border-gold/15 rounded-sm divide-y divide-gold/10">
         {rows.map(([k, v]) => (
