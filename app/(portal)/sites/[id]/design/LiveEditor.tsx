@@ -958,6 +958,54 @@ export default function LiveEditor({
             )
           })}
         </div>
+        <div className="h-px bg-gold/15" />
+        <details>
+          <summary className="font-label text-[9px] tracking-[2px] uppercase text-gold/70 cursor-pointer select-none">Logo &amp; header</summary>
+          <div className="mt-2 space-y-2">
+            {((!logoImage && !logoOpen) || (!faviconImage && !faviconOpen)) && (
+              <div className="flex flex-wrap gap-2">
+                {!logoImage && !logoOpen && <button type="button" onClick={() => setLogoOpen(true)} className="font-label" style={chipStyle}>+ Logo image</button>}
+                {!faviconImage && !faviconOpen && <button type="button" onClick={() => setFaviconOpen(true)} className="font-label" style={chipStyle}>+ Favicon (tab icon)</button>}
+              </div>
+            )}
+            {(logoImage || logoOpen) && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span style={ctlLabel}>Logo (shown instead of the name)</span>
+                  {!logoImage && <button type="button" onClick={() => setLogoOpen(false)} style={cancelStyle}>× cancel</button>}
+                </div>
+                <ImageField value={logoImage} onChange={v => { setLogoImage(v); touched() }} />
+              </div>
+            )}
+            {(faviconImage || faviconOpen) && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span style={ctlLabel}>Favicon — browser-tab icon (a small square works best)</span>
+                  {!faviconImage && <button type="button" onClick={() => setFaviconOpen(false)} style={cancelStyle}>× cancel</button>}
+                </div>
+                <ImageField value={faviconImage} onChange={v => { setFaviconImage(v); touched() }} maxW={128} />
+              </div>
+            )}
+            <BarBlocksEditor title="Header" hint="Build your own header bar — add a logo, a tagline, or a link. Leave empty to keep the simple logo + menu." items={headerItems} setItems={setHeaderItems} accent={accent} onTouch={touched} newId={() => 'b' + idc.current++} />
+          </div>
+        </details>
+        <details>
+          <summary className="font-label text-[9px] tracking-[2px] uppercase text-gold/70 cursor-pointer select-none">Footer</summary>
+          <div className="mt-2">
+            <BarBlocksEditor title="Footer" hint="Build your own footer — add a copyright line, an address, opening hours, or links. Leave empty to keep the simple footer line." items={footerItems} setItems={setFooterItems} accent={accent} onTouch={touched} newId={() => 'b' + idc.current++} />
+            <p style={{ ...ctlLabel, marginTop: 12 }}>Social links</p>
+            {socials.map((sc, i) => (
+              <div key={i} className="flex items-center gap-2 mt-2">
+                <select value={sc.kind} onChange={e => updateSocial(i, { kind: e.target.value as SocialKind })} style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}>
+                  {(['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'email', 'website'] as const).map(k => (<option key={k} value={k}>{k}</option>))}
+                </select>
+                <input value={sc.url} onChange={e => updateSocial(i, { url: e.target.value })} placeholder={sc.kind === 'email' ? 'you@email.com' : 'https://…'} className="flex-1 min-w-0" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />
+                <button type="button" onClick={() => removeSocial(i)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove social link">✕</button>
+              </div>
+            ))}
+            <button type="button" onClick={addSocial} className="mt-2 font-label" style={chipStyle}>+ Add social link</button>
+          </div>
+        </details>
       </div>
 
       <div className="flex-1 min-w-0">
@@ -1035,46 +1083,6 @@ export default function LiveEditor({
         </div>
 
         <div className={previewBodyColCls}>
-        <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto space-y-2">
-            {((!logoImage && !logoOpen) || (!faviconImage && !faviconOpen)) && (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {!logoImage && !logoOpen && <button type="button" onClick={() => setLogoOpen(true)} className="font-label" style={chipStyle}>+ Logo image</button>}
-                {!faviconImage && !faviconOpen && <button type="button" onClick={() => setFaviconOpen(true)} className="font-label" style={chipStyle}>+ Favicon (tab icon)</button>}
-              </div>
-            )}
-            {(logoImage || logoOpen) && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span style={ctlLabel}>Logo (shown instead of the name)</span>
-                  {!logoImage && <button type="button" onClick={() => setLogoOpen(false)} style={cancelStyle}>× cancel</button>}
-                </div>
-                <ImageField value={logoImage} onChange={v => { setLogoImage(v); touched() }} />
-              </div>
-            )}
-            {(faviconImage || faviconOpen) && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span style={ctlLabel}>Favicon — browser-tab icon (a small square works best)</span>
-                  {!faviconImage && <button type="button" onClick={() => setFaviconOpen(false)} style={cancelStyle}>× cancel</button>}
-                </div>
-                <ImageField value={faviconImage} onChange={v => { setFaviconImage(v); touched() }} maxW={128} />
-              </div>
-            )}
-            <div className="pt-2 mt-1" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
-              <BarBlocksEditor
-                title="Header"
-                hint="Build your own header bar — add a logo, a tagline, or a link. Leave empty to keep the simple logo + menu above."
-                items={headerItems}
-                setItems={setHeaderItems}
-                accent={accent}
-                onTouch={touched}
-                newId={() => 'b' + idc.current++}
-              />
-            </div>
-          </div>
-        </div>
-
         {heroImage ? (
           <div className="relative" style={{ minHeight: 300 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1634,44 +1642,6 @@ export default function LiveEditor({
           </div>
         </div>
 
-        <div className="px-6 pb-6" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto pt-3">
-            <div className="pb-3 mb-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              <BarBlocksEditor
-                title="Footer"
-                hint="Build your own footer — add a copyright line, an address, opening hours, or links. Leave empty to keep the simple footer line below."
-                items={footerItems}
-                setItems={setFooterItems}
-                accent={accent}
-                onTouch={touched}
-                newId={() => 'b' + idc.current++}
-              />
-            </div>
-            <p style={ctlLabel}>Social links (footer)</p>
-            {socials.map((sc, i) => (
-              <div key={i} className="flex items-center gap-2 mt-2">
-                <select
-                  value={sc.kind}
-                  onChange={e => updateSocial(i, { kind: e.target.value as SocialKind })}
-                  style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}
-                >
-                  {(['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'email', 'website'] as const).map(k => (
-                    <option key={k} value={k}>{k}</option>
-                  ))}
-                </select>
-                <input
-                  value={sc.url}
-                  onChange={e => updateSocial(i, { url: e.target.value })}
-                  placeholder={sc.kind === 'email' ? 'you@email.com' : 'https://…'}
-                  className="flex-1"
-                  style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }}
-                />
-                <button type="button" onClick={() => removeSocial(i)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove social link">✕</button>
-              </div>
-            ))}
-            <button type="button" onClick={addSocial} className="mt-2 font-label" style={chipStyle}>+ Add social link</button>
-          </div>
-        </div>
         </div>
        </div>
       </div>
