@@ -17,6 +17,10 @@ import type {
   SectionKind,
   SectionImageLayout,
   SectionItem,
+  ImageSize,
+  ImageFit,
+  Social,
+  SocialKind,
 } from '@/lib/sites/types'
 import {
   createSiteRecord,
@@ -291,7 +295,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
       const ct = (['booking', 'email', 'link'].includes(ctRaw) ? ctRaw : undefined) as CtaType | undefined
       const alignRaw = String(s?.align ?? '')
       const kindRaw = String(s?.kind ?? '')
-      const kind = (['cards', 'faq'].includes(kindRaw) ? kindRaw : undefined) as SectionKind | undefined
+      const kind = (['cards', 'faq', 'gallery', 'embed'].includes(kindRaw) ? kindRaw : undefined) as SectionKind | undefined
+      const ov = Number(s?.overlay)
       const imgLayoutRaw = String(s?.imageLayout ?? '')
       const imageLayout = (['imageLeft', 'imageRight'].includes(imgLayoutRaw) ? imgLayoutRaw : undefined) as
         | SectionImageLayout
@@ -315,12 +320,16 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         kind,
         imageLayout,
         items: items.length ? items : undefined,
+        imageSize: (['sm', 'md', 'full'].includes(String(s?.imageSize)) ? String(s?.imageSize) : undefined) as ImageSize | undefined,
+        imageFit: (['cover', 'contain'].includes(String(s?.imageFit)) ? String(s?.imageFit) : undefined) as ImageFit | undefined,
+        overlay: Number.isFinite(ov) ? Math.min(80, Math.max(0, Math.round(ov))) : undefined,
+        embedUrl: String(s?.embedUrl ?? '').trim() || undefined,
         ctaType: ct,
         ctaLabel: ct ? String(s?.ctaLabel ?? '').trim() || 'Learn more' : undefined,
         ctaHref: ct === 'link' ? String(s?.ctaHref ?? '').trim() || undefined : undefined,
       }
     })
-    .filter(s => s.heading || s.body || s.image || s.bgImage || (s.items && s.items.length))
+    .filter(s => s.heading || s.body || s.image || s.bgImage || s.embedUrl || (s.items && s.items.length))
     .slice(0, 20)
 
   const layout: SiteLayout = parsed.layout === 'full' ? 'full' : 'contained'
@@ -330,6 +339,15 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     .map(l => ({ label: String(l?.label ?? '').trim(), href: String(l?.href ?? '').trim(), newTab: Boolean(l?.newTab) }))
     .filter(l => l.label && l.href)
     .slice(0, 10)
+
+  const validSocial: SocialKind[] = ['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'email', 'website']
+  const rawSocials = Array.isArray(parsed.socials) ? (parsed.socials as Record<string, unknown>[]) : []
+  const socials: Social[] = rawSocials
+    .map(sc => ({ kind: String(sc?.kind ?? '') as SocialKind, url: String(sc?.url ?? '').trim() }))
+    .filter(sc => validSocial.includes(sc.kind) && sc.url)
+    .slice(0, 8)
+  const hoRaw = Number(parsed.heroOverlay)
+  const heroOverlay = Number.isFinite(hoRaw) ? Math.min(80, Math.max(0, Math.round(hoRaw))) : undefined
 
   const ctaTypeRaw = String(parsed.ctaType ?? '')
   const ctaType = (['booking', 'email', 'link'].includes(ctaTypeRaw) ? ctaTypeRaw : undefined) as CtaType | undefined
@@ -368,7 +386,10 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     ctaHref: home.ctaHref,
     contactLabel: String(parsed.contactLabel ?? '').trim() || undefined,
     contactEmail: String(parsed.contactEmail ?? '').trim(),
+    bookingHost: existing?.bookingHost, // edited elsewhere; preserve across visual-editor saves
     footer: String(parsed.footer ?? '').trim() || undefined,
+    socials: socials.length ? socials : undefined,
+    heroOverlay,
     pages: updatedPages,
   }
 

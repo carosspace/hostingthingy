@@ -3,8 +3,12 @@ export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 export type SiteAlign = 'left' | 'center' | 'right'
 
 // How a section lays out: prose (one block), cards (a grid of items), faq (an
-// accordion of question/answer items).
-export type SectionKind = 'prose' | 'cards' | 'faq'
+// accordion of question/answer items), gallery (a grid of photos), embed (a video
+// or map).
+export type SectionKind = 'prose' | 'cards' | 'faq' | 'gallery' | 'embed'
+
+export type ImageSize = 'sm' | 'md' | 'full'
+export type ImageFit = 'cover' | 'contain'
 
 // For a prose section with an inline image: stack it above, or sit it beside the text.
 export type SectionImageLayout = 'stack' | 'imageLeft' | 'imageRight'
@@ -22,12 +26,23 @@ export interface SiteSection {
   bgImage?: string // a full-width background photo behind the section (text overlaid)
   bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
   align?: SiteAlign // text alignment within the section
-  kind?: SectionKind // 'cards' or 'faq' turn the section into a grid / accordion of items
-  items?: SectionItem[] // the repeatable items for a cards/faq section
+  kind?: SectionKind // cards/faq/gallery/embed change the section layout
+  items?: SectionItem[] // repeatable items for cards/faq, or photos for gallery
   imageLayout?: SectionImageLayout // for a prose section with an image
+  imageSize?: ImageSize // inline image width
+  imageFit?: ImageFit // inline image crop vs fit
+  overlay?: number // darkness % (0-80) over a background photo
+  embedUrl?: string // a YouTube/Vimeo/Maps URL for an embed section
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string
+}
+
+// A social profile link shown in the footer.
+export type SocialKind = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'whatsapp' | 'email' | 'website'
+export interface Social {
+  kind: SocialKind
+  url: string
 }
 
 // A header navigation link the owner adds by hand (external URL, mailto:, the
@@ -99,6 +114,8 @@ export interface SiteContent {
   contactEmail: string
   bookingHost?: string // the name shown to clients on booking confirmations
   footer?: string
+  socials?: Social[] // social profile links in the footer
+  heroOverlay?: number // darkness % (0-80) over the hero photo
   // When set, the full list of pages (pages[0] is home, slug ''). Migrated from
   // the legacy top-level fields for older single-page sites.
   pages?: SitePage[]

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
@@ -25,6 +25,10 @@ interface EdSection {
   kind: SectionKind
   items: EdItem[]
   imageLayout: '' | SectionImageLayout
+  imageSize: '' | ImageSize
+  imageFit: '' | ImageFit
+  overlay: number
+  embedUrl: string
   ctaLabel: string
   ctaType: CtaType
   ctaHref: string
@@ -216,6 +220,9 @@ export default function LiveEditor({
   const [logoOpen, setLogoOpen] = useState(false)
   const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
   const [faviconOpen, setFaviconOpen] = useState(false)
+  const [socials, setSocials] = useState<Social[]>(initial?.socials ?? [])
+  const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 50)
+  const [undoStack, setUndoStack] = useState<EdSection[][]>([])
   const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
   const [fontSystem, setFontSystem] = useState(initial?.fontSystem ?? 'serif')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
@@ -237,6 +244,10 @@ export default function LiveEditor({
       kind: s.kind ?? 'prose',
       items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '' })),
       imageLayout: (s.imageLayout ?? '') as '' | SectionImageLayout,
+      imageSize: (s.imageSize ?? '') as '' | ImageSize,
+      imageFit: (s.imageFit ?? '') as '' | ImageFit,
+      overlay: typeof s.overlay === 'number' ? s.overlay : 50,
+      embedUrl: s.embedUrl ?? '',
       ctaLabel: s.ctaLabel ?? '',
       ctaType: s.ctaType ?? 'none',
       ctaHref: s.ctaHref ?? '',
@@ -289,10 +300,12 @@ export default function LiveEditor({
     return 'n' + idc.current
   }
   function addSection() {
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    pushUndo()
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
+    pushUndo()
     setSections(p => [
       ...p,
       {
@@ -306,6 +319,10 @@ export default function LiveEditor({
         kind: b.kind ?? 'prose',
         items: (b.items ?? []).map(it => ({ id: newId(), title: it.title ?? '', body: it.body ?? '', image: '' })),
         imageLayout: '',
+        imageSize: '',
+        imageFit: '',
+        overlay: 50,
+        embedUrl: '',
         ctaLabel: b.ctaLabel ?? '',
         ctaType: b.ctaType ?? 'none',
         ctaHref: '',
@@ -315,6 +332,7 @@ export default function LiveEditor({
     touched()
   }
   function duplicate(id: string) {
+    pushUndo()
     const root = rootRef.current
     const read = (f: string) => ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '')
     setSections(p => {
@@ -388,10 +406,11 @@ export default function LiveEditor({
   async function addAiSection() {
     const prompt = addAiText.trim()
     if (!prompt) return
+    pushUndo()
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -412,13 +431,14 @@ export default function LiveEditor({
         const sh = rootRef.current?.querySelector('[data-field="subheadline"]') as HTMLElement | null
         if (h) h.innerText = res.headline
         if (sh) sh.innerText = res.subheadline
+        pushUndo()
         const sameShape = res.sections.length === sections.length
         setSections(
           res.sections.map((sec, i) => {
             // Only carry a section's media/layout/items across the rewrite when the
             // AI returned the same number of sections (so index i still maps 1:1).
             const old = sameShape ? sections[i] : undefined
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -442,7 +462,31 @@ export default function LiveEditor({
     setDragId('')
     touched()
   }
+  // Snapshot the current sections (with live DOM text) so a structural change can be undone.
+  function pushUndo() {
+    const snap = sections.map(s => ({ ...s, heading: domText('h-' + s.id), body: domText('b-' + s.id), items: s.items.map(it => ({ ...it })) }))
+    setUndoStack(st => [...st.slice(-9), snap])
+  }
+  function undo() {
+    if (!undoStack.length) return
+    setSections(undoStack[undoStack.length - 1])
+    setUndoStack(st => st.slice(0, -1))
+    touched()
+  }
+  const updateSocial = (i: number, patch: Partial<Social>) => {
+    setSocials(p => p.map((x, j) => (j === i ? { ...x, ...patch } : x)))
+    touched()
+  }
+  const addSocial = () => {
+    setSocials(p => [...p, { kind: 'instagram', url: '' }])
+    touched()
+  }
+  const removeSocial = (i: number) => {
+    setSocials(p => p.filter((_, j) => j !== i))
+    touched()
+  }
   function removeSection(id: string) {
+    pushUndo()
     setSections(p => p.filter(s => s.id !== id))
     touched()
   }
@@ -482,6 +526,10 @@ export default function LiveEditor({
           kind: s.kind === 'prose' ? undefined : s.kind,
           imageLayout: s.imageLayout || undefined,
           items: items.length ? items : undefined,
+          imageSize: s.imageSize || undefined,
+          imageFit: s.imageFit || undefined,
+          overlay: s.bgImage.trim() ? s.overlay : undefined,
+          embedUrl: s.kind === 'embed' ? s.embedUrl.trim() || undefined : undefined,
           ctaType: s.ctaType === 'none' ? undefined : s.ctaType,
           ctaLabel: s.ctaType === 'none' ? undefined : s.ctaLabel.trim() || 'Learn more',
           ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
@@ -509,6 +557,8 @@ export default function LiveEditor({
       contactLabel: read('contactLabel') || undefined,
       contactEmail: contactEmail.trim(),
       footer: read('footer') || undefined,
+      socials: socials.length ? socials : undefined,
+      heroOverlay: heroImage.trim() ? heroOverlay : undefined,
     }
     const fd = new FormData()
     fd.set('id', siteId)
@@ -609,6 +659,15 @@ export default function LiveEditor({
           className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
         >
           ✨ AI section
+        </button>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={!undoStack.length}
+          title="Undo the last add, delete or AI change"
+          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm disabled:opacity-30"
+        >
+          ↩ Undo
         </button>
         <button
           type="button"
@@ -770,6 +829,13 @@ export default function LiveEditor({
                   {!heroImage && <button type="button" onClick={() => setHeroImgOpen(false)} style={cancelStyle}>× cancel</button>}
                 </div>
                 <ImageField value={heroImage} onChange={v => { setHeroImage(v); touched() }} />
+                {heroImage && (
+                  <label className="flex items-center gap-2 mt-2" style={{ fontSize: 12, color: '#666' }}>
+                    Darken
+                    <input type="range" min={0} max={80} step={5} value={heroOverlay} onChange={e => { setHeroOverlay(parseInt(e.target.value, 10)); touched() }} style={{ flex: 1 }} />
+                    {heroOverlay}%
+                  </label>
+                )}
               </div>
             )}
             {showHeroBtn && (
@@ -814,38 +880,66 @@ export default function LiveEditor({
               <img src={s.image} alt="" className="w-full rounded-sm" style={{ maxHeight: 360, objectFit: 'cover' }} />
             ) : null
             const sideBySide = s.kind === 'prose' && s.image && (s.imageLayout === 'imageLeft' || s.imageLayout === 'imageRight')
+            const itemsWrap =
+              s.kind === 'faq'
+                ? 'space-y-2 mt-4'
+                : s.kind === 'gallery'
+                  ? 'grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4'
+                  : 'grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4'
             const itemsEditor =
-              s.kind === 'cards' || s.kind === 'faq' ? (
-                <div className={s.kind === 'cards' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4' : 'space-y-2 mt-4'} style={{ textAlign: 'left' }}>
+              s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery' ? (
+                <div className={itemsWrap} style={{ textAlign: 'left' }}>
                   {s.items.map(it => (
                     <div key={it.id} className="relative rounded-sm" style={{ border: `1px solid ${accent}33`, background: 'rgba(255,255,255,0.55)', padding: 12 }}>
-                      <button type="button" onClick={() => removeItem(s.id, it.id)} className="absolute" style={{ top: 4, right: 6, fontSize: 12, color: '#b3402f' }} aria-label="Remove item">✕</button>
-                      {s.kind === 'cards' && (
-                        <div className="mb-2">
+                      <button type="button" onClick={() => removeItem(s.id, it.id)} className="absolute z-10" style={{ top: 4, right: 6, fontSize: 12, color: '#b3402f' }} aria-label="Remove item">✕</button>
+                      {(s.kind === 'cards' || s.kind === 'gallery') && (
+                        <div className={s.kind === 'gallery' ? '' : 'mb-2'}>
                           <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
                         </div>
                       )}
-                      <input
-                        value={it.title}
-                        onChange={e => updateItem(s.id, it.id, { title: e.target.value })}
-                        placeholder={s.kind === 'faq' ? 'Question' : 'Title'}
-                        className="w-full"
-                        style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: accent }}
-                      />
-                      <textarea
-                        value={it.body}
-                        onChange={e => updateItem(s.id, it.id, { body: e.target.value })}
-                        placeholder={s.kind === 'faq' ? 'Answer' : 'Description'}
-                        rows={2}
-                        className="w-full mt-1 resize-none"
-                        style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }}
-                      />
+                      {s.kind !== 'gallery' && (
+                        <>
+                          <input
+                            value={it.title}
+                            onChange={e => updateItem(s.id, it.id, { title: e.target.value })}
+                            placeholder={s.kind === 'faq' ? 'Question' : 'Title'}
+                            className="w-full"
+                            style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: accent }}
+                          />
+                          <textarea
+                            value={it.body}
+                            onChange={e => updateItem(s.id, it.id, { body: e.target.value })}
+                            placeholder={s.kind === 'faq' ? 'Answer' : 'Description'}
+                            rows={2}
+                            className="w-full mt-1 resize-none"
+                            style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }}
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
                   {s.items.length < 12 && (
                     <button type="button" onClick={() => addItem(s.id)} className="rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13 }}>
-                      + Add {s.kind === 'faq' ? 'question' : 'card'}
+                      + Add {s.kind === 'faq' ? 'question' : s.kind === 'gallery' ? 'photo' : 'card'}
                     </button>
+                  )}
+                </div>
+              ) : null
+            const embedEditor =
+              s.kind === 'embed' ? (
+                <div className="mt-4" style={{ textAlign: 'left' }}>
+                  <input
+                    value={s.embedUrl}
+                    onChange={e => setSectionField(s.id, { embedUrl: e.target.value })}
+                    placeholder="Paste a YouTube, Vimeo or Google Maps link"
+                    className="w-full"
+                    style={{ ...urlInput, fontSize: 13, padding: '8px 10px', borderRadius: 3 }}
+                  />
+                  {s.embedUrl && (
+                    <p style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
+                      Shows as an embedded video/map on your live site.{' '}
+                      <a href={s.embedUrl} target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: 'underline' }}>Open ↗</a>
+                    </p>
                   )}
                 </div>
               ) : null
@@ -892,11 +986,18 @@ export default function LiveEditor({
                           {btnPreview}
                         </div>
                       </div>
-                    ) : s.kind === 'cards' || s.kind === 'faq' ? (
+                    ) : s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery' ? (
                       <>
                         {headingEl}
                         {bodyEl}
                         {itemsEditor}
+                        {btnPreview}
+                      </>
+                    ) : s.kind === 'embed' ? (
+                      <>
+                        {headingEl}
+                        {bodyEl}
+                        {embedEditor}
                         {btnPreview}
                       </>
                     ) : (
@@ -945,8 +1046,9 @@ export default function LiveEditor({
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Type</span>
-                    {(['prose', 'cards', 'faq'] as const).map(k => {
+                    {(['prose', 'cards', 'faq', 'gallery', 'embed'] as const).map(k => {
                       const on = s.kind === k
+                      const label = k === 'prose' ? 'Text' : k === 'cards' ? 'Cards' : k === 'faq' ? 'FAQ' : k === 'gallery' ? 'Gallery' : 'Embed'
                       return (
                         <button
                           key={k}
@@ -955,7 +1057,7 @@ export default function LiveEditor({
                           className="font-label"
                           style={{ ...chipStyle, ...(on ? { background: accent, color: t.bg, border: `1px solid ${accent}` } : {}) }}
                         >
-                          {k === 'prose' ? 'Text' : k === 'cards' ? 'Cards' : 'FAQ'}
+                          {label}
                         </button>
                       )
                     })}
@@ -970,6 +1072,23 @@ export default function LiveEditor({
                           <option value="stack">Above text</option>
                           <option value="imageLeft">Left of text</option>
                           <option value="imageRight">Right of text</option>
+                        </select>
+                        <select
+                          value={s.imageSize || 'full'}
+                          onChange={e => setSectionField(s.id, { imageSize: e.target.value === 'full' ? '' : (e.target.value as ImageSize) })}
+                          style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}
+                        >
+                          <option value="full">Full width</option>
+                          <option value="md">Medium</option>
+                          <option value="sm">Small</option>
+                        </select>
+                        <select
+                          value={s.imageFit || 'cover'}
+                          onChange={e => setSectionField(s.id, { imageFit: e.target.value === 'cover' ? '' : (e.target.value as ImageFit) })}
+                          style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}
+                        >
+                          <option value="cover">Crop to fit</option>
+                          <option value="contain">Show whole image</option>
                         </select>
                       </>
                     )}
@@ -997,6 +1116,13 @@ export default function LiveEditor({
                         {!s.bgImage && <button type="button" onClick={() => setOpenBg(p => { const n = new Set(p); n.delete(s.id); return n })} style={cancelStyle}>× cancel</button>}
                       </div>
                       <ImageField value={s.bgImage} onChange={v => setSectionField(s.id, { bgImage: v })} />
+                      {s.bgImage && (
+                        <label className="flex items-center gap-2 mt-2" style={{ fontSize: 12, color: '#666' }}>
+                          Darken
+                          <input type="range" min={0} max={80} step={5} value={s.overlay} onChange={e => setSectionField(s.id, { overlay: parseInt(e.target.value, 10) })} style={{ flex: 1 }} />
+                          {s.overlay}%
+                        </label>
+                      )}
                     </div>
                   )}
                   {showSecBtn && (
@@ -1112,6 +1238,34 @@ export default function LiveEditor({
         <div className="py-8 text-center" style={{ borderTop: `1px solid ${accent}22` }}>
           <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="footer" style={{ ...edStyle, fontSize: 13, color: t.muted }}>
             {initial?.footer || siteName}
+          </div>
+        </div>
+
+        <div className="px-6 pb-6" style={{ background: 'rgba(128,128,128,0.06)' }}>
+          <div className="max-w-md mx-auto pt-3">
+            <p style={ctlLabel}>Social links (footer)</p>
+            {socials.map((sc, i) => (
+              <div key={i} className="flex items-center gap-2 mt-2">
+                <select
+                  value={sc.kind}
+                  onChange={e => updateSocial(i, { kind: e.target.value as SocialKind })}
+                  style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}
+                >
+                  {(['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'email', 'website'] as const).map(k => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+                <input
+                  value={sc.url}
+                  onChange={e => updateSocial(i, { url: e.target.value })}
+                  placeholder={sc.kind === 'email' ? 'you@email.com' : 'https://…'}
+                  className="flex-1"
+                  style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }}
+                />
+                <button type="button" onClick={() => removeSocial(i)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove social link">✕</button>
+              </div>
+            ))}
+            <button type="button" onClick={addSocial} className="mt-2 font-label" style={chipStyle}>+ Add social link</button>
           </div>
         </div>
       </div>

@@ -1,6 +1,33 @@
 import type { CSSProperties } from 'react'
-import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType } from '@/lib/sites/types'
+import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
+
+// Turn a pasted media link into a safe iframe src — only known providers, never raw HTML.
+function embedSrc(url: string): string | null {
+  const u = (url || '').trim()
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/)
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
+  const vm = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}`
+  if (/google\.[a-z.]+\/maps/.test(u) || u.includes('maps.google')) {
+    return u.includes('output=embed') ? u : u + (u.includes('?') ? '&' : '?') + 'output=embed'
+  }
+  return null
+}
+
+const SOCIAL_LABEL: Record<Social['kind'], string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+  website: 'Website',
+}
+function socialHref(s: Social): string {
+  if (s.kind === 'email') return s.url.startsWith('mailto:') ? s.url : `mailto:${s.url}`
+  return /^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`
+}
 
 export default function PublicPage({
   siteSlug,
@@ -112,7 +139,7 @@ export default function PublicPage({
             <section className="relative" style={{ height: '60vh', minHeight: 360 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.42)' }} />
+              <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(typeof content?.heroOverlay === 'number' ? content.heroOverlay : 42) / 100})` }} />
               <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
                 <h1 className="font-display text-5xl md:text-7xl italic" style={{ color: '#ffffff' }}>
                   {page.headline || page.title || siteName}
@@ -149,7 +176,7 @@ export default function PublicPage({
                     <section key={i} className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={sec.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                      <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+                      <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(typeof sec.overlay === 'number' ? sec.overlay : 50) / 100})` }} />
                       <div className={`relative ${bodyMax} mx-auto px-6 py-20`} style={{ textAlign: sec.align || 'center' }}>
                         {sec.heading && (
                           <h2 className="font-display text-3xl md:text-4xl italic mb-3" style={{ color: '#ffffff' }}>
@@ -174,7 +201,7 @@ export default function PublicPage({
                 ) : null
                 const imageEl = sec.image ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={sec.image} alt="" className="w-full rounded-sm" style={{ maxHeight: 420, objectFit: 'cover' }} />
+                  <img src={sec.image} alt="" className="w-full rounded-sm" style={{ maxHeight: sec.imageFit === 'contain' ? undefined : 420, objectFit: sec.imageFit || 'cover', display: 'block' }} />
                 ) : null
                 const ctaEl = secCta ? <div className="mt-6">{secCta}</div> : null
                 const items = sec.items ?? []
@@ -220,6 +247,39 @@ export default function PublicPage({
                       {ctaEl}
                     </>
                   )
+                } else if (sec.kind === 'gallery') {
+                  const photos = items.filter(it => it.image)
+                  inner = (
+                    <>
+                      {headingEl}
+                      {bodyEl}
+                      {photos.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-8">
+                          {photos.map((it, j) => (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img key={j} src={it.image} alt="" className="w-full rounded-sm" style={{ aspectRatio: '1 / 1', objectFit: 'cover' }} />
+                          ))}
+                        </div>
+                      )}
+                      {ctaEl}
+                    </>
+                  )
+                } else if (sec.kind === 'embed') {
+                  const src = sec.embedUrl ? embedSrc(sec.embedUrl) : null
+                  inner = (
+                    <>
+                      {headingEl}
+                      {bodyEl}
+                      {src ? (
+                        <div className="mt-6" style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 4 }}>
+                          <iframe src={src} title="Embedded media" loading="lazy" allowFullScreen style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }} />
+                        </div>
+                      ) : sec.embedUrl ? (
+                        <p className="mt-4"><a href={sec.embedUrl} target="_blank" rel="noreferrer" style={{ color: accent, textDecoration: 'underline' }}>{sec.embedUrl}</a></p>
+                      ) : null}
+                      {ctaEl}
+                    </>
+                  )
                 } else if (imageEl && (sec.imageLayout === 'imageLeft' || sec.imageLayout === 'imageRight')) {
                   inner = (
                     <div className={`flex flex-col gap-8 md:items-center ${sec.imageLayout === 'imageRight' ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
@@ -232,9 +292,11 @@ export default function PublicPage({
                     </div>
                   )
                 } else {
+                  const sizeCls = sec.imageSize === 'sm' ? 'max-w-xs' : sec.imageSize === 'md' ? 'max-w-md' : ''
+                  const sizeAlign = sec.imageSize && sec.imageSize !== 'full' ? (sec.align === 'right' ? 'ml-auto' : sec.align === 'center' ? 'mx-auto' : '') : ''
                   inner = (
                     <>
-                      {imageEl && <div className="mb-5">{imageEl}</div>}
+                      {imageEl && <div className={`mb-5 ${sizeCls} ${sizeAlign}`}>{imageEl}</div>}
                       {headingEl}
                       {bodyEl}
                       {ctaEl}
@@ -280,6 +342,22 @@ export default function PublicPage({
       )}
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
+        {content?.socials && content.socials.length > 0 && (
+          <nav className="flex flex-wrap items-center justify-center gap-5 mb-4">
+            {content.socials.map((s, i) => (
+              <a
+                key={i}
+                href={socialHref(s)}
+                target={s.kind === 'email' ? undefined : '_blank'}
+                rel="noreferrer"
+                className="font-label"
+                style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}
+              >
+                {SOCIAL_LABEL[s.kind]}
+              </a>
+            ))}
+          </nav>
+        )}
         <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
           {footerText}
         </p>
