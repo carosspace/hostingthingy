@@ -76,6 +76,53 @@ export async function generateSiteContent(siteName: string, description: string)
   }
 }
 
+// Improve/rewrite a single section, or write a brand-new one (when heading+body
+// are empty). Returns the new heading + body. Used by the in-editor AI buttons.
+export async function aiSection(opts: {
+  siteName: string
+  instruction: string
+  heading: string
+  body: string
+}): Promise<{ heading: string; body: string }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const isNew = !opts.heading.trim() && !opts.body.trim()
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 700,
+    tools: [
+      {
+        name: 'write_section',
+        description: 'Provide the heading and body for one website section.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            heading: { type: 'string', description: 'A short section heading.' },
+            body: { type: 'string', description: '2-4 warm, clear sentences.' },
+          },
+          required: ['heading', 'body'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'write_section' },
+    messages: [
+      {
+        role: 'user',
+        content: isNew
+          ? `For the website "${opts.siteName}", write a brand-new section.\n\nWhat it should be about: ${opts.instruction}\n\nWarm, clear, professional. Return a heading and a 2-4 sentence body.`
+          : `For the website "${opts.siteName}", revise this section.\n\nInstruction: ${opts.instruction}\n\nCurrent heading: ${opts.heading}\nCurrent body: ${opts.body}\n\nKeep it warm, clear and professional. Return the new heading and body.`,
+      },
+    ],
+  })
+
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    throw new Error('The AI did not return a section. Please try again.')
+  }
+  const input = block.input as { heading?: string; body?: string }
+  return { heading: (input.heading ?? '').trim(), body: (input.body ?? '').trim() }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string

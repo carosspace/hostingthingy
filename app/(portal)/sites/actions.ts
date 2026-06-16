@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout } from '@/lib/sites/types'
@@ -141,6 +141,31 @@ export async function generateSiteAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/sites/${id}/design`)
   revalidatePath(`/sites/${id}`)
+}
+
+// Improve/rewrite (or generate) one section with AI. Returns the new text so the
+// editor can drop it straight into the live preview — no full save round-trip.
+export async function aiSectionAction(args: {
+  siteId: string
+  instruction: string
+  heading: string
+  body: string
+}): Promise<{ heading: string; body: string }> {
+  const fallback = { heading: args.heading, body: args.body }
+  const user = await getCurrentUser()
+  if (!user) return fallback
+  const site = await getSite(args.siteId)
+  if (!site) return fallback
+  try {
+    return await aiSection({
+      siteName: site.name,
+      instruction: args.instruction || 'Improve the writing — clearer, warmer and more professional, same meaning.',
+      heading: args.heading,
+      body: args.body,
+    })
+  } catch {
+    return fallback
+  }
 }
 
 export async function saveSiteContentAction(formData: FormData): Promise<void> {

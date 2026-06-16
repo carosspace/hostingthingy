@@ -4,7 +4,7 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
-import { saveSiteContentJsonAction } from '../../actions'
+import { saveSiteContentJsonAction, aiSectionAction } from '../../actions'
 
 interface EdSection {
   id: string
@@ -218,6 +218,11 @@ export default function LiveEditor({
   )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [aiFor, setAiFor] = useState('')
+  const [aiText, setAiText] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [addAiOpen, setAddAiOpen] = useState(false)
+  const [addAiText, setAddAiText] = useState('')
 
   const t = THEMES[theme]
   const accent = accentColor || t.accent
@@ -275,6 +280,38 @@ export default function LiveEditor({
     if (patch.label !== undefined) setCtaLabel(patch.label)
     if (patch.href !== undefined) setCtaHref(patch.href)
     touched()
+  }
+  function domText(field: string) {
+    return (rootRef.current?.querySelector(`[data-field="${field}"]`) as HTMLElement | null)?.innerText ?? ''
+  }
+  async function runSectionAi(id: string, instruction: string) {
+    setAiBusy(true)
+    try {
+      const res = await aiSectionAction({ siteId, instruction, heading: domText('h-' + id), body: domText('b-' + id) })
+      const h = rootRef.current?.querySelector(`[data-field="h-${id}"]`) as HTMLElement | null
+      const b = rootRef.current?.querySelector(`[data-field="b-${id}"]`) as HTMLElement | null
+      if (h && res.heading) h.innerText = res.heading
+      if (b && res.body) b.innerText = res.body
+      touched()
+    } finally {
+      setAiBusy(false)
+      setAiFor('')
+      setAiText('')
+    }
+  }
+  async function addAiSection() {
+    const prompt = addAiText.trim()
+    if (!prompt) return
+    setAiBusy(true)
+    try {
+      const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      touched()
+    } finally {
+      setAiBusy(false)
+      setAddAiOpen(false)
+      setAddAiText('')
+    }
   }
   function removeSection(id: string) {
     setSections(p => p.filter(s => s.id !== id))
@@ -416,6 +453,13 @@ export default function LiveEditor({
         </button>
         <button
           type="button"
+          onClick={() => setAddAiOpen(o => !o)}
+          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
+        >
+          ✨ AI section
+        </button>
+        <button
+          type="button"
           onClick={save}
           disabled={saving}
           className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm disabled:opacity-50"
@@ -527,6 +571,7 @@ export default function LiveEditor({
                   <button type="button" title="Move up" onClick={() => move(s.id, -1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↑</button>
                   <button type="button" title="Move down" onClick={() => move(s.id, 1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↓</button>
                   <button type="button" title="Duplicate" onClick={() => duplicate(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>⧉</button>
+                  <button type="button" title="Improve with AI" onClick={() => { setAiFor(aiFor === s.id ? '' : s.id); setAiText('') }} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>✨</button>
                   <button type="button" title="Delete" onClick={() => removeSection(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: '#b3402f', color: '#fff' }}>✕</button>
                 </div>
 
@@ -576,10 +621,68 @@ export default function LiveEditor({
                 <div className="mt-2">
                   <ButtonControl title="Section button" type={s.ctaType} label={s.ctaLabel} href={s.ctaHref} siteSlug={siteSlug} onChange={patch => sectionBtnChange(s.id, patch)} />
                 </div>
+                {aiFor === s.id && (
+                  <div className="mt-2 rounded-sm" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.12)', padding: 10 }}>
+                    <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>✨ Ask AI</span>
+                    <input
+                      value={aiText}
+                      onChange={e => setAiText(e.target.value)}
+                      placeholder="How should AI change this section? (e.g. shorter and warmer)"
+                      className="w-full mt-2"
+                      style={{ ...urlInput, fontSize: 13, padding: '7px 10px', borderRadius: 3 }}
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        disabled={aiBusy}
+                        onClick={() => runSectionAi(s.id, 'Improve the writing — clearer, warmer and more professional, same meaning.')}
+                        style={{ fontSize: 12, background: accent, color: t.bg, padding: '6px 12px', borderRadius: 3, opacity: aiBusy ? 0.5 : 1 }}
+                      >
+                        {aiBusy ? 'AI…' : 'Improve writing'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={aiBusy || !aiText.trim()}
+                        onClick={() => runSectionAi(s.id, aiText.trim())}
+                        style={{ fontSize: 12, border: `1px solid ${accent}`, color: accent, padding: '6px 12px', borderRadius: 3, opacity: aiBusy || !aiText.trim() ? 0.5 : 1 }}
+                      >
+                        Apply
+                      </button>
+                      <button type="button" onClick={() => { setAiFor(''); setAiText('') }} style={{ fontSize: 12, color: '#888' }}>
+                        cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
-          {sections.length === 0 && (
+          {addAiOpen && (
+            <div className="rounded-sm" style={{ background: 'rgba(255,255,255,0.65)', border: `1px dashed ${accent}`, padding: 12 }}>
+              <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>✨ New section with AI</span>
+              <input
+                value={addAiText}
+                onChange={e => setAddAiText(e.target.value)}
+                placeholder="Describe the section (e.g. a testimonials section with two short client quotes)"
+                className="w-full mt-2"
+                style={{ ...urlInput, fontSize: 13, padding: '7px 10px', borderRadius: 3 }}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  disabled={aiBusy || !addAiText.trim()}
+                  onClick={addAiSection}
+                  style={{ fontSize: 12, background: accent, color: t.bg, padding: '7px 14px', borderRadius: 3, opacity: aiBusy || !addAiText.trim() ? 0.5 : 1 }}
+                >
+                  {aiBusy ? 'Writing…' : 'Generate section ✨'}
+                </button>
+                <button type="button" onClick={() => { setAddAiOpen(false); setAddAiText('') }} style={{ fontSize: 12, color: '#888' }}>
+                  cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {sections.length === 0 && !addAiOpen && (
             <button type="button" onClick={addSection} className="w-full py-10 rounded-sm text-sm" style={{ border: `2px dashed ${accent}`, color: accent }}>
               + Add your first section
             </button>
