@@ -4,6 +4,7 @@ import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
+import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction } from '../../actions'
 
 interface EdSection {
@@ -223,6 +224,7 @@ export default function LiveEditor({
   const [aiBusy, setAiBusy] = useState(false)
   const [addAiOpen, setAddAiOpen] = useState(false)
   const [addAiText, setAddAiText] = useState('')
+  const [blocksOpen, setBlocksOpen] = useState(false)
 
   const t = THEMES[theme]
   const accent = accentColor || t.accent
@@ -248,6 +250,11 @@ export default function LiveEditor({
   }
   function addSection() {
     setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    touched()
+  }
+  function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
+    setSections(p => [...p, { id: newId(), heading: b.heading, body: b.body, image: '', bgImage: '', ctaLabel: b.ctaLabel ?? '', ctaType: b.ctaType ?? 'none', ctaHref: '' }])
+    setBlocksOpen(false)
     touched()
   }
   function duplicate(id: string) {
@@ -450,6 +457,13 @@ export default function LiveEditor({
           className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
         >
           + Section
+        </button>
+        <button
+          type="button"
+          onClick={() => setBlocksOpen(o => !o)}
+          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
+        >
+          + Block
         </button>
         <button
           type="button"
@@ -657,6 +671,19 @@ export default function LiveEditor({
               </div>
             )
           })}
+          {blocksOpen && (
+            <div className="rounded-sm" style={{ background: 'rgba(255,255,255,0.65)', border: `1px dashed ${accent}`, padding: 12 }}>
+              <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>Add a ready-made section</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {SECTION_BLOCKS.map(b => (
+                  <button key={b.key} type="button" onClick={() => addBlock(b)} style={{ fontSize: 12, border: `1px solid ${accent}`, color: accent, padding: '6px 12px', borderRadius: 3 }}>
+                    {b.name}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setBlocksOpen(false)} style={{ fontSize: 12, color: '#888' }}>cancel</button>
+              </div>
+            </div>
+          )}
           {addAiOpen && (
             <div className="rounded-sm" style={{ background: 'rgba(255,255,255,0.65)', border: `1px dashed ${accent}`, padding: 12 }}>
               <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>✨ New section with AI</span>
@@ -682,7 +709,7 @@ export default function LiveEditor({
               </div>
             </div>
           )}
-          {sections.length === 0 && !addAiOpen && (
+          {sections.length === 0 && !addAiOpen && !blocksOpen && (
             <button type="button" onClick={addSection} className="w-full py-10 rounded-sm text-sm" style={{ border: `2px dashed ${accent}`, color: accent }}>
               + Add your first section
             </button>
