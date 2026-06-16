@@ -30,6 +30,8 @@ interface EdSection {
   bgColor: string
   borderColor: string
   borderWidth: number
+  textColor: string
+  textScale: '' | 'sm' | 'lg'
   align: '' | SiteAlign
   kind: SectionKind
   items: EdItem[]
@@ -396,6 +398,8 @@ export default function LiveEditor({
       bgColor: s.bgColor ?? '',
       borderColor: s.borderColor ?? '',
       borderWidth: typeof s.borderWidth === 'number' ? s.borderWidth : 0,
+      textColor: s.textColor ?? '',
+      textScale: (s.textScale ?? '') as '' | 'sm' | 'lg',
       align: (s.align ?? '') as '' | SiteAlign,
       kind: s.kind ?? 'prose',
       items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, col: it.col, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
@@ -483,7 +487,7 @@ export default function LiveEditor({
   }
   function addSection() {
     pushUndo()
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, textColor: '', textScale: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
@@ -499,6 +503,8 @@ export default function LiveEditor({
         bgColor: '',
         borderColor: '',
         borderWidth: 0,
+        textColor: '',
+        textScale: '',
         align: '',
         kind: b.kind ?? 'prose',
         items: (b.items ?? []).map(it => ({ id: newId(), title: it.title ?? '', body: it.body ?? '', image: '' })),
@@ -669,7 +675,7 @@ export default function LiveEditor({
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, textColor: '', textScale: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -697,7 +703,7 @@ export default function LiveEditor({
             // Only carry a section's media/layout/items across the rewrite when the
             // AI returned the same number of sections (so index i still maps 1:1).
             const old = sameShape ? sections[i] : undefined
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', borderColor: old?.borderColor ?? '', borderWidth: typeof old?.borderWidth === 'number' ? old.borderWidth : 0, align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', columns: typeof old?.columns === 'number' ? old.columns : 1, reveal: old?.reveal ?? false, ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', borderColor: old?.borderColor ?? '', borderWidth: typeof old?.borderWidth === 'number' ? old.borderWidth : 0, textColor: old?.textColor ?? '', textScale: (old?.textScale ?? '') as '' | 'sm' | 'lg', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', columns: typeof old?.columns === 'number' ? old.columns : 1, reveal: old?.reveal ?? false, ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -809,6 +815,8 @@ export default function LiveEditor({
           bgColor: s.bgColor.trim() || undefined,
           borderColor: s.borderColor.trim() || undefined,
           borderWidth: s.borderWidth > 0 ? s.borderWidth : undefined,
+          textColor: s.textColor.trim() || undefined,
+          textScale: s.textScale || undefined,
           align: s.align || undefined,
           kind: s.kind === 'prose' ? undefined : s.kind,
           columns: s.kind === 'layout' ? (Math.min(3, Math.max(1, s.columns || 1)) as 1 | 2 | 3) : undefined,
@@ -1196,13 +1204,15 @@ export default function LiveEditor({
                   </span>
                 </div>
               ) : null
+            const headSizeCls = s.textScale === 'sm' ? 'text-xl' : s.textScale === 'lg' ? 'text-3xl md:text-4xl' : 'text-2xl md:text-3xl'
+            const bodySizeCls = s.textScale === 'sm' ? 'text-sm' : s.textScale === 'lg' ? 'text-lg' : ''
             const headingEl = (
-              <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: accent }}>
+              <div className={`ht-ed font-display ${headSizeCls} italic mb-2`} contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: s.textColor || accent }}>
                 {s.heading}
               </div>
             )
             const bodyEl = (
-              <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
+              <div className={`ht-ed font-body leading-relaxed whitespace-pre-wrap ${bodySizeCls}`} contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: s.textColor || t.text, opacity: s.textColor ? 1 : 0.88 }}>
                 {s.body}
               </div>
             )
@@ -1478,6 +1488,25 @@ export default function LiveEditor({
                       <input type="checkbox" checked={s.reveal} onChange={e => setSectionField(s.id, { reveal: e.target.checked })} style={{ accentColor: accent }} />
                       Reveal on scroll
                     </label>
+                    <span style={{ ...ctlLabel, marginLeft: 8 }}>Text</span>
+                    <input
+                      type="color"
+                      value={s.textColor || '#2c2722'}
+                      onChange={e => setSectionField(s.id, { textColor: e.target.value })}
+                      style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', cursor: 'pointer', padding: 0 }}
+                      title="Text colour"
+                    />
+                    {s.textColor && <button type="button" onClick={() => setSectionField(s.id, { textColor: '' })} style={cancelStyle}>×</button>}
+                    <select
+                      value={s.textScale || 'md'}
+                      onChange={e => setSectionField(s.id, { textScale: e.target.value === 'md' ? '' : (e.target.value as 'sm' | 'lg') })}
+                      style={{ ...urlInput, fontSize: 11, padding: '3px 5px', borderRadius: 3 }}
+                      title="Text size"
+                    >
+                      <option value="sm">Small text</option>
+                      <option value="md">Medium text</option>
+                      <option value="lg">Large text</option>
+                    </select>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Type</span>

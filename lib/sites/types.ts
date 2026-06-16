@@ -37,6 +37,8 @@ export interface SiteSection {
   bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
   borderColor?: string // the colour of the box outline around the section
   borderWidth?: number // the thickness (px, 0-8) of the box outline; 0/undefined = no outline
+  textColor?: string // override colour for the section's heading + body text
+  textScale?: 'sm' | 'lg' // smaller / larger section text (md is the default when absent)
   align?: SiteAlign // text alignment within the section
   kind?: SectionKind // cards/faq/gallery/embed/layout change the section layout
   items?: SectionItem[] // repeatable items for cards/faq, photos for gallery, or blocks for layout

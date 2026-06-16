@@ -285,11 +285,13 @@ export default function PublicPage({
                     </section>
                   ))
                 }
+                const headScale = sec.textScale === 'sm' ? 'text-2xl' : sec.textScale === 'lg' ? 'text-4xl md:text-5xl' : 'text-3xl'
+                const bodyScale = sec.textScale === 'sm' ? 'text-sm' : sec.textScale === 'lg' ? 'text-lg md:text-xl' : 'text-base'
                 const headingEl = sec.heading ? (
-                  <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>{sec.heading}</h2>
+                  <h2 className={`font-display ${headScale} italic mb-3`} style={{ color: sec.textColor || accent }}>{sec.heading}</h2>
                 ) : null
                 const bodyEl = sec.body ? (
-                  <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>{sec.body}</p>
+                  <p className={`font-body ${bodyScale} leading-relaxed whitespace-pre-wrap`} style={{ color: sec.textColor || theme.text, opacity: sec.textColor ? 1 : 0.85 }}>{sec.body}</p>
                 ) : null
                 const imageEl = sec.image ? (
                   /* eslint-disable-next-line @next/next/no-img-element */

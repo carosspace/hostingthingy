@@ -343,6 +343,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         bgColor: String(s?.bgColor ?? '').trim() || undefined,
         borderColor: /^#[0-9a-f]{6}$/i.test(String(s?.borderColor ?? '').trim()) ? String(s?.borderColor).trim() : undefined,
         borderWidth: bw > 0 ? Math.min(8, Math.round(bw)) : undefined,
+        textColor: /^#[0-9a-f]{6}$/i.test(String(s?.textColor ?? '').trim()) ? String(s?.textColor).trim() : undefined,
+        textScale: (['sm', 'lg'].includes(String(s?.textScale)) ? String(s?.textScale) : undefined) as 'sm' | 'lg' | undefined,
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         kind,
         columns,
