@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType, MenuPosition } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
@@ -31,6 +31,7 @@ interface EdSection {
   kind: SectionKind
   items: EdItem[]
   columns: number
+  reveal: boolean
   imageLayout: '' | SectionImageLayout
   imageSize: '' | ImageSize
   imageFit: '' | ImageFit
@@ -237,6 +238,7 @@ export default function LiveEditor({
   const [logoOpen, setLogoOpen] = useState(false)
   const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
   const [faviconOpen, setFaviconOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<MenuPosition>(initial?.menuPosition ?? 'top')
   const [socials, setSocials] = useState<Social[]>(initial?.socials ?? [])
   const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 42)
   const [undoStack, setUndoStack] = useState<{ sections: EdSection[]; headline: string; subheadline: string }[]>([])
@@ -262,6 +264,7 @@ export default function LiveEditor({
       kind: s.kind ?? 'prose',
       items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, col: it.col, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
       columns: typeof s.columns === 'number' ? s.columns : 1,
+      reveal: s.reveal ?? false,
       imageLayout: (s.imageLayout ?? '') as '' | SectionImageLayout,
       imageSize: (s.imageSize ?? '') as '' | ImageSize,
       imageFit: (s.imageFit ?? '') as '' | ImageFit,
@@ -321,7 +324,7 @@ export default function LiveEditor({
   }
   function addSection() {
     pushUndo()
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
@@ -344,6 +347,7 @@ export default function LiveEditor({
         overlay: 50,
         embedUrl: '',
         columns: 1,
+        reveal: false,
         ctaLabel: b.ctaLabel ?? '',
         ctaType: b.ctaType ?? 'none',
         ctaHref: '',
@@ -504,7 +508,7 @@ export default function LiveEditor({
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -532,7 +536,7 @@ export default function LiveEditor({
             // Only carry a section's media/layout/items across the rewrite when the
             // AI returned the same number of sections (so index i still maps 1:1).
             const old = sameShape ? sections[i] : undefined
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', columns: typeof old?.columns === 'number' ? old.columns : 1, ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', imageSize: old?.imageSize ?? '', imageFit: old?.imageFit ?? '', overlay: typeof old?.overlay === 'number' ? old.overlay : 50, embedUrl: old?.embedUrl ?? '', columns: typeof old?.columns === 'number' ? old.columns : 1, reveal: old?.reveal ?? false, ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -645,6 +649,7 @@ export default function LiveEditor({
           align: s.align || undefined,
           kind: s.kind === 'prose' ? undefined : s.kind,
           columns: s.kind === 'layout' ? (Math.min(3, Math.max(1, s.columns || 1)) as 1 | 2 | 3) : undefined,
+          reveal: s.reveal || undefined,
           imageLayout: s.imageLayout || undefined,
           items: items.length ? items : undefined,
           imageSize: s.imageSize || undefined,
@@ -665,6 +670,7 @@ export default function LiveEditor({
       brand: read('brand') || initial?.brand || undefined,
       logoImage: logoImage.trim() || undefined,
       faviconImage: faviconImage.trim() || undefined,
+      menuPosition: menuPosition !== 'top' ? menuPosition : undefined,
       navLinks: navLinks.length ? navLinks : undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
@@ -745,6 +751,19 @@ export default function LiveEditor({
           >
             Full
           </button>
+        </span>
+        <span className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
+          menu
+          {(['top', 'scroll', 'side'] as const).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMenuPosition(m); touched() }}
+              className={`px-2 py-1 rounded-sm ${menuPosition === m ? 'bg-gold text-background' : 'border border-gold/30 text-gold'}`}
+            >
+              {m}
+            </button>
+          ))}
         </span>
         <label className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
           font
@@ -1242,6 +1261,10 @@ export default function LiveEditor({
                         )}
                       </>
                     )}
+                    <label className="flex items-center gap-1.5 ml-2" style={{ fontSize: 11, color: '#666' }}>
+                      <input type="checkbox" checked={s.reveal} onChange={e => setSectionField(s.id, { reveal: e.target.checked })} style={{ accentColor: accent }} />
+                      Reveal on scroll
+                    </label>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Type</span>

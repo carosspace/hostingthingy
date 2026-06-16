@@ -1,6 +1,7 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
+import Reveal from './Reveal'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
 function safeHref(href: string): string | null {
@@ -104,11 +105,32 @@ export default function PublicPage({
   }
   const ctaButton = makeCta(page.ctaLabel, page.ctaType, page.ctaHref)
 
+  // Wrap a section in a scroll-reveal when the owner enabled it.
+  const wrapSec = (key: number, reveal: boolean | undefined, el: ReactNode) =>
+    reveal ? <Reveal key={key}>{el}</Reveal> : <Fragment key={key}>{el}</Fragment>
+
+  // Menu position: a normal top bar, a sticky scrolling bar, or a left side column.
+  const menuPos = content?.menuPosition ?? 'top'
+  const headerCls =
+    menuPos === 'scroll'
+      ? 'sticky top-0 z-30 px-6 py-4 flex flex-col items-center gap-3'
+      : menuPos === 'side'
+        ? 'px-6 py-5 flex flex-col items-center gap-4 md:fixed md:left-0 md:top-0 md:h-screen md:w-52 md:items-start md:justify-center'
+        : 'px-6 py-5 flex flex-col items-center gap-3'
+  const headerStyle: CSSProperties =
+    menuPos === 'scroll'
+      ? { borderBottom: `1px solid ${accent}2e`, background: `${theme.bg}e6`, backdropFilter: 'blur(6px)' }
+      : menuPos === 'side'
+        ? { borderRight: `1px solid ${accent}2e`, background: theme.bg }
+        : { borderBottom: `1px solid ${accent}2e` }
+  const contentPad = menuPos === 'side' ? 'md:pl-52' : ''
+  const navCls = `flex flex-wrap items-center justify-center gap-5 ${menuPos === 'side' ? 'md:flex-col md:items-start' : ''}`
+
   const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
 
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
-      <header className="px-6 py-5 flex flex-col items-center gap-3" style={{ borderBottom: `1px solid ${accent}2e` }}>
+      <header className={headerCls} style={headerStyle}>
         <a href={`/s/${siteSlug}`} className="inline-block">
           {logo ? (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -120,7 +142,7 @@ export default function PublicPage({
           )}
         </a>
         {showNav && (
-          <nav className="flex flex-wrap items-center justify-center gap-5">
+          <nav className={navCls}>
             {visiblePages.map(p => (
               <a
                 key={p.id}
@@ -151,7 +173,7 @@ export default function PublicPage({
       </header>
 
       {hasContent ? (
-        <main className="flex-1">
+        <main className={`flex-1 ${contentPad}`}>
           {heroImage ? (
             <section className="relative" style={{ height: '60vh', minHeight: 360 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -188,9 +210,9 @@ export default function PublicPage({
             <div className="pt-16 pb-16 space-y-16">
               {sections.map((sec, i) => {
                 const secCta = makeCta(sec.ctaLabel, sec.ctaType, sec.ctaHref)
-                if (sec.bgImage) {
-                  return (
-                    <section key={i} className="relative">
+                if (sec.bgImage && (sec.kind ?? 'prose') === 'prose') {
+                  return wrapSec(i, sec.reveal, (
+                    <section className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={sec.bgImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
                       <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(typeof sec.overlay === 'number' ? sec.overlay : 50) / 100})` }} />
@@ -208,7 +230,7 @@ export default function PublicPage({
                         {secCta && <div className="mt-6">{secCta}</div>}
                       </div>
                     </section>
-                  )
+                  ))
                 }
                 const headingEl = sec.heading ? (
                   <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>{sec.heading}</h2>
@@ -367,9 +389,8 @@ export default function PublicPage({
                     </>
                   )
                 }
-                return (
+                return wrapSec(i, sec.reveal, (
                   <section
-                    key={i}
                     className={sec.bgColor ? '' : `${bodyMax} mx-auto px-6`}
                     style={sec.bgColor ? { background: sec.bgColor } : undefined}
                   >
@@ -377,7 +398,7 @@ export default function PublicPage({
                       {inner}
                     </div>
                   </section>
-                )
+                ))
               })}
             </div>
           )}
@@ -395,7 +416,7 @@ export default function PublicPage({
           )}
         </main>
       ) : (
-        <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+        <main className={`flex-1 flex flex-col items-center justify-center px-6 text-center ${contentPad}`}>
           <h1 className="font-display text-5xl md:text-6xl italic" style={{ color: theme.text }}>
             {page.title || siteName}
           </h1>
@@ -405,7 +426,7 @@ export default function PublicPage({
         </main>
       )}
 
-      <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
+      <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
         {content?.socials && content.socials.length > 0 && (
           <nav className="flex flex-wrap items-center justify-center gap-5 mb-4">
             {content.socials.map((s, i) => {

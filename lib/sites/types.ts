@@ -38,6 +38,7 @@ export interface SiteSection {
   kind?: SectionKind // cards/faq/gallery/embed/layout change the section layout
   items?: SectionItem[] // repeatable items for cards/faq, photos for gallery, or blocks for layout
   columns?: 1 | 2 | 3 // number of columns in a 'layout' section
+  reveal?: boolean // fade/slide the section in as the visitor scrolls to it
   imageLayout?: SectionImageLayout // for a prose section with an image
   imageSize?: ImageSize // inline image width
   imageFit?: ImageFit // inline image crop vs fit
@@ -54,6 +55,9 @@ export interface Social {
   kind: SocialKind
   url: string
 }
+
+// Where the navigation menu sits: a top bar, a sticky scrolling bar, or a side column.
+export type MenuPosition = 'top' | 'scroll' | 'side'
 
 // A header navigation link the owner adds by hand (external URL, mailto:, the
 // booking page, or an on-page anchor) — separate from the automatic page links.
@@ -108,6 +112,7 @@ export interface SiteContent {
   brand?: string
   logoImage?: string // a logo shown in the header instead of the brand text
   faviconImage?: string // the little icon shown in the browser tab
+  menuPosition?: MenuPosition // where the navigation menu sits
   navLinks?: NavLink[] // extra header links added by hand (in addition to the page menu)
   seoTitle?: string
   seoDescription?: string

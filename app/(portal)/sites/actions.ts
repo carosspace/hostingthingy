@@ -22,6 +22,7 @@ import type {
   Social,
   SocialKind,
   BlockType,
+  MenuPosition,
 } from '@/lib/sites/types'
 import {
   createSiteRecord,
@@ -340,6 +341,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         kind,
         columns,
+        reveal: s?.reveal ? true : undefined,
         imageLayout,
         items: items.length ? items : undefined,
         imageSize: (['sm', 'md', 'full'].includes(String(s?.imageSize)) ? String(s?.imageSize) : undefined) as ImageSize | undefined,
@@ -396,6 +398,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     brand: String(parsed.brand ?? '').trim() || undefined,
     logoImage: String(parsed.logoImage ?? '').trim() || undefined,
     faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,
+    menuPosition: (['top', 'scroll', 'side'].includes(String(parsed.menuPosition)) ? String(parsed.menuPosition) : undefined) as MenuPosition | undefined,
     navLinks: navLinks.length ? navLinks : undefined,
     seoTitle: String(parsed.seoTitle ?? '').trim() || undefined,
     seoDescription: String(parsed.seoDescription ?? '').trim() || undefined,
