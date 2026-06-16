@@ -406,6 +406,28 @@ export default function LiveEditor({
   const t = THEMES[theme]
   const accent = accentColor || t.accent
 
+  // Make the live preview actually reflect the chosen menu position (top / scroll / side),
+  // so changing it is visible right here instead of only on the published page.
+  const sideMenu = menuPosition === 'side'
+  const previewWrapCls = sideMenu ? 'md:flex md:items-stretch' : ''
+  const previewHeaderColCls = sideMenu ? 'md:w-44 md:shrink-0' : ''
+  const previewBodyColCls = sideMenu ? 'md:flex-1 md:min-w-0' : ''
+  const previewHeaderCls =
+    menuPosition === 'scroll' ? 'px-6 py-4 text-center' : sideMenu ? 'px-6 py-6 text-center md:text-left' : 'px-6 py-5 text-center'
+  const previewHeaderStyle: CSSProperties =
+    menuPosition === 'scroll'
+      ? { borderBottom: `1px solid ${accent}33`, background: `${t.bg}cc`, backdropFilter: 'blur(4px)' }
+      : sideMenu
+        ? { borderRight: `1px solid ${accent}22` }
+        : { borderBottom: `1px solid ${accent}33` }
+  const previewNavCls = `flex flex-wrap items-center gap-4 mt-3 ${sideMenu ? 'md:flex-col md:items-start justify-center md:justify-start' : 'justify-center'}`
+  const menuModeNote =
+    menuPosition === 'scroll'
+      ? 'Menu stays pinned to the top as visitors scroll.'
+      : sideMenu
+        ? 'Menu sits as a column down the left side.'
+        : ''
+
   const ctaPreview =
     ctaType !== 'none' ? (
       <div className="mt-6">
@@ -998,7 +1020,8 @@ export default function LiveEditor({
       </details>
 
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
-        <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}33` }}>
+       <div className={previewWrapCls}>
+        <div className={`${previewHeaderCls} ${previewHeaderColCls}`} style={previewHeaderStyle}>
           {logoImage ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} />
@@ -1008,7 +1031,7 @@ export default function LiveEditor({
             </div>
           )}
           {(navPages.length > 1 || navLinks.length > 0) && (
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-3">
+            <div className={previewNavCls}>
               {navPages.map(p => (
                 <span key={p.slug} className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: p.slug === pageSlug ? accent : t.muted }}>
                   {p.label}
@@ -1021,8 +1044,12 @@ export default function LiveEditor({
               ))}
             </div>
           )}
+          {menuModeNote && (
+            <p className="font-label mt-3" style={{ fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: t.muted, opacity: 0.85 }}>{menuModeNote}</p>
+          )}
         </div>
 
+        <div className={previewBodyColCls}>
         <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
           <div className="max-w-md mx-auto space-y-2">
             {((!logoImage && !logoOpen) || (!faviconImage && !faviconOpen)) && (
@@ -1660,6 +1687,8 @@ export default function LiveEditor({
             <button type="button" onClick={addSocial} className="mt-2 font-label" style={chipStyle}>+ Add social link</button>
           </div>
         </div>
+        </div>
+       </div>
       </div>
     </div>
   )
