@@ -16,6 +16,7 @@ import {
   deleteServiceAction,
   confirmAppointmentAction,
   cancelAppointmentAction,
+  setBookingHostAction,
 } from './actions'
 import AvailabilityEditor from './AvailabilityEditor'
 
@@ -51,9 +52,14 @@ export default async function BookingsPage() {
   }
 
   let bookingSlug = ''
+  let bookingSiteId = ''
+  let hostName = ''
   try {
     const sites = await listSites()
-    bookingSlug = sites[0]?.slug ?? ''
+    const first = sites[0]
+    bookingSlug = first?.slug ?? ''
+    bookingSiteId = first?.id ?? ''
+    hostName = first?.content?.bookingHost ?? ''
   } catch {
     /* ignore */
   }
@@ -86,6 +92,20 @@ export default async function BookingsPage() {
           </p>
         ) : (
           <p className="font-body text-ash/50 text-sm mt-3">Create a website first to get a public booking link.</p>
+        )}
+        {bookingSlug && (
+          <form action={setBookingHostAction} className="mt-4 flex flex-col sm:flex-row gap-2 max-w-md">
+            <input type="hidden" name="siteId" value={bookingSiteId} />
+            <input
+              name="hostName"
+              defaultValue={hostName}
+              placeholder="Your name (clients see this on confirmations, e.g. Caro)"
+              className={input}
+            />
+            <button className="shrink-0 font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-2.5 rounded-sm">
+              Save
+            </button>
+          </form>
         )}
       </section>
 

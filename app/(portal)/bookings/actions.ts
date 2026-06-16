@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
 import { createService, deleteService, setAppointmentStatus, saveSchedule } from '@/lib/bookings/repo'
 import type { AvailabilityWindow } from '@/lib/bookings/types'
+import { getSite, saveSiteContent } from '@/lib/sites/store'
+import type { SiteContent } from '@/lib/sites/types'
 
 export async function createServiceAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -42,6 +44,20 @@ export async function cancelAppointmentAction(formData: FormData): Promise<void>
   const id = String(formData.get('id') ?? '')
   if (!id) return
   await setAppointmentStatus(id, 'cancelled')
+  revalidatePath('/bookings')
+}
+
+// Save the name clients see on booking confirmations (stored in the site content).
+export async function setBookingHostAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const siteId = String(formData.get('siteId') ?? '')
+  if (!siteId) return
+  const hostName = String(formData.get('hostName') ?? '').trim()
+  const site = await getSite(siteId)
+  if (!site) return
+  const base: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(siteId, { ...base, bookingHost: hostName || undefined })
   revalidatePath('/bookings')
 }
 

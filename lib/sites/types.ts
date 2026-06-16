@@ -64,6 +64,7 @@ export interface SiteContent {
   ctaHref?: string
   contactLabel?: string
   contactEmail: string
+  bookingHost?: string // the name shown to clients on booking confirmations
   footer?: string
   // When set, the full list of pages (pages[0] is home, slug ''). Migrated from
   // the legacy top-level fields for older single-page sites.

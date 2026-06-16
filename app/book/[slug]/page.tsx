@@ -40,7 +40,7 @@ export default async function BookPage({
           <div className="text-center">
             <h1 className="font-display text-4xl italic" style={{ color: theme.text }}>Thank you ✦</h1>
             <p className="font-body mt-4" style={{ color: theme.muted }}>
-              Your booking request has been sent. {brand} will confirm it by email soon.
+              Your booking request has been sent. {content?.bookingHost || brand} will confirm it by email soon.
             </p>
           </div>
         ) : !data || services.length === 0 ? (
