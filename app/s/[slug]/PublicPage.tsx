@@ -106,12 +106,13 @@ export default function PublicPage({
   const ctaButton = makeCta(page.ctaLabel, page.ctaType, page.ctaHref)
 
   // Render one block of a hand-composed header/footer bar (logo / text / link / line).
-  const renderBarBlock = (it: SectionItem, key: number): ReactNode => {
+  const renderBarBlock = (it: SectionItem, key: number | string): ReactNode => {
     let el: ReactNode = null
     if (it.block === 'image') {
+      const h = it.imgH && it.imgH > 0 ? it.imgH : 42
       el = it.image ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={it.image} alt="" style={{ height: 42, maxWidth: 200, objectFit: 'contain', display: 'block' }} />
+        <img src={it.image} alt="" style={{ height: h, maxWidth: 360, objectFit: 'contain', display: 'block' }} />
       ) : null
     } else if (it.block === 'heading') {
       el = it.title ? (
@@ -129,11 +130,21 @@ export default function PublicPage({
     if (!el) return null
     return <span key={key} className="inline-flex items-center">{el}</span>
   }
-  // Pre-render the bars and keep only blocks that actually produce something, so a bar
-  // whose blocks all resolve to nothing (e.g. a button with no working link) falls back
-  // to the default header/footer rather than rendering an empty, logo-less bar.
-  const headerEls = (content?.headerItems ?? []).map((it, i) => renderBarBlock(it, i)).filter(Boolean)
-  const footerEls = (content?.footerItems ?? []).map((it, i) => renderBarBlock(it, i)).filter(Boolean)
+  // Pre-render a header/footer bar into three zones (left / centre / right) by each
+  // block's col (0/1/2). Keep only blocks that actually produce something, so a bar
+  // whose blocks all resolve to nothing falls back to the default header/footer.
+  const barZones = (items: SectionItem[] | undefined) => {
+    const arr = items ?? []
+    const zones = [0, 1, 2].map(z =>
+      arr
+        .filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z)
+        .map((it, i) => renderBarBlock(it, `${z}-${i}`))
+        .filter(Boolean),
+    )
+    return { zones, has: zones.some(z => z.length > 0) }
+  }
+  const headerBar = barZones(content?.headerItems)
+  const footerBar = barZones(content?.footerItems)
 
   // Wrap a section in a scroll-reveal when the owner enabled it.
   const wrapSec = (key: number, reveal: boolean | undefined, el: ReactNode) =>
@@ -161,10 +172,16 @@ export default function PublicPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className={headerCls} style={headerStyle}>
-        {headerEls.length > 0 ? (
-          <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${menuPos === 'side' ? 'md:flex-col md:items-start' : 'justify-center'}`}>
-            {headerEls}
-          </div>
+        {headerBar.has ? (
+          menuPos === 'side' ? (
+            <div className="flex flex-col gap-3 items-center md:items-start">{headerBar.zones.flat()}</div>
+          ) : (
+            <div className="flex items-center w-full gap-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{headerBar.zones[0]}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{headerBar.zones[1]}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{headerBar.zones[2]}</div>
+            </div>
+          )
         ) : (
           <a href={`/s/${siteSlug}`} className="inline-block">
             {logo ? (
@@ -470,9 +487,11 @@ export default function PublicPage({
       )}
 
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
-        {footerEls.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-4 px-6">
-            {footerEls}
+        {footerBar.has && (
+          <div className="flex items-center w-full gap-3 px-6 mb-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{footerBar.zones[0]}</div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{footerBar.zones[1]}</div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{footerBar.zones[2]}</div>
           </div>
         )}
         {content?.socials && content.socials.length > 0 && (
@@ -494,7 +513,7 @@ export default function PublicPage({
             })}
           </nav>
         )}
-        {footerEls.length === 0 && (
+        {!footerBar.has && (
           <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
             {footerText}
           </p>

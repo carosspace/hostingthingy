@@ -14,6 +14,7 @@ interface EdItem {
   image: string
   block?: BlockType
   col?: 0 | 1 | 2
+  imgH?: number
   href?: string
   ctaType?: CtaType
   boxColor?: string
@@ -274,7 +275,29 @@ function BarBlocksEditor({
                 <button type="button" onClick={() => remove(it.id)} title="Remove" style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
             </div>
-            {it.block === 'image' && <ImageField value={it.image} onChange={v => update(it.id, { image: v })} maxW={400} />}
+            <div className="flex items-center gap-1 mb-1.5">
+              <span style={{ fontSize: 9, color: '#999', marginRight: 2 }}>Place</span>
+              {([[0, 'Left'], [1, 'Center'], [2, 'Right']] as const).map(([z, lbl]) => {
+                const on = (it.col ?? 0) === z
+                return (
+                  <button key={z} type="button" onClick={() => update(it.id, { col: z })} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, border: `1px solid ${on ? accent : 'rgba(0,0,0,0.15)'}`, background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+                )
+              })}
+            </div>
+            {it.block === 'image' && (
+              <>
+                <ImageField value={it.image} onChange={v => update(it.id, { image: v })} maxW={400} />
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span style={{ fontSize: 9, color: '#999', marginRight: 2 }}>Size</span>
+                  {([[28, 'S'], [44, 'M'], [68, 'L'], [96, 'XL']] as const).map(([h, lbl]) => {
+                    const on = (it.imgH || 44) === h
+                    return (
+                      <button key={h} type="button" onClick={() => update(it.id, { imgH: h })} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, border: `1px solid ${on ? accent : 'rgba(0,0,0,0.15)'}`, background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
             {it.block === 'heading' && (
               <input value={it.title} onChange={e => update(it.id, { title: e.target.value })} placeholder="Title" className="w-full" style={{ ...urlInput, fontSize: 14, padding: '6px 8px', borderRadius: 3 }} />
             )}
@@ -346,10 +369,10 @@ export default function LiveEditor({
   const [menuPosition, setMenuPosition] = useState<MenuPosition>(initial?.menuPosition ?? 'top')
   const [socials, setSocials] = useState<Social[]>(initial?.socials ?? [])
   const [headerItems, setHeaderItems] = useState<EdItem[]>(
-    (initial?.headerItems ?? []).map((it, j) => ({ id: `hi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
+    (initial?.headerItems ?? []).map((it, j) => ({ id: `hi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, col: it.col, imgH: it.imgH, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
   )
   const [footerItems, setFooterItems] = useState<EdItem[]>(
-    (initial?.footerItems ?? []).map((it, j) => ({ id: `fi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
+    (initial?.footerItems ?? []).map((it, j) => ({ id: `fi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, col: it.col, imgH: it.imgH, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
   )
   const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 42)
   const [undoStack, setUndoStack] = useState<{ sections: EdSection[]; headline: string; subheadline: string }[]>([])
@@ -808,6 +831,8 @@ export default function LiveEditor({
           body: it.body.trim() || undefined,
           image: it.image.trim() || undefined,
           block: it.block,
+          col: it.col === 1 || it.col === 2 ? it.col : undefined,
+          imgH: it.imgH && it.imgH > 0 ? it.imgH : undefined,
           href: it.href?.trim() || undefined,
           ctaType: it.ctaType && it.ctaType !== 'none' ? it.ctaType : undefined,
           boxColor: it.boxColor || undefined,

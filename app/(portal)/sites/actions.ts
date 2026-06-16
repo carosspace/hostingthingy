@@ -401,11 +401,15 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
       .map(it => {
         const itCtRaw = String(it?.ctaType ?? '')
         const bc = String(it?.boxColor ?? '').trim()
+        const zone = Number(it?.col)
+        const ih = Number(it?.imgH)
         return {
           title: String(it?.title ?? '').trim() || undefined,
           body: String(it?.body ?? '').trim() || undefined,
           image: String(it?.image ?? '').trim() || undefined,
           block: (['text', 'heading', 'image', 'button', 'divider'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
+          col: zone === 1 || zone === 2 ? (zone as 1 | 2) : undefined,
+          imgH: ih >= 16 && ih <= 200 ? Math.round(ih) : undefined,
           href: safeStoredHref(String(it?.href ?? '')),
           ctaType: (['booking', 'email', 'link'].includes(itCtRaw) ? itCtRaw : undefined) as CtaType | undefined,
           boxColor: /^#[0-9a-f]{6}$/i.test(bc) ? bc : undefined,

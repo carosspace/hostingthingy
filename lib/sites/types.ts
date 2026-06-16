@@ -21,7 +21,8 @@ export interface SectionItem {
   image?: string
   // --- 'layout' section block fields (absent on cards/faq/gallery items) ---
   block?: BlockType
-  col?: 0 | 1 | 2 // which column (free left/right composition)
+  col?: 0 | 1 | 2 // layout column, OR header/footer zone (0 left, 1 centre, 2 right)
+  imgH?: number // image/logo height in px for header/footer image blocks
   href?: string // button custom target
   ctaType?: CtaType // button uses the shared makeCta resolver
   boxColor?: string // recolour this block's box (hex); absent = no box
