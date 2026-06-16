@@ -423,6 +423,7 @@ export default function LiveEditor({
   const [pageAiText, setPageAiText] = useState('')
   const [pageAiBusy, setPageAiBusy] = useState(false)
   const [dragId, setDragId] = useState('')
+  const [selectedSection, setSelectedSection] = useState('')
   // Which optional slots the user has chosen to add (sections by id; hero by flag).
   const [heroImgOpen, setHeroImgOpen] = useState(false)
   const [heroBtnOpen, setHeroBtnOpen] = useState(false)
@@ -1044,7 +1045,7 @@ export default function LiveEditor({
       <div className="flex-1 min-w-0">
 
       <p className="font-body text-ash/60 text-xs mb-3 text-center">
-        Click any text on the page to edit it. Change colours and fonts from the Design panel on the left. Then Save &amp; publish.
+        Click any text to edit it. Click a section to change its layout, boxes &amp; alignment. Colours and fonts live in the Design panel on the left. Then Save &amp; publish.
       </p>
 
       <div className="border border-gold/30 bg-gold/5 rounded-sm p-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -1350,11 +1351,12 @@ export default function LiveEditor({
               <div
                 key={`${s.id}-${undoNonce}`}
                 className="group relative"
-                style={{ opacity: dragId === s.id ? 0.4 : 1 }}
+                style={{ opacity: dragId === s.id ? 0.4 : 1, outline: selectedSection === s.id ? `2px solid ${accent}` : undefined, outlineOffset: 6, borderRadius: 4 }}
+                onClick={() => setSelectedSection(s.id)}
                 onDragOver={e => { if (dragId && dragId !== s.id) e.preventDefault() }}
                 onDrop={e => { e.preventDefault(); if (dragId) reorder(dragId, s.id) }}
               >
-                <div className="absolute right-0 -top-3 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`absolute right-0 -top-3 z-10 flex gap-1 transition-opacity ${selectedSection === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                   <button type="button" title="Drag to reorder" draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => setDragId('')} className="text-xs px-2 py-0.5 rounded cursor-grab" style={{ background: accent, color: t.bg }}>⠿</button>
                   <button type="button" title="Move up" onClick={() => move(s.id, -1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↑</button>
                   <button type="button" title="Move down" onClick={() => move(s.id, 1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↓</button>
@@ -1419,7 +1421,8 @@ export default function LiveEditor({
                   </div>
                 )}
 
-                <div className="mt-3 space-y-2">
+                {selectedSection === s.id && (
+                <div className="mt-3 space-y-2" onClick={e => e.stopPropagation()}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Align</span>
                     {(['left', 'center', 'right'] as const).map(a => {
@@ -1590,6 +1593,7 @@ export default function LiveEditor({
                     </div>
                   )}
                 </div>
+                )}
                 {aiFor === s.id && (
                   <div className="mt-2 rounded-sm" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.12)', padding: 10 }}>
                     <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>✨ Ask AI</span>
