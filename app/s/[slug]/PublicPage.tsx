@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
-import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social } from '@/lib/sites/types'
+import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social, type SectionItem } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import Reveal from './Reveal'
 
@@ -105,6 +105,33 @@ export default function PublicPage({
   }
   const ctaButton = makeCta(page.ctaLabel, page.ctaType, page.ctaHref)
 
+  // Render one block of a hand-composed header/footer bar (logo / text / link / line).
+  const renderBarBlock = (it: SectionItem, key: number): ReactNode => {
+    let el: ReactNode = null
+    if (it.block === 'image') {
+      el = it.image ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={it.image} alt="" style={{ height: 42, maxWidth: 200, objectFit: 'contain', display: 'block' }} />
+      ) : null
+    } else if (it.block === 'heading') {
+      el = it.title ? (
+        <span className="font-display italic" style={{ fontSize: 20, color: accent }}>{it.title}</span>
+      ) : null
+    } else if (it.block === 'button') {
+      el = makeCta(it.title, it.ctaType, it.href)
+    } else if (it.block === 'divider') {
+      el = <span aria-hidden style={{ display: 'inline-block', width: 1, height: 18, background: accent, opacity: 0.4 }} />
+    } else {
+      // text (the default block)
+      const txt = it.body || it.title
+      el = txt ? <span className="font-body whitespace-pre-wrap" style={{ fontSize: 13, color: theme.muted }}>{txt}</span> : null
+    }
+    if (!el) return <Fragment key={key} />
+    return <span key={key} className="inline-flex items-center">{el}</span>
+  }
+  const headerItems = content?.headerItems ?? []
+  const footerItems = content?.footerItems ?? []
+
   // Wrap a section in a scroll-reveal when the owner enabled it.
   const wrapSec = (key: number, reveal: boolean | undefined, el: ReactNode) =>
     reveal ? <Reveal key={key}>{el}</Reveal> : <Fragment key={key}>{el}</Fragment>
@@ -131,16 +158,22 @@ export default function PublicPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className={headerCls} style={headerStyle}>
-        <a href={`/s/${siteSlug}`} className="inline-block">
-          {logo ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={logo} alt={brand} style={{ height: 46, maxWidth: 220, objectFit: 'contain' }} />
-          ) : (
-            <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-              {brand}
-            </span>
-          )}
-        </a>
+        {headerItems.length > 0 ? (
+          <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${menuPos === 'side' ? 'md:flex-col md:items-start' : 'justify-center'}`}>
+            {headerItems.map((it, i) => renderBarBlock(it, i))}
+          </div>
+        ) : (
+          <a href={`/s/${siteSlug}`} className="inline-block">
+            {logo ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={logo} alt={brand} style={{ height: 46, maxWidth: 220, objectFit: 'contain' }} />
+            ) : (
+              <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+                {brand}
+              </span>
+            )}
+          </a>
+        )}
         {showNav && (
           <nav className={navCls}>
             {visiblePages.map(p => (
@@ -427,6 +460,11 @@ export default function PublicPage({
       )}
 
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
+        {footerItems.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-4 px-6">
+            {footerItems.map((it, i) => renderBarBlock(it, i))}
+          </div>
+        )}
         {content?.socials && content.socials.length > 0 && (
           <nav className="flex flex-wrap items-center justify-center gap-5 mb-4">
             {content.socials.map((s, i) => {
@@ -446,9 +484,11 @@ export default function PublicPage({
             })}
           </nav>
         )}
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
-          {footerText}
-        </p>
+        {footerItems.length === 0 && (
+          <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
+            {footerText}
+          </p>
+        )}
       </footer>
     </div>
   )

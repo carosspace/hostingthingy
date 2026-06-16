@@ -114,6 +114,8 @@ export interface SiteContent {
   faviconImage?: string // the little icon shown in the browser tab
   menuPosition?: MenuPosition // where the navigation menu sits
   navLinks?: NavLink[] // extra header links added by hand (in addition to the page menu)
+  headerItems?: SectionItem[] // a hand-composed header bar (logo/text/links); falls back to the default when empty
+  footerItems?: SectionItem[] // a hand-composed footer row; falls back to the footer text when empty
   seoTitle?: string
   seoDescription?: string
   // The home page's fields live at the top level (legacy + mirror of pages[0]).

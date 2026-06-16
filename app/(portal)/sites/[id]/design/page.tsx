@@ -42,6 +42,8 @@ export default async function DesignPage({
     logoImage: c?.logoImage,
     faviconImage: c?.faviconImage,
     menuPosition: c?.menuPosition,
+    headerItems: c?.headerItems,
+    footerItems: c?.footerItems,
     seoTitle: c?.seoTitle,
     seoDescription: c?.seoDescription,
     headline: current.headline,

@@ -392,6 +392,28 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
   const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, ...pageFields } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
 
+  // Header/footer are small hand-composed bars of blocks (logo/text/link/line).
+  const mapBarItems = (raw: unknown): SectionItem[] =>
+    (Array.isArray(raw) ? (raw as Record<string, unknown>[]) : [])
+      .map(it => {
+        const itCtRaw = String(it?.ctaType ?? '')
+        const bc = String(it?.boxColor ?? '').trim()
+        return {
+          title: String(it?.title ?? '').trim() || undefined,
+          body: String(it?.body ?? '').trim() || undefined,
+          image: String(it?.image ?? '').trim() || undefined,
+          block: (['text', 'heading', 'image', 'button', 'divider'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
+          href: safeStoredHref(String(it?.href ?? '')),
+          ctaType: (['booking', 'email', 'link'].includes(itCtRaw) ? itCtRaw : undefined) as CtaType | undefined,
+          boxColor: /^#[0-9a-f]{6}$/i.test(bc) ? bc : undefined,
+          outline: it?.outline ? true : undefined,
+        }
+      })
+      .filter(it => it.block === 'divider' || it.title || it.body || it.image)
+      .slice(0, 12)
+  const headerItems = mapBarItems(parsed.headerItems)
+  const footerItems = mapBarItems(parsed.footerItems)
+
   const content: SiteContent = {
     theme,
     accentColor: String(parsed.accentColor ?? '').trim() || undefined,
@@ -402,6 +424,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,
     menuPosition: (['top', 'scroll', 'side'].includes(String(parsed.menuPosition)) ? String(parsed.menuPosition) : undefined) as MenuPosition | undefined,
     navLinks: navLinks.length ? navLinks : undefined,
+    headerItems: headerItems.length ? headerItems : undefined,
+    footerItems: footerItems.length ? footerItems : undefined,
     seoTitle: String(parsed.seoTitle ?? '').trim() || undefined,
     seoDescription: String(parsed.seoDescription ?? '').trim() || undefined,
     headline: home.headline,

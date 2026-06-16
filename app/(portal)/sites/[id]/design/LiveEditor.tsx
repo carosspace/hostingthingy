@@ -211,6 +211,109 @@ function ButtonControl({
   )
 }
 
+const BAR_CHIPS: { type: BlockType; label: string }[] = [
+  { type: 'image', label: 'Logo / picture' },
+  { type: 'text', label: 'Text' },
+  { type: 'heading', label: 'Title' },
+  { type: 'button', label: 'Link / button' },
+  { type: 'divider', label: 'Line' },
+]
+const BAR_LABEL: Record<string, string> = { image: 'Logo / picture', heading: 'Title', button: 'Link / button', divider: 'Line', text: 'Text' }
+
+// A small block-list editor for a hand-composed header or footer bar.
+function BarBlocksEditor({
+  title,
+  hint,
+  items,
+  setItems,
+  accent,
+  onTouch,
+  newId,
+}: {
+  title: string
+  hint: string
+  items: EdItem[]
+  setItems: (updater: (prev: EdItem[]) => EdItem[]) => void
+  accent: string
+  onTouch: () => void
+  newId: () => string
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const chip: CSSProperties = { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', border: `1px solid ${accent}66`, color: accent, padding: '5px 11px', borderRadius: 3, background: 'transparent', cursor: 'pointer' }
+  const update = (id: string, patch: Partial<EdItem>) => { setItems(p => p.map(x => (x.id === id ? { ...x, ...patch } : x))); onTouch() }
+  const remove = (id: string) => { setItems(p => p.filter(x => x.id !== id)); onTouch() }
+  const move = (id: string, dir: -1 | 1) => {
+    setItems(p => {
+      const i = p.findIndex(x => x.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= p.length) return p
+      const copy = p.slice()
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+      return copy
+    })
+    onTouch()
+  }
+  const add = (type: BlockType) => {
+    setItems(p => [...p, { id: newId(), title: '', body: '', image: '', block: type }])
+    setMenuOpen(false)
+    onTouch()
+  }
+  return (
+    <div>
+      <p style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#888', marginBottom: 6 }}>{title}</p>
+      <div className="space-y-2">
+        {items.map((it, idx) => (
+          <div key={it.id} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)', padding: 8 }}>
+            <div className="flex items-center justify-between mb-1">
+              <span style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#777' }}>{BAR_LABEL[it.block ?? 'text']}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => move(it.id, -1)} disabled={idx === 0} title="Move up" style={{ fontSize: 13, color: idx === 0 ? '#ccc' : accent }}>↑</button>
+                <button type="button" onClick={() => move(it.id, 1)} disabled={idx === items.length - 1} title="Move down" style={{ fontSize: 13, color: idx === items.length - 1 ? '#ccc' : accent }}>↓</button>
+                <button type="button" onClick={() => remove(it.id)} title="Remove" style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
+              </div>
+            </div>
+            {it.block === 'image' && <ImageField value={it.image} onChange={v => update(it.id, { image: v })} maxW={400} />}
+            {it.block === 'heading' && (
+              <input value={it.title} onChange={e => update(it.id, { title: e.target.value })} placeholder="Title" className="w-full" style={{ ...urlInput, fontSize: 14, padding: '6px 8px', borderRadius: 3 }} />
+            )}
+            {(it.block === 'text' || !it.block) && (
+              <textarea value={it.body} onChange={e => update(it.id, { body: e.target.value })} placeholder="Text — e.g. © 2026, opening hours, an address…" rows={2} className="w-full resize-none" style={{ ...urlInput, fontSize: 13, padding: '6px 8px', borderRadius: 3 }} />
+            )}
+            {it.block === 'button' && (
+              <div className="space-y-1">
+                <input value={it.title} onChange={e => update(it.id, { title: e.target.value })} placeholder="Link text — e.g. Contact" className="w-full" style={{ ...urlInput, fontSize: 13, padding: '6px 8px', borderRadius: 3 }} />
+                <select value={it.ctaType || 'none'} onChange={e => update(it.id, { ctaType: e.target.value as CtaType })} style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}>
+                  <option value="none">No link</option>
+                  <option value="booking">→ Booking page</option>
+                  <option value="email">→ Email me</option>
+                  <option value="link">→ Custom link</option>
+                </select>
+                {it.ctaType === 'link' && <input value={it.href || ''} onChange={e => update(it.id, { href: e.target.value })} placeholder="https://…  or  /about" className="w-full" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />}
+              </div>
+            )}
+            {it.block === 'divider' && <div style={{ height: 1, background: accent, opacity: 0.4 }} />}
+          </div>
+        ))}
+      </div>
+      {menuOpen ? (
+        <div className="flex flex-wrap gap-1 rounded-sm mt-2" style={{ border: `1px dashed ${accent}`, padding: 8 }}>
+          {BAR_CHIPS.map(bc => (
+            <button key={bc.type} type="button" onClick={() => add(bc.type)} style={chip}>{bc.label}</button>
+          ))}
+          <button type="button" onClick={() => setMenuOpen(false)} style={{ fontSize: 11, color: '#888' }}>cancel</button>
+        </div>
+      ) : (
+        items.length < 12 && (
+          <button type="button" onClick={() => setMenuOpen(true)} className="w-full rounded-sm mt-2" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 8, fontSize: 12 }}>
+            + add to {title.toLowerCase()}
+          </button>
+        )
+      )}
+      {items.length === 0 && <p style={{ fontSize: 11, color: '#999', marginTop: 6 }}>{hint}</p>}
+    </div>
+  )
+}
+
 export default function LiveEditor({
   siteId,
   siteSlug,
@@ -240,6 +343,12 @@ export default function LiveEditor({
   const [faviconOpen, setFaviconOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition>(initial?.menuPosition ?? 'top')
   const [socials, setSocials] = useState<Social[]>(initial?.socials ?? [])
+  const [headerItems, setHeaderItems] = useState<EdItem[]>(
+    (initial?.headerItems ?? []).map((it, j) => ({ id: `hi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
+  )
+  const [footerItems, setFooterItems] = useState<EdItem[]>(
+    (initial?.footerItems ?? []).map((it, j) => ({ id: `fi${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '', block: it.block, href: it.href, ctaType: it.ctaType, boxColor: it.boxColor, outline: it.outline })),
+  )
   const [heroOverlay, setHeroOverlay] = useState(typeof initial?.heroOverlay === 'number' ? initial.heroOverlay : 42)
   const [undoStack, setUndoStack] = useState<{ sections: EdSection[]; headline: string; subheadline: string }[]>([])
   const [undoNonce, setUndoNonce] = useState(0)
@@ -662,6 +771,21 @@ export default function LiveEditor({
         }
       })
       .filter(s => s.heading || s.body || s.image || s.bgImage || s.embedUrl || s.kind === 'layout' || (s.items && s.items.length))
+    const buildBar = (arr: EdItem[]) =>
+      arr
+        .map(it => ({
+          title: it.title.trim() || undefined,
+          body: it.body.trim() || undefined,
+          image: it.image.trim() || undefined,
+          block: it.block,
+          href: it.href?.trim() || undefined,
+          ctaType: it.ctaType && it.ctaType !== 'none' ? it.ctaType : undefined,
+          boxColor: it.boxColor || undefined,
+          outline: it.outline || undefined,
+        }))
+        .filter(it => it.block === 'divider' || it.title || it.body || it.image)
+    const builtHeader = buildBar(headerItems)
+    const builtFooter = buildBar(footerItems)
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
@@ -672,6 +796,8 @@ export default function LiveEditor({
       faviconImage: faviconImage.trim() || undefined,
       menuPosition: menuPosition !== 'top' ? menuPosition : undefined,
       navLinks: navLinks.length ? navLinks : undefined,
+      headerItems: builtHeader.length ? builtHeader : undefined,
+      footerItems: builtFooter.length ? builtFooter : undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
       headline: read('headline'),
@@ -923,6 +1049,17 @@ export default function LiveEditor({
                 <ImageField value={faviconImage} onChange={v => { setFaviconImage(v); touched() }} maxW={128} />
               </div>
             )}
+            <div className="pt-2 mt-1" style={{ borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+              <BarBlocksEditor
+                title="Header"
+                hint="Build your own header bar — add a logo, a tagline, or a link. Leave empty to keep the simple logo + menu above."
+                items={headerItems}
+                setItems={setHeaderItems}
+                accent={accent}
+                onTouch={touched}
+                newId={() => 'b' + idc.current++}
+              />
+            </div>
           </div>
         </div>
 
@@ -1487,6 +1624,17 @@ export default function LiveEditor({
 
         <div className="px-6 pb-6" style={{ background: 'rgba(128,128,128,0.06)' }}>
           <div className="max-w-md mx-auto pt-3">
+            <div className="pb-3 mb-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+              <BarBlocksEditor
+                title="Footer"
+                hint="Build your own footer — add a copyright line, an address, opening hours, or links. Leave empty to keep the simple footer line below."
+                items={footerItems}
+                setItems={setFooterItems}
+                accent={accent}
+                onTouch={touched}
+                newId={() => 'b' + idc.current++}
+              />
+            </div>
             <p style={ctlLabel}>Social links (footer)</p>
             {socials.map((sc, i) => (
               <div key={i} className="flex items-center gap-2 mt-2">
