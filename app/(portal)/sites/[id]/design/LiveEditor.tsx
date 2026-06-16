@@ -228,6 +228,12 @@ export default function LiveEditor({
   const [pageAiText, setPageAiText] = useState('')
   const [pageAiBusy, setPageAiBusy] = useState(false)
   const [dragId, setDragId] = useState('')
+  // Which optional slots the user has chosen to add (sections by id; hero by flag).
+  const [heroImgOpen, setHeroImgOpen] = useState(false)
+  const [heroBtnOpen, setHeroBtnOpen] = useState(false)
+  const [openImg, setOpenImg] = useState<Set<string>>(new Set())
+  const [openBg, setOpenBg] = useState<Set<string>>(new Set())
+  const [openBtn, setOpenBtn] = useState<Set<string>>(new Set())
 
   const t = THEMES[theme]
   const accent = accentColor || t.accent
@@ -243,6 +249,12 @@ export default function LiveEditor({
         </span>
       </div>
     ) : null
+
+  const showHeroImg = heroImgOpen || Boolean(heroImage)
+  const showHeroBtn = heroBtnOpen || ctaType !== 'none'
+  const chipStyle: CSSProperties = { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', border: `1px solid ${accent}66`, color: accent, padding: '5px 11px', borderRadius: 3, background: 'transparent', cursor: 'pointer' }
+  const ctlLabel: CSSProperties = { fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#888' }
+  const cancelStyle: CSSProperties = { fontSize: 11, color: '#b3402f', background: 'transparent', cursor: 'pointer' }
 
   function touched() {
     setSaved(false)
@@ -612,27 +624,42 @@ export default function LiveEditor({
           </div>
         )}
 
-        <div className="px-6 py-2" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto">
-            <ImageField
-              value={heroImage}
-              onChange={v => {
-                setHeroImage(v)
-                touched()
-              }}
-            />
-          </div>
-        </div>
-
         <div className="px-6 py-3" style={{ background: 'rgba(128,128,128,0.06)' }}>
-          <div className="max-w-md mx-auto">
-            <ButtonControl title="Hero button" type={ctaType} label={ctaLabel} href={ctaHref} siteSlug={siteSlug} onChange={heroBtnChange} />
+          <div className="max-w-md mx-auto space-y-2">
+            {(!showHeroImg || !showHeroBtn) && (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {!showHeroImg && <button type="button" onClick={() => setHeroImgOpen(true)} className="font-label" style={chipStyle}>+ Hero image</button>}
+                {!showHeroBtn && <button type="button" onClick={() => setHeroBtnOpen(true)} className="font-label" style={chipStyle}>+ Hero button</button>}
+              </div>
+            )}
+            {showHeroImg && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span style={ctlLabel}>Hero image</span>
+                  {!heroImage && <button type="button" onClick={() => setHeroImgOpen(false)} style={cancelStyle}>× cancel</button>}
+                </div>
+                <ImageField value={heroImage} onChange={v => { setHeroImage(v); touched() }} />
+              </div>
+            )}
+            {showHeroBtn && (
+              <div>
+                {ctaType === 'none' && (
+                  <div className="flex justify-end mb-1">
+                    <button type="button" onClick={() => setHeroBtnOpen(false)} style={cancelStyle}>× cancel</button>
+                  </div>
+                )}
+                <ButtonControl title="Hero button" type={ctaType} label={ctaLabel} href={ctaHref} siteSlug={siteSlug} onChange={heroBtnChange} />
+              </div>
+            )}
           </div>
         </div>
 
         <div className={`${layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto px-6 py-10 space-y-10`}>
           {sections.map(s => {
             const onBg = Boolean(s.bgImage)
+            const showImg = openImg.has(s.id) || Boolean(s.image)
+            const showSecBg = openBg.has(s.id) || Boolean(s.bgImage)
+            const showSecBtn = openBtn.has(s.id) || s.ctaType !== 'none'
             const btnPreview =
               s.ctaType !== 'none' ? (
                 <div className="mt-4">
@@ -691,18 +718,42 @@ export default function LiveEditor({
                   </>
                 )}
 
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>Inline image</p>
-                    <ImageField value={s.image} onChange={v => setSectionField(s.id, { image: v })} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#888', marginBottom: 4 }}>Background photo</p>
-                    <ImageField value={s.bgImage} onChange={v => setSectionField(s.id, { bgImage: v })} />
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <ButtonControl title="Section button" type={s.ctaType} label={s.ctaLabel} href={s.ctaHref} siteSlug={siteSlug} onChange={patch => sectionBtnChange(s.id, patch)} />
+                <div className="mt-3 space-y-2">
+                  {(!showImg || !showSecBg || !showSecBtn) && (
+                    <div className="flex flex-wrap gap-2">
+                      {!showImg && <button type="button" onClick={() => setOpenImg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Image</button>}
+                      {!showSecBg && <button type="button" onClick={() => setOpenBg(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Background</button>}
+                      {!showSecBtn && <button type="button" onClick={() => setOpenBtn(p => new Set(p).add(s.id))} className="font-label" style={chipStyle}>+ Button</button>}
+                    </div>
+                  )}
+                  {showImg && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span style={ctlLabel}>Inline image</span>
+                        {!s.image && <button type="button" onClick={() => setOpenImg(p => { const n = new Set(p); n.delete(s.id); return n })} style={cancelStyle}>× cancel</button>}
+                      </div>
+                      <ImageField value={s.image} onChange={v => setSectionField(s.id, { image: v })} />
+                    </div>
+                  )}
+                  {showSecBg && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span style={ctlLabel}>Background photo</span>
+                        {!s.bgImage && <button type="button" onClick={() => setOpenBg(p => { const n = new Set(p); n.delete(s.id); return n })} style={cancelStyle}>× cancel</button>}
+                      </div>
+                      <ImageField value={s.bgImage} onChange={v => setSectionField(s.id, { bgImage: v })} />
+                    </div>
+                  )}
+                  {showSecBtn && (
+                    <div>
+                      {s.ctaType === 'none' && (
+                        <div className="flex justify-end mb-1">
+                          <button type="button" onClick={() => setOpenBtn(p => { const n = new Set(p); n.delete(s.id); return n })} style={cancelStyle}>× cancel</button>
+                        </div>
+                      )}
+                      <ButtonControl title="Section button" type={s.ctaType} label={s.ctaLabel} href={s.ctaHref} siteSlug={siteSlug} onChange={patch => sectionBtnChange(s.id, patch)} />
+                    </div>
+                  )}
                 </div>
                 {aiFor === s.id && (
                   <div className="mt-2 rounded-sm" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.12)', padding: 10 }}>
