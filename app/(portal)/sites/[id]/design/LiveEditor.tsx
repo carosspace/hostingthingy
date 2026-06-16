@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType, MenuPosition } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
@@ -428,6 +429,7 @@ export default function LiveEditor({
   const [pageAiBusy, setPageAiBusy] = useState(false)
   const [dragId, setDragId] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
+  const [inspectorNode, setInspectorNode] = useState<HTMLDivElement | null>(null)
   // Which optional slots the user has chosen to add (sections by id; hero by flag).
   const [heroImgOpen, setHeroImgOpen] = useState(false)
   const [heroBtnOpen, setHeroBtnOpen] = useState(false)
@@ -913,6 +915,14 @@ export default function LiveEditor({
             <button type="button" onClick={() => setAddAiOpen(o => !o)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">✨ AI</button>
             <button type="button" onClick={undo} disabled={!undoStack.length} title="Undo the last add, delete or AI change" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm disabled:opacity-30">↩ Undo</button>
           </div>
+        </div>
+        <div className="rounded-sm border border-gold/30 p-3" style={{ background: 'rgba(201,168,76,0.07)' }}>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-label text-[9px] tracking-[2px] uppercase text-gold">Section</span>
+            {selectedSection && <button type="button" onClick={() => setSelectedSection('')} className="font-label text-[9px] tracking-[1px] uppercase text-ash hover:text-gold">done ✕</button>}
+          </div>
+          {!selectedSection && <p className="font-body text-ash/50 text-[11px] leading-relaxed">Click a section on the page to edit its layout, boxes, lines &amp; text right here.</p>}
+          <div ref={setInspectorNode} />
         </div>
         <div className="h-px bg-gold/15" />
         <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70">Colour theme</span>
@@ -1431,8 +1441,8 @@ export default function LiveEditor({
                   </div>
                 )}
 
-                {selectedSection === s.id && (
-                <div className="mt-3 space-y-2" onClick={e => e.stopPropagation()}>
+                {selectedSection === s.id && inspectorNode && createPortal((
+                <div className="space-y-2" onClick={e => e.stopPropagation()}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Align</span>
                     {(['left', 'center', 'right'] as const).map(a => {
@@ -1626,7 +1636,7 @@ export default function LiveEditor({
                     </div>
                   )}
                 </div>
-                )}
+                ), inspectorNode)}
                 {aiFor === s.id && (
                   <div className="mt-2 rounded-sm" style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.12)', padding: 10 }}>
                     <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>✨ Ask AI</span>
