@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout } from '@/lib/sites/types'
@@ -165,6 +165,32 @@ export async function aiSectionAction(args: {
     })
   } catch {
     return fallback
+  }
+}
+
+// The in-editor assistant: rewrite the current page from an instruction. Returns
+// the revised page so the editor can apply it to the live preview (no save yet).
+export async function aiPageAction(args: {
+  siteId: string
+  instruction: string
+  headline: string
+  subheadline: string
+  sections: { heading: string; body: string }[]
+}): Promise<GeneratedPage | null> {
+  const user = await getCurrentUser()
+  if (!user) return null
+  const site = await getSite(args.siteId)
+  if (!site || !args.instruction.trim()) return null
+  try {
+    return await aiRewritePage({
+      siteName: site.name,
+      instruction: args.instruction.trim(),
+      headline: args.headline,
+      subheadline: args.subheadline,
+      sections: args.sections,
+    })
+  } catch {
+    return null
   }
 }
 

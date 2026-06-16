@@ -129,6 +129,73 @@ export interface GeneratedPage {
   sections: { heading: string; body: string }[]
 }
 
+// The in-editor assistant: revise a whole page from a plain-language instruction
+// ("make it more premium", "add a testimonials section", "make this more spiritual").
+export async function aiRewritePage(opts: {
+  siteName: string
+  instruction: string
+  headline: string
+  subheadline: string
+  sections: { heading: string; body: string }[]
+}): Promise<GeneratedPage> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const current =
+    `Headline: ${opts.headline}\nSubheadline: ${opts.subheadline}\n\nSections:\n` +
+    (opts.sections.length ? opts.sections.map((s, i) => `${i + 1}. ${s.heading}\n${s.body}`).join('\n\n') : '(none yet)')
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2500,
+    tools: [
+      {
+        name: 'rewrite_page',
+        description: 'Provide the full revised content for this website page.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            headline: { type: 'string' },
+            subheadline: { type: 'string' },
+            sections: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { heading: { type: 'string' }, body: { type: 'string' } },
+                required: ['heading', 'body'],
+              },
+            },
+          },
+          required: ['headline', 'subheadline', 'sections'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'rewrite_page' },
+    messages: [
+      {
+        role: 'user',
+        content: `Revise this website page for "${opts.siteName}".\n\nInstruction: ${opts.instruction}\n\nCurrent page:\n${current}\n\nApply the instruction, keep what works, and return the FULL revised page (headline, subheadline, and all sections). Warm, clear, professional.`,
+      },
+    ],
+  })
+
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    throw new Error('The AI did not return a page. Please try again.')
+  }
+  const input = block.input as {
+    headline?: string
+    subheadline?: string
+    sections?: { heading?: string; body?: string }[]
+  }
+  return {
+    headline: (input.headline ?? '').trim(),
+    subheadline: (input.subheadline ?? '').trim(),
+    sections: (input.sections ?? [])
+      .slice(0, 12)
+      .map(s => ({ heading: (s.heading ?? '').trim(), body: (s.body ?? '').trim() }))
+      .filter(s => s.heading || s.body),
+  }
+}
+
 // Generates copy for a whole multi-page site in one call. Returns one entry per
 // requested page, in the SAME order as `pageSpecs` (we control titles/slugs, the
 // AI only writes the words). The chosen visual style is handled separately.

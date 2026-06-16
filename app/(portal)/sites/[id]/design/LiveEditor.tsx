@@ -5,7 +5,7 @@ import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
-import { saveSiteContentJsonAction, aiSectionAction } from '../../actions'
+import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
 
 interface EdSection {
   id: string
@@ -225,6 +225,9 @@ export default function LiveEditor({
   const [addAiOpen, setAddAiOpen] = useState(false)
   const [addAiText, setAddAiText] = useState('')
   const [blocksOpen, setBlocksOpen] = useState(false)
+  const [pageAiText, setPageAiText] = useState('')
+  const [pageAiBusy, setPageAiBusy] = useState(false)
+  const [dragId, setDragId] = useState('')
 
   const t = THEMES[theme]
   const accent = accentColor || t.accent
@@ -319,6 +322,46 @@ export default function LiveEditor({
       setAddAiOpen(false)
       setAddAiText('')
     }
+  }
+  // The in-editor assistant: rewrite the whole current page from an instruction.
+  async function runPageAi() {
+    const instruction = pageAiText.trim()
+    if (!instruction) return
+    setPageAiBusy(true)
+    try {
+      const cur = sections.map(s => ({ heading: domText('h-' + s.id), body: domText('b-' + s.id) }))
+      const res = await aiPageAction({ siteId, instruction, headline: domText('headline'), subheadline: domText('subheadline'), sections: cur })
+      if (res) {
+        const h = rootRef.current?.querySelector('[data-field="headline"]') as HTMLElement | null
+        const sh = rootRef.current?.querySelector('[data-field="subheadline"]') as HTMLElement | null
+        if (h) h.innerText = res.headline
+        if (sh) sh.innerText = res.subheadline
+        setSections(
+          res.sections.map((sec, i) => {
+            const old = sections[i]
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+          }),
+        )
+        setPageAiText('')
+        touched()
+      }
+    } finally {
+      setPageAiBusy(false)
+    }
+  }
+  // Drag a section onto another to drop it into that position.
+  function reorder(srcId: string, destId: string) {
+    setSections(p => {
+      const from = p.findIndex(s => s.id === srcId)
+      const to = p.findIndex(s => s.id === destId)
+      if (from < 0 || to < 0 || from === to) return p
+      const n = [...p]
+      const [moved] = n.splice(from, 1)
+      n.splice(to, 0, moved)
+      return n
+    })
+    setDragId('')
+    touched()
   }
   function removeSection(id: string) {
     setSections(p => p.filter(s => s.id !== id))
@@ -496,6 +539,25 @@ export default function LiveEditor({
         Click any text below to edit it. Recolour with the swatches above. Then Save &amp; publish.
       </p>
 
+      <div className="border border-gold/30 bg-gold/5 rounded-sm p-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+        <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70 shrink-0">✨ AI assistant</span>
+        <input
+          value={pageAiText}
+          onChange={e => setPageAiText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') runPageAi() }}
+          placeholder="Ask AI to change this page (e.g. make it more premium, add a testimonials section)"
+          className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+        />
+        <button
+          type="button"
+          onClick={runPageAi}
+          disabled={pageAiBusy || !pageAiText.trim()}
+          className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm disabled:opacity-50"
+        >
+          {pageAiBusy ? 'Working…' : 'Ask AI'}
+        </button>
+      </div>
+
       <details className="border border-gold/15 rounded-sm p-4 mb-4">
         <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">Search &amp; social (SEO)</summary>
         <div className="space-y-3 mt-3">
@@ -580,8 +642,15 @@ export default function LiveEditor({
                 </div>
               ) : null
             return (
-              <div key={s.id} className="group relative">
+              <div
+                key={s.id}
+                className="group relative"
+                style={{ opacity: dragId === s.id ? 0.4 : 1 }}
+                onDragOver={e => { if (dragId && dragId !== s.id) e.preventDefault() }}
+                onDrop={e => { e.preventDefault(); if (dragId) reorder(dragId, s.id) }}
+              >
                 <div className="absolute right-0 -top-3 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button type="button" title="Drag to reorder" draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => setDragId('')} className="text-xs px-2 py-0.5 rounded cursor-grab" style={{ background: accent, color: t.bg }}>⠿</button>
                   <button type="button" title="Move up" onClick={() => move(s.id, -1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↑</button>
                   <button type="button" title="Move down" onClick={() => move(s.id, 1)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>↓</button>
                   <button type="button" title="Duplicate" onClick={() => duplicate(s.id)} className="text-xs px-2 py-0.5 rounded" style={{ background: accent, color: t.bg }}>⧉</button>
