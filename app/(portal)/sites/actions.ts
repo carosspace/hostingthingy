@@ -7,7 +7,17 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, SitePage, CtaType, SiteLayout, SiteAlign } from '@/lib/sites/types'
+import type {
+  SiteContent,
+  SiteTheme,
+  SitePage,
+  CtaType,
+  SiteLayout,
+  SiteAlign,
+  SectionKind,
+  SectionImageLayout,
+  SectionItem,
+} from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -280,6 +290,21 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
       const ctRaw = String(s?.ctaType ?? '')
       const ct = (['booking', 'email', 'link'].includes(ctRaw) ? ctRaw : undefined) as CtaType | undefined
       const alignRaw = String(s?.align ?? '')
+      const kindRaw = String(s?.kind ?? '')
+      const kind = (['cards', 'faq'].includes(kindRaw) ? kindRaw : undefined) as SectionKind | undefined
+      const imgLayoutRaw = String(s?.imageLayout ?? '')
+      const imageLayout = (['imageLeft', 'imageRight'].includes(imgLayoutRaw) ? imgLayoutRaw : undefined) as
+        | SectionImageLayout
+        | undefined
+      const rawItems = Array.isArray(s?.items) ? (s.items as Record<string, unknown>[]) : []
+      const items: SectionItem[] = rawItems
+        .map(it => ({
+          title: String(it?.title ?? '').trim() || undefined,
+          body: String(it?.body ?? '').trim() || undefined,
+          image: String(it?.image ?? '').trim() || undefined,
+        }))
+        .filter(it => it.title || it.body || it.image)
+        .slice(0, 12)
       return {
         heading: String(s?.heading ?? '').trim(),
         body: String(s?.body ?? '').trim(),
@@ -287,12 +312,15 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         bgImage: String(s?.bgImage ?? '').trim() || undefined,
         bgColor: String(s?.bgColor ?? '').trim() || undefined,
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
+        kind,
+        imageLayout,
+        items: items.length ? items : undefined,
         ctaType: ct,
         ctaLabel: ct ? String(s?.ctaLabel ?? '').trim() || 'Learn more' : undefined,
         ctaHref: ct === 'link' ? String(s?.ctaHref ?? '').trim() || undefined : undefined,
       }
     })
-    .filter(s => s.heading || s.body || s.image || s.bgImage)
+    .filter(s => s.heading || s.body || s.image || s.bgImage || (s.items && s.items.length))
     .slice(0, 20)
 
   const layout: SiteLayout = parsed.layout === 'full' ? 'full' : 'contained'

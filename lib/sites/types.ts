@@ -2,6 +2,19 @@ export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 
 export type SiteAlign = 'left' | 'center' | 'right'
 
+// How a section lays out: prose (one block), cards (a grid of items), faq (an
+// accordion of question/answer items).
+export type SectionKind = 'prose' | 'cards' | 'faq'
+
+// For a prose section with an inline image: stack it above, or sit it beside the text.
+export type SectionImageLayout = 'stack' | 'imageLeft' | 'imageRight'
+
+export interface SectionItem {
+  title?: string
+  body?: string
+  image?: string
+}
+
 export interface SiteSection {
   heading: string
   body: string
@@ -9,6 +22,9 @@ export interface SiteSection {
   bgImage?: string // a full-width background photo behind the section (text overlaid)
   bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
   align?: SiteAlign // text alignment within the section
+  kind?: SectionKind // 'cards' or 'faq' turn the section into a grid / accordion of items
+  items?: SectionItem[] // the repeatable items for a cards/faq section
+  imageLayout?: SectionImageLayout // for a prose section with an image
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string

@@ -166,6 +166,76 @@ export default function PublicPage({
                     </section>
                   )
                 }
+                const headingEl = sec.heading ? (
+                  <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>{sec.heading}</h2>
+                ) : null
+                const bodyEl = sec.body ? (
+                  <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>{sec.body}</p>
+                ) : null
+                const imageEl = sec.image ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={sec.image} alt="" className="w-full rounded-sm" style={{ maxHeight: 420, objectFit: 'cover' }} />
+                ) : null
+                const ctaEl = secCta ? <div className="mt-6">{secCta}</div> : null
+                const items = sec.items ?? []
+                let inner
+                if (sec.kind === 'cards') {
+                  inner = (
+                    <>
+                      {headingEl}
+                      {bodyEl}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-8 text-left">
+                        {items.map((it, j) => (
+                          <div key={j} style={{ border: `1px solid ${accent}33`, borderRadius: 4, padding: 18 }}>
+                            {it.image && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img src={it.image} alt="" className="w-full rounded-sm mb-3" style={{ height: 150, objectFit: 'cover' }} />
+                            )}
+                            {it.title && <h3 className="font-display text-xl italic mb-2" style={{ color: accent }}>{it.title}</h3>}
+                            {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
+                          </div>
+                        ))}
+                      </div>
+                      {ctaEl}
+                    </>
+                  )
+                } else if (sec.kind === 'faq') {
+                  inner = (
+                    <>
+                      {headingEl}
+                      {bodyEl}
+                      <div className="mt-8 text-left space-y-3">
+                        {items.map((it, j) => (
+                          <details key={j} style={{ borderBottom: `1px solid ${accent}22`, paddingBottom: 12 }}>
+                            <summary className="font-display text-lg italic cursor-pointer" style={{ color: accent }}>{it.title || 'Question'}</summary>
+                            {it.body && <p className="font-body text-sm leading-relaxed whitespace-pre-wrap mt-2" style={{ color: theme.text, opacity: 0.8 }}>{it.body}</p>}
+                          </details>
+                        ))}
+                      </div>
+                      {ctaEl}
+                    </>
+                  )
+                } else if (imageEl && (sec.imageLayout === 'imageLeft' || sec.imageLayout === 'imageRight')) {
+                  inner = (
+                    <div className={`flex flex-col gap-8 md:items-center ${sec.imageLayout === 'imageRight' ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
+                      <div className="md:w-1/2 w-full">{imageEl}</div>
+                      <div className="md:w-1/2 w-full">
+                        {headingEl}
+                        {bodyEl}
+                        {ctaEl}
+                      </div>
+                    </div>
+                  )
+                } else {
+                  inner = (
+                    <>
+                      {imageEl && <div className="mb-5">{imageEl}</div>}
+                      {headingEl}
+                      {bodyEl}
+                      {ctaEl}
+                    </>
+                  )
+                }
                 return (
                   <section
                     key={i}
@@ -173,23 +243,7 @@ export default function PublicPage({
                     style={sec.bgColor ? { background: sec.bgColor } : undefined}
                   >
                     <div className={sec.bgColor ? `${bodyMax} mx-auto px-6 py-16` : ''} style={{ textAlign: sec.align || 'left' }}>
-                      {sec.image && (
-                        <>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={sec.image} alt="" className="w-full rounded-sm mb-5" style={{ maxHeight: 420, objectFit: 'cover' }} />
-                        </>
-                      )}
-                      {sec.heading && (
-                        <h2 className="font-display text-3xl italic mb-3" style={{ color: accent }}>
-                          {sec.heading}
-                        </h2>
-                      )}
-                      {sec.body && (
-                        <p className="font-body leading-relaxed whitespace-pre-wrap" style={{ color: theme.text, opacity: 0.85 }}>
-                          {sec.body}
-                        </p>
-                      )}
-                      {secCta && <div className="mt-5">{secCta}</div>}
+                      {inner}
                     </div>
                   </section>
                 )

@@ -1,4 +1,4 @@
-import type { CtaType } from './types'
+import type { CtaType, SectionKind } from './types'
 
 // Ready-made section templates the user can drop into a page with one click,
 // then edit in place. Keeps a blank page from being intimidating.
@@ -7,6 +7,8 @@ export interface SectionBlock {
   name: string
   heading: string
   body: string
+  kind?: SectionKind
+  items?: { title?: string; body?: string }[]
   ctaType?: CtaType
   ctaLabel?: string
 }
@@ -22,25 +24,47 @@ export const SECTION_BLOCKS: SectionBlock[] = [
     key: 'services',
     name: 'Services',
     heading: 'What I offer',
-    body: 'Describe your main services or offerings here. Keep each one clear and benefit-focused so visitors know exactly how you can help them.',
+    body: 'A few words about how you help.',
+    kind: 'cards',
+    items: [
+      { title: 'Service one', body: 'Describe this offering and who it is for.' },
+      { title: 'Service two', body: 'Describe this offering and who it is for.' },
+      { title: 'Service three', body: 'Describe this offering and who it is for.' },
+    ],
   },
   {
     key: 'testimonial',
-    name: 'Testimonial',
+    name: 'Testimonials',
     heading: 'Kind words',
-    body: '“Working together was a beautiful, life-changing experience.”\n\nAdd a real client quote here, with their name underneath.',
+    body: '',
+    kind: 'cards',
+    items: [
+      { title: '— A client', body: '“Working together was a beautiful, life-changing experience.”' },
+      { title: '— A client', body: '“I felt held, seen and supported every step of the way.”' },
+    ],
   },
   {
     key: 'faq',
     name: 'FAQ',
     heading: 'Common questions',
-    body: 'What can I expect?\nWrite the answer here.\n\nHow do we begin?\nWrite the answer here.',
+    body: '',
+    kind: 'faq',
+    items: [
+      { title: 'What can I expect?', body: 'Write the answer here.' },
+      { title: 'How do we begin?', body: 'Write the answer here.' },
+      { title: 'Where do sessions take place?', body: 'Write the answer here.' },
+    ],
   },
   {
     key: 'pricing',
     name: 'Pricing',
     heading: 'Pricing',
-    body: 'Single session — add your price\nPackage of three — add your price\n\nDescribe what is included with each option.',
+    body: '',
+    kind: 'cards',
+    items: [
+      { title: 'Single session', body: 'Add your price and what is included.' },
+      { title: 'Package of three', body: 'Add your price and what is included.' },
+    ],
   },
   {
     key: 'steps',

@@ -2,10 +2,17 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
+
+interface EdItem {
+  id: string
+  title: string
+  body: string
+  image: string
+}
 
 interface EdSection {
   id: string
@@ -15,6 +22,9 @@ interface EdSection {
   bgImage: string
   bgColor: string
   align: '' | SiteAlign
+  kind: SectionKind
+  items: EdItem[]
+  imageLayout: '' | SectionImageLayout
   ctaLabel: string
   ctaType: CtaType
   ctaHref: string
@@ -222,6 +232,9 @@ export default function LiveEditor({
       bgImage: s.bgImage ?? '',
       bgColor: s.bgColor ?? '',
       align: (s.align ?? '') as '' | SiteAlign,
+      kind: s.kind ?? 'prose',
+      items: (s.items ?? []).map((it, j) => ({ id: `it${i}-${j}`, title: it.title ?? '', body: it.body ?? '', image: it.image ?? '' })),
+      imageLayout: (s.imageLayout ?? '') as '' | SectionImageLayout,
       ctaLabel: s.ctaLabel ?? '',
       ctaType: s.ctaType ?? 'none',
       ctaHref: s.ctaHref ?? '',
@@ -274,11 +287,28 @@ export default function LiveEditor({
     return 'n' + idc.current
   }
   function addSection() {
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
-    setSections(p => [...p, { id: newId(), heading: b.heading, body: b.body, image: '', bgImage: '', bgColor: '', align: '', ctaLabel: b.ctaLabel ?? '', ctaType: b.ctaType ?? 'none', ctaHref: '' }])
+    setSections(p => [
+      ...p,
+      {
+        id: newId(),
+        heading: b.heading,
+        body: b.body,
+        image: '',
+        bgImage: '',
+        bgColor: '',
+        align: '',
+        kind: b.kind ?? 'prose',
+        items: (b.items ?? []).map(it => ({ id: newId(), title: it.title ?? '', body: it.body ?? '', image: '' })),
+        imageLayout: '',
+        ctaLabel: b.ctaLabel ?? '',
+        ctaType: b.ctaType ?? 'none',
+        ctaHref: '',
+      },
+    ])
     setBlocksOpen(false)
     touched()
   }
@@ -289,7 +319,13 @@ export default function LiveEditor({
       const i = p.findIndex(s => s.id === id)
       if (i < 0) return p
       const src = p[i]
-      const copy: EdSection = { ...src, id: newId(), heading: read('h-' + id) || src.heading, body: read('b-' + id) || src.body }
+      const copy: EdSection = {
+        ...src,
+        id: newId(),
+        heading: read('h-' + id) || src.heading,
+        body: read('b-' + id) || src.body,
+        items: src.items.map(it => ({ ...it, id: newId() })),
+      }
       const n = [...p]
       n.splice(i + 1, 0, copy)
       return n
@@ -298,6 +334,18 @@ export default function LiveEditor({
   }
   function setSectionField(id: string, patch: Partial<EdSection>) {
     setSections(p => p.map(s => (s.id === id ? { ...s, ...patch } : s)))
+    touched()
+  }
+  function addItem(sectionId: string) {
+    setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: [...s.items, { id: newId(), title: '', body: '', image: '' }] } : s)))
+    touched()
+  }
+  function removeItem(sectionId: string, itemId: string) {
+    setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.filter(it => it.id !== itemId) } : s)))
+    touched()
+  }
+  function updateItem(sectionId: string, itemId: string, patch: Partial<EdItem>) {
+    setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)) } : s)))
     touched()
   }
   function sectionBtnChange(id: string, patch: BtnPatch) {
@@ -337,7 +385,7 @@ export default function LiveEditor({
     setAiBusy(true)
     try {
       const res = await aiSectionAction({ siteId, instruction: prompt, heading: '', body: '' })
-      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+      setSections(p => [...p, { id: newId(), heading: res.heading || 'New section', body: res.body || '', image: '', bgImage: '', bgColor: '', align: '', kind: 'prose', items: [], imageLayout: '', ctaLabel: '', ctaType: 'none', ctaHref: '' }])
       touched()
     } finally {
       setAiBusy(false)
@@ -361,7 +409,7 @@ export default function LiveEditor({
         setSections(
           res.sections.map((sec, i) => {
             const old = sections[i]
-            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
+            return { id: newId(), heading: sec.heading, body: sec.body, image: old?.image ?? '', bgImage: old?.bgImage ?? '', bgColor: old?.bgColor ?? '', align: old?.align ?? '', kind: old?.kind ?? 'prose', items: old?.items ?? [], imageLayout: old?.imageLayout ?? '', ctaLabel: old?.ctaLabel ?? '', ctaType: old?.ctaType ?? 'none', ctaHref: old?.ctaHref ?? '' }
           }),
         )
         setPageAiText('')
@@ -408,18 +456,29 @@ export default function LiveEditor({
     const read = (f: string) =>
       ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '').trim()
     const built = sections
-      .map(s => ({
-        heading: read('h-' + s.id),
-        body: read('b-' + s.id),
-        image: s.image.trim() || undefined,
-        bgImage: s.bgImage.trim() || undefined,
-        bgColor: s.bgColor.trim() || undefined,
-        align: s.align || undefined,
-        ctaType: s.ctaType === 'none' ? undefined : s.ctaType,
-        ctaLabel: s.ctaType === 'none' ? undefined : s.ctaLabel.trim() || 'Learn more',
-        ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
-      }))
-      .filter(s => s.heading || s.body || s.image || s.bgImage)
+      .map(s => {
+        const items =
+          s.kind === 'cards' || s.kind === 'faq'
+            ? s.items
+                .map(it => ({ title: it.title.trim() || undefined, body: it.body.trim() || undefined, image: it.image.trim() || undefined }))
+                .filter(it => it.title || it.body || it.image)
+            : []
+        return {
+          heading: read('h-' + s.id),
+          body: read('b-' + s.id),
+          image: s.image.trim() || undefined,
+          bgImage: s.bgImage.trim() || undefined,
+          bgColor: s.bgColor.trim() || undefined,
+          align: s.align || undefined,
+          kind: s.kind === 'prose' ? undefined : s.kind,
+          imageLayout: s.imageLayout || undefined,
+          items: items.length ? items : undefined,
+          ctaType: s.ctaType === 'none' ? undefined : s.ctaType,
+          ctaLabel: s.ctaType === 'none' ? undefined : s.ctaLabel.trim() || 'Learn more',
+          ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
+        }
+      })
+      .filter(s => s.heading || s.body || s.image || s.bgImage || (s.items && s.items.length))
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
@@ -719,6 +778,54 @@ export default function LiveEditor({
                   </span>
                 </div>
               ) : null
+            const headingEl = (
+              <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: accent }}>
+                {s.heading}
+              </div>
+            )
+            const bodyEl = (
+              <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
+                {s.body}
+              </div>
+            )
+            const imageEl = s.image ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={s.image} alt="" className="w-full rounded-sm" style={{ maxHeight: 360, objectFit: 'cover' }} />
+            ) : null
+            const sideBySide = s.kind === 'prose' && s.image && (s.imageLayout === 'imageLeft' || s.imageLayout === 'imageRight')
+            const itemsEditor =
+              s.kind === 'cards' || s.kind === 'faq' ? (
+                <div className={s.kind === 'cards' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4' : 'space-y-2 mt-4'} style={{ textAlign: 'left' }}>
+                  {s.items.map(it => (
+                    <div key={it.id} className="relative rounded-sm" style={{ border: `1px solid ${accent}33`, background: 'rgba(255,255,255,0.55)', padding: 12 }}>
+                      <button type="button" onClick={() => removeItem(s.id, it.id)} className="absolute" style={{ top: 4, right: 6, fontSize: 12, color: '#b3402f' }} aria-label="Remove item">✕</button>
+                      {s.kind === 'cards' && (
+                        <div className="mb-2">
+                          <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
+                        </div>
+                      )}
+                      <input
+                        value={it.title}
+                        onChange={e => updateItem(s.id, it.id, { title: e.target.value })}
+                        placeholder={s.kind === 'faq' ? 'Question' : 'Title'}
+                        className="w-full"
+                        style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 18, color: accent }}
+                      />
+                      <textarea
+                        value={it.body}
+                        onChange={e => updateItem(s.id, it.id, { body: e.target.value })}
+                        placeholder={s.kind === 'faq' ? 'Answer' : 'Description'}
+                        rows={2}
+                        className="w-full mt-1 resize-none"
+                        style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }}
+                      />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addItem(s.id)} className="rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13 }}>
+                    + Add {s.kind === 'faq' ? 'question' : 'card'}
+                  </button>
+                </div>
+              ) : null
             return (
               <div
                 key={s.id}
@@ -753,19 +860,30 @@ export default function LiveEditor({
                   </div>
                 ) : (
                   <div style={{ background: s.bgColor || undefined, borderRadius: s.bgColor ? 6 : undefined, padding: s.bgColor ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
-                    {s.image && (
+                    {sideBySide ? (
+                      <div className={`flex flex-col gap-6 md:items-center ${s.imageLayout === 'imageRight' ? 'md:flex-row-reverse' : 'md:flex-row'}`}>
+                        <div className="md:w-1/2 w-full">{imageEl}</div>
+                        <div className="md:w-1/2 w-full">
+                          {headingEl}
+                          {bodyEl}
+                          {btnPreview}
+                        </div>
+                      </div>
+                    ) : s.kind === 'cards' || s.kind === 'faq' ? (
                       <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={s.image} alt="" className="w-full rounded-sm mb-4" style={{ maxHeight: 360, objectFit: 'cover' }} />
+                        {headingEl}
+                        {bodyEl}
+                        {itemsEditor}
+                        {btnPreview}
+                      </>
+                    ) : (
+                      <>
+                        {s.image && <div className="mb-4">{imageEl}</div>}
+                        {headingEl}
+                        {bodyEl}
+                        {btnPreview}
                       </>
                     )}
-                    <div className="ht-ed font-display text-2xl md:text-3xl italic mb-2" contentEditable suppressContentEditableWarning data-field={'h-' + s.id} style={{ ...edStyle, color: accent }}>
-                      {s.heading}
-                    </div>
-                    <div className="ht-ed font-body leading-relaxed whitespace-pre-wrap" contentEditable suppressContentEditableWarning data-field={'b-' + s.id} style={{ ...edStyle, color: t.text, opacity: 0.88 }}>
-                      {s.body}
-                    </div>
-                    {btnPreview}
                   </div>
                 )}
 
@@ -799,6 +917,37 @@ export default function LiveEditor({
                         {s.bgColor && (
                           <button type="button" onClick={() => setSectionField(s.id, { bgColor: '' })} style={cancelStyle}>× no tint</button>
                         )}
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span style={ctlLabel}>Type</span>
+                    {(['prose', 'cards', 'faq'] as const).map(k => {
+                      const on = s.kind === k
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setSectionField(s.id, { kind: k })}
+                          className="font-label"
+                          style={{ ...chipStyle, ...(on ? { background: accent, color: t.bg, border: `1px solid ${accent}` } : {}) }}
+                        >
+                          {k === 'prose' ? 'Text' : k === 'cards' ? 'Cards' : 'FAQ'}
+                        </button>
+                      )
+                    })}
+                    {s.kind === 'prose' && s.image && (
+                      <>
+                        <span style={{ ...ctlLabel, marginLeft: 8 }}>Image</span>
+                        <select
+                          value={s.imageLayout || 'stack'}
+                          onChange={e => setSectionField(s.id, { imageLayout: e.target.value === 'stack' ? '' : (e.target.value as SectionImageLayout) })}
+                          style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}
+                        >
+                          <option value="stack">Above text</option>
+                          <option value="imageLeft">Left of text</option>
+                          <option value="imageRight">Right of text</option>
+                        </select>
                       </>
                     )}
                   </div>
