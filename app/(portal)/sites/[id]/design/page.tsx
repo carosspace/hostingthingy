@@ -36,6 +36,8 @@ export default async function DesignPage({
     theme: c?.theme ?? 'sand',
     accentColor: c?.accentColor,
     brand: c?.brand,
+    seoTitle: c?.seoTitle,
+    seoDescription: c?.seoDescription,
     headline: current.headline,
     subheadline: current.subheadline,
     heroImage: current.heroImage,

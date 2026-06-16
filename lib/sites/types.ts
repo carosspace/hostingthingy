@@ -34,6 +34,8 @@ export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
   brand?: string
+  seoTitle?: string
+  seoDescription?: string
   // The home page's fields live at the top level (legacy + mirror of pages[0]).
   headline: string
   subheadline: string

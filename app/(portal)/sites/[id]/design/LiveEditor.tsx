@@ -125,6 +125,8 @@ export default function LiveEditor({
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
   const [contactEmail, setContactEmail] = useState(initial?.contactEmail ?? '')
+  const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? '')
+  const [seoDescription, setSeoDescription] = useState(initial?.seoDescription ?? '')
   const [sections, setSections] = useState<EdSection[]>(
     (initial?.sections ?? []).map((s, i) => ({ id: 'i' + i, heading: s.heading, body: s.body, image: s.image ?? '' })),
   )
@@ -179,6 +181,8 @@ export default function LiveEditor({
       theme,
       accentColor: accentColor || undefined,
       brand: read('brand') || undefined,
+      seoTitle: seoTitle.trim() || undefined,
+      seoDescription: seoDescription.trim() || undefined,
       headline: read('headline'),
       subheadline: read('subheadline'),
       heroImage: heroImage.trim() || undefined,
@@ -266,6 +270,25 @@ export default function LiveEditor({
       <p className="font-body text-ash/60 text-xs mb-3 text-center">
         Click any text below to edit it. Recolour with the swatches above. Then Save &amp; publish.
       </p>
+
+      <details className="border border-gold/15 rounded-sm p-4 mb-4">
+        <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">Search &amp; social (SEO)</summary>
+        <div className="space-y-3 mt-3">
+          <input
+            value={seoTitle}
+            onChange={e => { setSeoTitle(e.target.value); touched() }}
+            placeholder="Page title for Google & the browser tab (e.g. Anima Temple — Reiki & Soul Readings)"
+            className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+          />
+          <textarea
+            value={seoDescription}
+            onChange={e => { setSeoDescription(e.target.value); touched() }}
+            rows={2}
+            placeholder="Short description shown in Google results and link previews (1–2 sentences)"
+            className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none resize-none placeholder:text-ash/40"
+          />
+        </div>
+      </details>
 
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text }}>
         <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}33` }}>

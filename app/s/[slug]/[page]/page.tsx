@@ -1,9 +1,28 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getPages } from '@/lib/sites/types'
 import PublicPage from '../PublicPage'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({ params }: { params: { slug: string; page: string } }): Promise<Metadata> {
+  const site = await getPublicSite(params.slug)
+  if (!site) return {}
+  const c = site.content
+  const brand = c?.brand || site.name
+  const page = getPages(c).find(p => p.slug === params.page)
+  if (!page) return {}
+  const title = `${page.title || page.headline || 'Page'} · ${c?.seoTitle || brand}`
+  const description = c?.seoDescription || page.subheadline || brand
+  const img = page.heroImage && page.heroImage.startsWith('http') ? [page.heroImage] : undefined
+  return {
+    title,
+    description,
+    openGraph: { title, description, images: img, type: 'website' },
+    twitter: { card: 'summary_large_image', title, description, images: img },
+  }
+}
 
 export default async function SubPage({ params }: { params: { slug: string; page: string } }) {
   const site = await getPublicSite(params.slug)
