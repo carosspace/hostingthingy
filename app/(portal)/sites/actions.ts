@@ -272,6 +272,13 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
   revalidatePath(`/sites/${id}/edit`)
 }
 
+// Keep only safe link schemes (http/https/mailto/tel or a same-origin path) — a
+// defence-in-depth gate so a crafted payload can never store a javascript: href.
+function safeStoredHref(v: string): string | undefined {
+  const t = (v || '').trim()
+  return t && /^(https?:|mailto:|tel:|\/(?!\/))/i.test(t) ? t : undefined
+}
+
 // Save the whole content blob as JSON (used by the visual editor).
 export async function saveSiteContentJsonAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -315,8 +322,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
             body: String(it?.body ?? '').trim() || undefined,
             image: String(it?.image ?? '').trim() || undefined,
             block: (['text', 'heading', 'image', 'button', 'banner', 'divider', 'spacer'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
-            col: colN >= 0 && colN <= 2 ? (Math.round(colN) as 0 | 1 | 2) : undefined,
-            href: String(it?.href ?? '').trim() || undefined,
+            col: colN >= 0 && colN <= 2 ? (Math.min(Math.round(colN), (columns ?? 1) - 1) as 0 | 1 | 2) : undefined,
+            href: safeStoredHref(String(it?.href ?? '')),
             ctaType: (['booking', 'email', 'link'].includes(itCtRaw) ? itCtRaw : undefined) as CtaType | undefined,
             boxColor: /^#[0-9a-f]{6}$/i.test(bc) ? bc : undefined,
             outline: it?.outline ? true : undefined,
@@ -341,10 +348,10 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         embedUrl: String(s?.embedUrl ?? '').trim() || undefined,
         ctaType: ct,
         ctaLabel: ct ? String(s?.ctaLabel ?? '').trim() || 'Learn more' : undefined,
-        ctaHref: ct === 'link' ? String(s?.ctaHref ?? '').trim() || undefined : undefined,
+        ctaHref: ct === 'link' ? safeStoredHref(String(s?.ctaHref ?? '')) : undefined,
       }
     })
-    .filter(s => s.heading || s.body || s.image || s.bgImage || s.embedUrl || (s.items && s.items.length))
+    .filter(s => s.heading || s.body || s.image || s.bgImage || s.embedUrl || s.kind === 'layout' || (s.items && s.items.length))
     .slice(0, 20)
 
   const layout: SiteLayout = parsed.layout === 'full' ? 'full' : 'contained'
@@ -376,7 +383,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     sections,
     ctaType,
     ctaLabel: ctaType ? String(parsed.ctaLabel ?? '').trim() || 'Book a session' : undefined,
-    ctaHref: ctaType === 'link' ? String(parsed.ctaHref ?? '').trim() || undefined : undefined,
+    ctaHref: ctaType === 'link' ? safeStoredHref(String(parsed.ctaHref ?? '')) : undefined,
   }
   const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, ...pageFields } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]

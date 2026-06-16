@@ -89,7 +89,7 @@ export default function PublicPage({
             ? `mailto:${contactEmail}`
             : ''
           : ty === 'link'
-            ? (href ?? '').trim()
+            ? (safeHref((href ?? '').trim()) ?? '')
             : ''
     if (!l || !h) return null
     return (
@@ -252,13 +252,16 @@ export default function PublicPage({
                     )
                   }
                   inner = (
-                    <div className={`flex flex-col gap-6 ${cols >= 2 ? 'md:flex-row md:items-start' : ''}`}>
-                      {Array.from({ length: cols }).map((_, c) => (
-                        <div key={c} className="flex-1 min-w-0 space-y-4">
-                          {items.filter(it => (it.col ?? 0) === c).map((it, j) => renderBlock(it, j))}
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      <div className={`flex flex-col gap-6 ${cols >= 2 ? 'md:flex-row md:items-start' : ''}`}>
+                        {Array.from({ length: cols }).map((_, c) => (
+                          <div key={c} className="flex-1 min-w-0 space-y-4">
+                            {items.filter(it => Math.min(it.col ?? 0, cols - 1) === c).map((it, j) => renderBlock(it, j))}
+                          </div>
+                        ))}
+                      </div>
+                      {ctaEl}
+                    </>
                   )
                 } else if (sec.kind === 'cards') {
                   inner = (

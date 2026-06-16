@@ -374,12 +374,22 @@ export default function LiveEditor({
     touched()
   }
   function setSectionField(id: string, patch: Partial<EdSection>) {
-    // Only re-sync the editable heading/body when the change actually restructures the
-    // section (kind, image layout, background, image) — avoids a caret jump on other edits.
+    // Only re-sync the editable heading/body when the change restructures the section
+    // (kind, image layout, background, image) — avoids a caret jump on other edits.
     const structural = 'kind' in patch || 'imageLayout' in patch || 'bgImage' in patch || 'image' in patch
-    const sync = structural ? { heading: domText('h-' + id), body: domText('b-' + id) } : {}
-    setUndoStack([])
-    setSections(p => p.map(s => (s.id === id ? { ...s, ...sync, ...patch } : s)))
+    const hEl = rootRef.current?.querySelector(`[data-field="h-${id}"]`) as HTMLElement | null
+    const bEl = rootRef.current?.querySelector(`[data-field="b-${id}"]`) as HTMLElement | null
+    if ('kind' in patch) pushUndo()
+    else setUndoStack([])
+    setSections(p =>
+      p.map(s => {
+        if (s.id !== id) return s
+        // Capture live text on a structural change, but fall back to existing state when
+        // the editable isn't mounted (e.g. a layout section renders no h-/b- field).
+        const sync = structural ? { heading: hEl ? hEl.innerText : s.heading, body: bEl ? bEl.innerText : s.body } : {}
+        return { ...s, ...sync, ...patch }
+      }),
+    )
     touched()
   }
   function addItem(sectionId: string) {
@@ -431,7 +441,7 @@ export default function LiveEditor({
   function toLayout(id: string) {
     const h = domText('h-' + id)
     const b = domText('b-' + id)
-    setUndoStack([])
+    pushUndo()
     setSections(p =>
       p.map(s => {
         if (s.id !== id) return s
@@ -445,6 +455,12 @@ export default function LiveEditor({
         return { ...s, kind: 'layout', columns: s.columns || 1, items }
       }),
     )
+    touched()
+  }
+  // Change a layout section's column count, re-homing any block left in a dropped column.
+  function setColumns(id: string, n: number) {
+    setUndoStack([])
+    setSections(p => p.map(s => (s.id === id ? { ...s, columns: n, items: s.items.map(it => ({ ...it, col: it.col != null && it.col > n - 1 ? ((n - 1) as 0 | 1 | 2) : it.col })) } : s)))
     touched()
   }
   function sectionBtnChange(id: string, patch: BtnPatch) {
@@ -595,9 +611,16 @@ export default function LiveEditor({
     const root = rootRef.current
     const read = (f: string) =>
       ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '').trim()
+    // Reads the live editable text, but falls back to state when the field isn't
+    // mounted (a layout section renders no h-/b- field) so it isn't wiped to ''.
+    const readOr = (f: string, fallback: string) => {
+      const el = root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null
+      return el ? (el.innerText ?? '').trim() : fallback
+    }
     const built = sections
       .map(s => {
         const isItemKind = s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery' || s.kind === 'layout'
+        const maxCol = Math.max(1, s.columns || 1) - 1
         const items = isItemKind
           ? s.items
               .map(it => ({
@@ -605,7 +628,7 @@ export default function LiveEditor({
                 body: it.body.trim() || undefined,
                 image: it.image.trim() || undefined,
                 block: it.block,
-                col: it.col,
+                col: it.col != null ? (Math.min(it.col, maxCol) as 0 | 1 | 2) : undefined,
                 href: it.href?.trim() || undefined,
                 ctaType: it.ctaType && it.ctaType !== 'none' ? it.ctaType : undefined,
                 boxColor: it.boxColor || undefined,
@@ -614,8 +637,8 @@ export default function LiveEditor({
               .filter(it => it.block || it.title || it.body || it.image)
           : []
         return {
-          heading: read('h-' + s.id),
-          body: read('b-' + s.id),
+          heading: readOr('h-' + s.id, s.heading),
+          body: readOr('b-' + s.id, s.body),
           image: s.image.trim() || undefined,
           bgImage: s.bgImage.trim() || undefined,
           bgColor: s.bgColor.trim() || undefined,
@@ -633,7 +656,7 @@ export default function LiveEditor({
           ctaHref: s.ctaType === 'link' ? s.ctaHref.trim() || undefined : undefined,
         }
       })
-      .filter(s => s.heading || s.body || s.image || s.bgImage || (s.items && s.items.length))
+      .filter(s => s.heading || s.body || s.image || s.bgImage || s.embedUrl || s.kind === 'layout' || (s.items && s.items.length))
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
@@ -1046,8 +1069,8 @@ export default function LiveEditor({
                 <div className={`flex flex-col gap-4 mt-2 ${(s.columns || 1) >= 2 ? 'md:flex-row md:items-start' : ''}`} style={{ textAlign: 'left' }}>
                   {Array.from({ length: s.columns || 1 }).map((_, col) => (
                     <div key={col} className="flex-1 min-w-0 space-y-3">
-                      {s.items.filter(it => (it.col ?? 0) === col).map(it => (
-                        <div key={it.id} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)', background: it.boxColor || 'rgba(255,255,255,0.55)', padding: 10 }}>
+                      {s.items.filter(it => Math.min(it.col ?? 0, (s.columns || 1) - 1) === col).map(it => (
+                        <div key={it.id} className="rounded-sm" style={{ border: it.outline ? `1px solid ${accent}55` : '1px solid rgba(0,0,0,0.1)', background: it.outline ? 'transparent' : it.boxColor || 'rgba(255,255,255,0.55)', padding: 10 }}>
                           <div className="flex items-center justify-between mb-1">
                             <span style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#999' }}>{it.block || 'text'}</span>
                             <div className="flex items-center gap-2">
@@ -1056,6 +1079,9 @@ export default function LiveEditor({
                               )}
                               {it.block !== 'divider' && it.block !== 'spacer' && (
                                 <input type="color" value={it.boxColor || '#ffffff'} onChange={e => updateItem(s.id, it.id, { boxColor: e.target.value })} title="Box colour" style={{ width: 20, height: 18, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', padding: 0 }} />
+                              )}
+                              {it.block !== 'divider' && it.block !== 'spacer' && (
+                                <button type="button" title="Outline box" onClick={() => updateItem(s.id, it.id, { outline: !it.outline })} style={{ fontSize: 13, lineHeight: 1, color: it.outline ? accent : '#bbb' }}>▢</button>
                               )}
                               {it.boxColor && <button type="button" onClick={() => updateItem(s.id, it.id, { boxColor: '' })} title="No box" style={{ fontSize: 11, color: '#888' }}>×</button>}
                               <button type="button" onClick={() => removeItem(s.id, it.id)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove block">✕</button>
@@ -1247,7 +1273,7 @@ export default function LiveEditor({
                         <span style={{ ...ctlLabel, marginLeft: 8 }}>Columns</span>
                         <select
                           value={s.columns || 1}
-                          onChange={e => setSectionField(s.id, { columns: parseInt(e.target.value, 10) })}
+                          onChange={e => setColumns(s.id, parseInt(e.target.value, 10))}
                           style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}
                         >
                           <option value={1}>1</option>
