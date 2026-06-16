@@ -7,7 +7,7 @@ export type SiteAlign = 'left' | 'center' | 'right'
 export type SectionKind = 'prose' | 'cards' | 'faq' | 'gallery' | 'embed' | 'layout'
 
 // In a 'layout' section, each SectionItem becomes a typed block placed in a column.
-export type BlockType = 'text' | 'heading' | 'image' | 'button' | 'banner' | 'divider' | 'spacer'
+export type BlockType = 'text' | 'heading' | 'subheading' | 'image' | 'button' | 'banner' | 'divider' | 'spacer'
 
 export type ImageSize = 'sm' | 'md' | 'full'
 export type ImageFit = 'cover' | 'contain'

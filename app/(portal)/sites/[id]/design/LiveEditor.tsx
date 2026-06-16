@@ -55,13 +55,14 @@ interface BtnPatch {
 }
 
 const BLOCK_CHIPS: { type: BlockType; label: string }[] = [
-  { type: 'text', label: 'Text' },
-  { type: 'heading', label: 'Heading' },
+  { type: 'heading', label: 'Title' },
+  { type: 'subheading', label: 'Subtitle' },
+  { type: 'text', label: 'Body text' },
   { type: 'image', label: 'Picture' },
   { type: 'button', label: 'Button' },
   { type: 'banner', label: 'Banner' },
   { type: 'divider', label: 'Line' },
-  { type: 'spacer', label: 'Spacer' },
+  { type: 'spacer', label: 'Space' },
 ]
 
 const edStyle: CSSProperties = { outline: 'none', cursor: 'text', minHeight: '1em' }
@@ -489,7 +490,11 @@ export default function LiveEditor({
   }
   function addSection() {
     pushUndo()
-    setSections(p => [...p, { id: newId(), heading: 'New section', body: 'Tell your story here…', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, textColor: '', textScale: '', align: '', kind: 'prose', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    const id = newId()
+    // A blank, modular section — an empty canvas you fill with blocks (Title, Subtitle,
+    // Body, Picture, Button, Line…), arranged in up to 3 columns.
+    setSections(p => [...p, { id, heading: '', body: '', image: '', bgImage: '', bgColor: '', borderColor: '', borderWidth: 0, textColor: '', textScale: '', align: '', kind: 'layout', items: [], imageLayout: '', imageSize: '', imageFit: '', overlay: 50, embedUrl: '', columns: 1, reveal: false, ctaLabel: '', ctaType: 'none', ctaHref: '' }])
+    setSelectedSection(id)
     touched()
   }
   function addBlock(b: (typeof SECTION_BLOCKS)[number]) {
@@ -592,7 +597,7 @@ export default function LiveEditor({
                 ...s.items,
                 {
                   id: newId(),
-                  title: block === 'heading' ? 'Heading' : block === 'banner' ? 'Banner title' : block === 'button' ? 'Button' : '',
+                  title: block === 'heading' ? 'Your title' : block === 'subheading' ? 'Your subtitle' : block === 'banner' ? 'Banner title' : block === 'button' ? 'Button' : '',
                   body: block === 'text' ? 'Your text here…' : '',
                   image: '',
                   block,
@@ -1318,7 +1323,10 @@ export default function LiveEditor({
                             </div>
                           </div>
                           {it.block === 'heading' && (
-                            <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Heading" className="w-full" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: accent }} />
+                            <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Title" className="w-full" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: accent }} />
+                          )}
+                          {it.block === 'subheading' && (
+                            <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Subtitle" className="w-full" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 15, color: t.text }} />
                           )}
                           {(it.block === 'text' || !it.block) && (
                             <textarea value={it.body} onChange={e => updateItem(s.id, it.id, { body: e.target.value })} placeholder="Your text…" rows={3} className="w-full resize-none" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }} />

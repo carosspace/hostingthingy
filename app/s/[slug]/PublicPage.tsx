@@ -114,9 +114,9 @@ export default function PublicPage({
         /* eslint-disable-next-line @next/next/no-img-element */
         <img src={it.image} alt="" style={{ height: h, maxWidth: 360, objectFit: 'contain', display: 'block' }} />
       ) : null
-    } else if (it.block === 'heading') {
+    } else if (it.block === 'heading' || it.block === 'subheading') {
       el = it.title ? (
-        <span className="font-display italic" style={{ fontSize: 20, color: accent }}>{it.title}</span>
+        <span className="font-display italic" style={{ fontSize: it.block === 'subheading' ? 15 : 20, color: it.block === 'subheading' ? theme.text : accent }}>{it.title}</span>
       ) : null
     } else if (it.block === 'button') {
       el = makeCta(it.title, it.ctaType, it.href)
@@ -307,6 +307,7 @@ export default function PublicPage({
                   const renderBlock = (it: (typeof items)[number], j: number) => {
                     let el: ReactNode = null
                     if (it.block === 'heading') el = it.title ? <h2 className="font-display text-2xl md:text-3xl italic" style={{ color: accent }}>{it.title}</h2> : null
+                    else if (it.block === 'subheading') el = it.title ? <h3 className="font-display text-lg md:text-xl italic" style={{ color: theme.text }}>{it.title}</h3> : null
                     else if (it.block === 'image') el = it.image ? (/* eslint-disable-next-line @next/next/no-img-element */ <img src={it.image} alt="" className="w-full rounded-sm" style={{ objectFit: 'cover' }} />) : null
                     else if (it.block === 'button') el = makeCta(it.title, it.ctaType, it.href)
                     else if (it.block === 'divider') el = <div style={{ height: 1, background: accent, opacity: 0.35 }} />
