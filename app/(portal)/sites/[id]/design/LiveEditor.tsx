@@ -2,7 +2,7 @@
 
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType } from '@/lib/sites/types'
 import { saveSiteContentJsonAction } from '../../actions'
 
 interface EdSection {
@@ -127,6 +127,9 @@ export default function LiveEditor({
   const [contactEmail, setContactEmail] = useState(initial?.contactEmail ?? '')
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? '')
   const [seoDescription, setSeoDescription] = useState(initial?.seoDescription ?? '')
+  const [ctaLabel, setCtaLabel] = useState(initial?.ctaLabel ?? '')
+  const [ctaType, setCtaType] = useState<CtaType>(initial?.ctaType ?? 'none')
+  const [ctaHref, setCtaHref] = useState(initial?.ctaHref ?? '')
   const [sections, setSections] = useState<EdSection[]>(
     (initial?.sections ?? []).map((s, i) => ({ id: 'i' + i, heading: s.heading, body: s.body, image: s.image ?? '' })),
   )
@@ -135,6 +138,18 @@ export default function LiveEditor({
 
   const t = THEMES[theme]
   const accent = accentColor || t.accent
+
+  const ctaPreview =
+    ctaType !== 'none' ? (
+      <div className="mt-6">
+        <span
+          className="font-label inline-block"
+          style={{ background: accent, color: t.bg, padding: '12px 28px', borderRadius: 3, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase' }}
+        >
+          {ctaLabel || 'Book a session'}
+        </span>
+      </div>
+    ) : null
 
   function touched() {
     setSaved(false)
@@ -187,6 +202,9 @@ export default function LiveEditor({
       subheadline: read('subheadline'),
       heroImage: heroImage.trim() || undefined,
       sections: built,
+      ctaType: ctaType === 'none' ? undefined : ctaType,
+      ctaLabel: ctaType === 'none' ? undefined : ctaLabel.trim() || 'Book a session',
+      ctaHref: ctaType === 'link' ? ctaHref.trim() || undefined : undefined,
       contactLabel: read('contactLabel') || undefined,
       contactEmail: contactEmail.trim(),
       footer: read('footer') || undefined,
@@ -309,6 +327,7 @@ export default function LiveEditor({
               <div className="ht-ed font-body text-lg mt-4" contentEditable suppressContentEditableWarning data-field="subheadline" style={{ ...edStyle, color: 'rgba(255,255,255,0.9)' }}>
                 {initial?.subheadline ?? ''}
               </div>
+              {ctaPreview}
             </div>
           </div>
         ) : (
@@ -319,6 +338,7 @@ export default function LiveEditor({
             <div className="ht-ed font-body text-lg mt-4" contentEditable suppressContentEditableWarning data-field="subheadline" style={{ ...edStyle, color: t.muted }}>
               {initial?.subheadline ?? ''}
             </div>
+            {ctaPreview}
             <div className="mx-auto mt-6 h-px w-16" style={{ background: accent }} />
           </div>
         )}
@@ -332,6 +352,58 @@ export default function LiveEditor({
                 touched()
               }}
             />
+          </div>
+        </div>
+
+        <div className="px-6 py-3" style={{ background: 'rgba(128,128,128,0.06)' }}>
+          <div className="max-w-md mx-auto rounded-sm" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.1)', padding: 12 }}>
+            <div className="flex items-center justify-between gap-2">
+              <span style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#555' }}>Hero button</span>
+              <select
+                value={ctaType}
+                onChange={e => {
+                  setCtaType(e.target.value as CtaType)
+                  touched()
+                }}
+                style={{ ...urlInput, fontSize: 12, padding: '5px 6px', borderRadius: 3 }}
+              >
+                <option value="none">No button</option>
+                <option value="booking">→ Booking page</option>
+                <option value="email">→ Email me</option>
+                <option value="link">→ Custom link</option>
+              </select>
+            </div>
+            {ctaType !== 'none' && (
+              <>
+                <input
+                  value={ctaLabel}
+                  onChange={e => {
+                    setCtaLabel(e.target.value)
+                    touched()
+                  }}
+                  placeholder="Book a session"
+                  className="w-full mt-2"
+                  style={{ ...urlInput, fontSize: 13, padding: '7px 10px', borderRadius: 3 }}
+                />
+                {ctaType === 'link' && (
+                  <input
+                    value={ctaHref}
+                    onChange={e => {
+                      setCtaHref(e.target.value)
+                      touched()
+                    }}
+                    placeholder="https://example.com  or  mailto:you@email.com"
+                    className="w-full mt-2"
+                    style={{ ...urlInput, fontSize: 12, padding: '7px 10px', borderRadius: 3 }}
+                  />
+                )}
+                <p style={{ fontSize: 11, color: '#666', marginTop: 6 }}>
+                  {ctaType === 'booking' && `Sends visitors to your booking page (/book/${siteSlug}).`}
+                  {ctaType === 'email' && 'Opens an email to your contact address (set below).'}
+                  {ctaType === 'link' && 'Sends visitors to the link above.'}
+                </p>
+              </>
+            )}
           </div>
         </div>
 

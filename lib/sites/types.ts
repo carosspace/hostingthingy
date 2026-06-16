@@ -6,6 +6,10 @@ export interface SiteSection {
   image?: string
 }
 
+// A hero call-to-action button. 'booking' links to the site's /book page,
+// 'email' opens a mail to the contact address, 'link' uses ctaHref, 'none' hides it.
+export type CtaType = 'booking' | 'email' | 'link' | 'none'
+
 export type SiteTheme = 'sand' | 'midnight' | 'sage' | 'rose'
 
 export const THEMES: Record<
@@ -28,6 +32,9 @@ export interface SitePage {
   subheadline: string
   heroImage?: string
   sections: SiteSection[]
+  ctaLabel?: string
+  ctaType?: CtaType
+  ctaHref?: string
 }
 
 export interface SiteContent {
@@ -41,6 +48,10 @@ export interface SiteContent {
   subheadline: string
   heroImage?: string
   sections: SiteSection[]
+  // The home page's call-to-action button (mirror of pages[0]).
+  ctaLabel?: string
+  ctaType?: CtaType
+  ctaHref?: string
   contactLabel?: string
   contactEmail: string
   footer?: string
@@ -61,6 +72,9 @@ export function getPages(content: SiteContent | null): SitePage[] {
       subheadline: content?.subheadline ?? '',
       heroImage: content?.heroImage,
       sections: content?.sections ?? [],
+      ctaLabel: content?.ctaLabel,
+      ctaType: content?.ctaType,
+      ctaHref: content?.ctaHref,
     },
   ]
 }

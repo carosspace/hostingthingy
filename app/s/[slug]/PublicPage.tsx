@@ -26,6 +26,30 @@ export default function PublicPage({
   const hasContent = Boolean(page.headline || page.subheadline || sections.length || heroImage)
   const hrefFor = (p: SitePage) => (p.slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${p.slug}`)
 
+  // Resolve the hero call-to-action button.
+  const ctaLabel = (page.ctaLabel ?? '').trim()
+  const ctaType = page.ctaType ?? 'none'
+  const ctaHref =
+    ctaType === 'booking'
+      ? `/book/${siteSlug}`
+      : ctaType === 'email'
+        ? contactEmail
+          ? `mailto:${contactEmail}`
+          : ''
+        : ctaType === 'link'
+          ? (page.ctaHref ?? '').trim()
+          : ''
+  const ctaButton =
+    ctaLabel && ctaHref ? (
+      <a
+        href={ctaHref}
+        className="inline-block font-label"
+        style={{ background: accent, color: theme.bg, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', padding: '13px 30px', borderRadius: 3 }}
+      >
+        {ctaLabel}
+      </a>
+    ) : null
+
   return (
     <div className="min-h-screen flex flex-col" style={{ background: theme.bg, color: theme.text }}>
       <header className="px-6 py-5 flex flex-col items-center gap-3" style={{ borderBottom: `1px solid ${accent}2e` }}>
@@ -64,6 +88,7 @@ export default function PublicPage({
                     {page.subheadline}
                   </p>
                 )}
+                {ctaButton && <div className="mt-8">{ctaButton}</div>}
               </div>
             </section>
           ) : (
@@ -76,6 +101,7 @@ export default function PublicPage({
                   {page.subheadline}
                 </p>
               )}
+              {ctaButton && <div className="mt-8">{ctaButton}</div>}
               <div className="mx-auto mt-10 h-px w-16" style={{ background: accent, opacity: 0.7 }} />
             </section>
           )}

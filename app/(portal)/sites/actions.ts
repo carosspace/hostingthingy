@@ -7,7 +7,7 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { getPages } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, SitePage } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, SitePage, CtaType } from '@/lib/sites/types'
 import {
   createSiteRecord,
   updateSiteStatus,
@@ -191,6 +191,9 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription,
     ...homeFields,
+    ctaLabel: existing?.ctaLabel,
+    ctaType: existing?.ctaType,
+    ctaHref: existing?.ctaHref,
     contactLabel: existing?.contactLabel,
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
     footer: existing?.footer,
@@ -228,6 +231,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     .filter(s => s.heading || s.body || s.image)
     .slice(0, 20)
 
+  const ctaTypeRaw = String(parsed.ctaType ?? '')
+  const ctaType = (['booking', 'email', 'link'].includes(ctaTypeRaw) ? ctaTypeRaw : undefined) as CtaType | undefined
+
   const pageSlug = String(formData.get('pageSlug') ?? '')
   const existing = (await getSite(id))?.content ?? null
   const pageFields = {
@@ -235,6 +241,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     subheadline: String(parsed.subheadline ?? '').trim(),
     heroImage: String(parsed.heroImage ?? '').trim() || undefined,
     sections,
+    ctaType,
+    ctaLabel: ctaType ? String(parsed.ctaLabel ?? '').trim() || 'Book a session' : undefined,
+    ctaHref: ctaType === 'link' ? String(parsed.ctaHref ?? '').trim() || undefined : undefined,
   }
   const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, ...pageFields } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
@@ -249,6 +258,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     subheadline: home.subheadline,
     heroImage: home.heroImage,
     sections: home.sections,
+    ctaLabel: home.ctaLabel,
+    ctaType: home.ctaType,
+    ctaHref: home.ctaHref,
     contactLabel: String(parsed.contactLabel ?? '').trim() || undefined,
     contactEmail: String(parsed.contactEmail ?? '').trim(),
     footer: String(parsed.footer ?? '').trim() || undefined,
