@@ -99,12 +99,15 @@ export default async function DesignPage({
           </form>
         </div>
 
-        {/* Edit the current page in the menu */}
+        {/* Edit the menu: the current page's settings + extra (non-page) links */}
         <details key={current.slug} className="border border-gold/15 rounded-sm p-4">
           <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">
-            Edit “{current.navLabel || current.title}” — name, menu label &amp; order
+            Edit your menu — page names, labels, order &amp; extra links
           </summary>
           <div className="mt-3 space-y-3">
+            <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">
+              Page: &ldquo;{current.navLabel || current.title}&rdquo;
+            </p>
             <form action={updatePageAction} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="id" value={site.id} />
               <input type="hidden" name="slug" value={current.slug} />
@@ -159,10 +162,11 @@ export default async function DesignPage({
             ) : (
               <p className="font-body text-ash/40 text-xs">This is your home page — it always stays first in the menu.</p>
             )}
+            <div className="border-t border-gold/10 pt-4 mt-1">
+              <NavLinksEditor siteId={site.id} initial={c?.navLinks ?? []} />
+            </div>
           </div>
         </details>
-
-        <NavLinksEditor siteId={site.id} initial={c?.navLinks ?? []} />
       </div>
 
       <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">

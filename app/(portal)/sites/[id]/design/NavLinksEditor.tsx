@@ -23,10 +23,10 @@ export default function NavLinksEditor({ siteId, initial }: { siteId: string; in
   const clean = links.filter(l => l.label.trim() && l.href.trim())
 
   return (
-    <details className="border border-gold/15 rounded-sm p-4">
-      <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">Extra menu links</summary>
-      <p className="font-body text-ash/60 text-xs mt-3">
-        Add buttons to your header like <span className="text-ash/80">Book now</span> or <span className="text-ash/80">Instagram</span>. Use a full
+    <div>
+      <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">Extra links (not pages)</p>
+      <p className="font-body text-ash/60 text-xs mt-2">
+        Add menu buttons that aren&rsquo;t pages — like <span className="text-ash/80">Book now</span> or <span className="text-ash/80">Instagram</span>. Use a full
         web address (https://…), <code className="text-gold/70">/book/your-slug</code>, or <code className="text-gold/70">mailto:you@email.com</code>.
       </p>
 
@@ -69,6 +69,6 @@ export default function NavLinksEditor({ siteId, initial }: { siteId: string; in
           </button>
         </div>
       </form>
-    </details>
+    </div>
   )
 }
