@@ -126,11 +126,14 @@ export default function PublicPage({
       const txt = it.body || it.title
       el = txt ? <span className="font-body whitespace-pre-wrap" style={{ fontSize: 13, color: theme.muted }}>{txt}</span> : null
     }
-    if (!el) return <Fragment key={key} />
+    if (!el) return null
     return <span key={key} className="inline-flex items-center">{el}</span>
   }
-  const headerItems = content?.headerItems ?? []
-  const footerItems = content?.footerItems ?? []
+  // Pre-render the bars and keep only blocks that actually produce something, so a bar
+  // whose blocks all resolve to nothing (e.g. a button with no working link) falls back
+  // to the default header/footer rather than rendering an empty, logo-less bar.
+  const headerEls = (content?.headerItems ?? []).map((it, i) => renderBarBlock(it, i)).filter(Boolean)
+  const footerEls = (content?.footerItems ?? []).map((it, i) => renderBarBlock(it, i)).filter(Boolean)
 
   // Wrap a section in a scroll-reveal when the owner enabled it.
   const wrapSec = (key: number, reveal: boolean | undefined, el: ReactNode) =>
@@ -158,9 +161,9 @@ export default function PublicPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className={headerCls} style={headerStyle}>
-        {headerItems.length > 0 ? (
+        {headerEls.length > 0 ? (
           <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${menuPos === 'side' ? 'md:flex-col md:items-start' : 'justify-center'}`}>
-            {headerItems.map((it, i) => renderBarBlock(it, i))}
+            {headerEls}
           </div>
         ) : (
           <a href={`/s/${siteSlug}`} className="inline-block">
@@ -460,9 +463,9 @@ export default function PublicPage({
       )}
 
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
-        {footerItems.length > 0 && (
+        {footerEls.length > 0 && (
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-4 px-6">
-            {footerItems.map((it, i) => renderBarBlock(it, i))}
+            {footerEls}
           </div>
         )}
         {content?.socials && content.socials.length > 0 && (
@@ -484,7 +487,7 @@ export default function PublicPage({
             })}
           </nav>
         )}
-        {footerItems.length === 0 && (
+        {footerEls.length === 0 && (
           <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>
             {footerText}
           </p>
