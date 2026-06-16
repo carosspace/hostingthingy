@@ -46,6 +46,20 @@ export const FONT_SYSTEMS: FontSystem[] = [
     body: 'var(--font-inter), system-ui, sans-serif',
     label: 'var(--font-montserrat), sans-serif',
   },
+  {
+    key: 'contrast',
+    name: 'Classic contrast',
+    display: 'var(--font-playfair), Georgia, serif',
+    body: 'var(--font-eb-garamond), Georgia, serif',
+    label: 'var(--font-cinzel), serif',
+  },
+  {
+    key: 'soft',
+    name: 'Soft & warm',
+    display: 'var(--font-fraunces), Georgia, serif',
+    body: 'var(--font-lora), Georgia, serif',
+    label: 'var(--font-montserrat), sans-serif',
+  },
 ]
 
 export const DEFAULT_FONT_SYSTEM = 'serif'

@@ -848,28 +848,48 @@ export default function LiveEditor({
   }
 
   return (
-    <div>
+    <div className="lg:flex lg:gap-5 lg:items-start">
       <style>{`.ht-ed[contenteditable]:hover{background:rgba(128,128,128,0.14);border-radius:4px}.ht-ed[contenteditable]:empty:before{content:'Click to edit';opacity:.4}`}</style>
 
       <div
-        className="sticky top-0 z-20 -mx-6 px-6 py-3 mb-3 border-b border-gold/15 flex flex-wrap items-center gap-3"
-        style={{ background: 'rgba(246,240,230,0.97)', backdropFilter: 'blur(4px)' }}
+        className="lg:sticky lg:top-2 lg:w-[300px] lg:shrink-0 lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-sm border border-gold/15 px-4 py-4 mb-4 lg:mb-0 flex flex-col gap-4"
+        style={{ background: 'rgba(246,240,230,0.97)' }}
       >
-        <span className="font-label text-[10px] tracking-[2px] uppercase text-gold/70">Look</span>
-        {(Object.keys(THEMES) as Array<keyof typeof THEMES>).map(key => (
-          <button
-            key={key}
-            type="button"
-            aria-label={THEMES[key].label}
-            title={THEMES[key].label}
-            onClick={() => {
-              setTheme(key)
-              touched()
-            }}
-            className={`w-6 h-6 rounded-full ${theme === key ? 'ring-2 ring-gold' : ''}`}
-            style={{ background: THEMES[key].bg, boxShadow: `inset 0 0 0 3px ${THEMES[key].accent}` }}
-          />
-        ))}
+        <div className="flex items-center justify-between">
+          <span className="font-label text-[11px] tracking-[3px] uppercase text-gold">Design</span>
+          {siteStatus === 'live' && (
+            <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">View ↗</a>
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <button type="button" onClick={save} disabled={saving} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
+          </button>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={addSection} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Section</button>
+            <button type="button" onClick={() => setBlocksOpen(o => !o)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Block</button>
+            <button type="button" onClick={() => setAddAiOpen(o => !o)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">✨ AI</button>
+            <button type="button" onClick={undo} disabled={!undoStack.length} title="Undo the last add, delete or AI change" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm disabled:opacity-30">↩ Undo</button>
+          </div>
+        </div>
+        <div className="h-px bg-gold/15" />
+        <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70">Colour theme</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {(Object.keys(THEMES) as Array<keyof typeof THEMES>).map(key => (
+            <button
+              key={key}
+              type="button"
+              aria-label={THEMES[key].label}
+              title={THEMES[key].label}
+              onClick={() => {
+                setTheme(key)
+                touched()
+              }}
+              className={`w-6 h-6 rounded-full ${theme === key ? 'ring-2 ring-gold' : ''}`}
+              style={{ background: THEMES[key].bg, boxShadow: `inset 0 0 0 3px ${THEMES[key].accent}` }}
+            />
+          ))}
+        </div>
         <label className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
           accent
           <input
@@ -913,72 +933,37 @@ export default function LiveEditor({
             </button>
           ))}
         </span>
-        <label className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
-          font
-          <select
-            value={fontSystem}
-            onChange={e => { setFontSystem(e.target.value); touched() }}
-            className="bg-surface border border-gold/30 text-parchment rounded-sm px-1.5 py-1"
-            style={{ fontSize: 11 }}
-          >
-            {FONT_SYSTEMS.map(f => (
-              <option key={f.key} value={f.key}>{f.name}</option>
-            ))}
-          </select>
-        </label>
-        <div className="flex-1" />
-        <button
-          type="button"
-          onClick={addSection}
-          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
-        >
-          + Section
-        </button>
-        <button
-          type="button"
-          onClick={() => setBlocksOpen(o => !o)}
-          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
-        >
-          + Block
-        </button>
-        <button
-          type="button"
-          onClick={() => setAddAiOpen(o => !o)}
-          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm"
-        >
-          ✨ AI section
-        </button>
-        <button
-          type="button"
-          onClick={undo}
-          disabled={!undoStack.length}
-          title="Undo the last add, delete or AI change"
-          className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm disabled:opacity-30"
-        >
-          ↩ Undo
-        </button>
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
-        </button>
-        {siteStatus === 'live' && (
-          <a
-            href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`}
-            target="_blank"
-            rel="noreferrer"
-            className="font-label text-[10px] tracking-[2px] uppercase text-gold hover:text-goldLight"
-          >
-            View ↗
-          </a>
-        )}
+        <div className="h-px bg-gold/15" />
+        <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70">Font</span>
+        <div className="space-y-2">
+          {FONT_SYSTEMS.map(f => {
+            const on = fontSystem === f.key
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => { setFontSystem(f.key); touched() }}
+                className={`w-full text-left rounded-sm px-3 py-2 border transition-colors ${on ? 'border-gold bg-gold/15' : 'border-gold/25 hover:border-gold/50'}`}
+                style={{ background: on ? undefined : 'rgba(255,255,255,0.4)' }}
+              >
+                <div className="flex items-center justify-between">
+                  <span style={{ fontSize: 8, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7b2e' }}>{f.name}</span>
+                  {on && <span style={{ color: '#a85c36', fontSize: 11 }}>✓</span>}
+                </div>
+                <div style={{ fontFamily: f.display, fontStyle: 'italic', fontSize: 19, color: '#2c2722', lineHeight: 1.15, marginTop: 2 }}>Title</div>
+                <div style={{ fontFamily: f.body, fontSize: 12, color: '#6b6253', marginTop: 1 }}>A gentle subtitle</div>
+                <div style={{ fontFamily: f.body, fontSize: 11, color: '#8a8170', marginTop: 2 }}>Body text reads like this.</div>
+                <div style={{ fontFamily: f.label, fontSize: 8.5, letterSpacing: 2, textTransform: 'uppercase', color: '#a85c36', marginTop: 3 }}>Menu link</div>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
+      <div className="flex-1 min-w-0">
+
       <p className="font-body text-ash/60 text-xs mb-3 text-center">
-        Click any text below to edit it. Recolour with the swatches above. Then Save &amp; publish.
+        Click any text on the page to edit it. Change colours and fonts from the Design panel on the left. Then Save &amp; publish.
       </p>
 
       <div className="border border-gold/30 bg-gold/5 rounded-sm p-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -1689,6 +1674,7 @@ export default function LiveEditor({
         </div>
         </div>
        </div>
+      </div>
       </div>
     </div>
   )
