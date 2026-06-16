@@ -175,12 +175,14 @@ export default function PublicPage({
         {headerBar.has ? (
           menuPos === 'side' ? (
             <div className="flex flex-col gap-3 items-center md:items-start">{headerBar.zones.flat()}</div>
-          ) : (
+          ) : headerBar.zones[1].length > 0 || headerBar.zones[2].length > 0 ? (
             <div className="flex items-center w-full gap-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{headerBar.zones[0]}</div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{headerBar.zones[1]}</div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{headerBar.zones[2]}</div>
             </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">{headerBar.zones.flat()}</div>
           )
         ) : (
           <a href={`/s/${siteSlug}`} className="inline-block">
@@ -490,11 +492,15 @@ export default function PublicPage({
 
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
         {footerBar.has && (
-          <div className="flex items-center w-full gap-3 px-6 mb-4">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{footerBar.zones[0]}</div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{footerBar.zones[1]}</div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{footerBar.zones[2]}</div>
-          </div>
+          footerBar.zones[1].length > 0 || footerBar.zones[2].length > 0 ? (
+            <div className="flex items-center w-full gap-3 px-6 mb-4">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{footerBar.zones[0]}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{footerBar.zones[1]}</div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{footerBar.zones[2]}</div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mb-4 px-6">{footerBar.zones.flat()}</div>
+          )
         )}
         {content?.socials && content.socials.length > 0 && (
           <nav className="flex flex-wrap items-center justify-center gap-5 mb-4">

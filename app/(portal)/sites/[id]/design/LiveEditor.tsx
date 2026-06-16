@@ -1488,25 +1488,29 @@ export default function LiveEditor({
                       <input type="checkbox" checked={s.reveal} onChange={e => setSectionField(s.id, { reveal: e.target.checked })} style={{ accentColor: accent }} />
                       Reveal on scroll
                     </label>
-                    <span style={{ ...ctlLabel, marginLeft: 8 }}>Text</span>
-                    <input
-                      type="color"
-                      value={s.textColor || '#2c2722'}
-                      onChange={e => setSectionField(s.id, { textColor: e.target.value })}
-                      style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', cursor: 'pointer', padding: 0 }}
-                      title="Text colour"
-                    />
-                    {s.textColor && <button type="button" onClick={() => setSectionField(s.id, { textColor: '' })} style={cancelStyle}>×</button>}
-                    <select
-                      value={s.textScale || 'md'}
-                      onChange={e => setSectionField(s.id, { textScale: e.target.value === 'md' ? '' : (e.target.value as 'sm' | 'lg') })}
-                      style={{ ...urlInput, fontSize: 11, padding: '3px 5px', borderRadius: 3 }}
-                      title="Text size"
-                    >
-                      <option value="sm">Small text</option>
-                      <option value="md">Medium text</option>
-                      <option value="lg">Large text</option>
-                    </select>
+                    {!onBg && (
+                      <>
+                        <span style={{ ...ctlLabel, marginLeft: 8 }}>Text</span>
+                        <input
+                          type="color"
+                          value={s.textColor || '#2c2722'}
+                          onChange={e => setSectionField(s.id, { textColor: e.target.value })}
+                          style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 3, background: 'transparent', cursor: 'pointer', padding: 0 }}
+                          title="Text colour"
+                        />
+                        {s.textColor && <button type="button" onClick={() => setSectionField(s.id, { textColor: '' })} style={cancelStyle}>×</button>}
+                        <select
+                          value={s.textScale || 'md'}
+                          onChange={e => setSectionField(s.id, { textScale: e.target.value === 'md' ? '' : (e.target.value as 'sm' | 'lg') })}
+                          style={{ ...urlInput, fontSize: 11, padding: '3px 5px', borderRadius: 3 }}
+                          title="Text size"
+                        >
+                          <option value="sm">Small text</option>
+                          <option value="md">Medium text</option>
+                          <option value="lg">Large text</option>
+                        </select>
+                      </>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span style={ctlLabel}>Type</span>
