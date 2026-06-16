@@ -1,7 +1,9 @@
+import type { CSSProperties } from 'react'
 import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getBookingPage } from '@/lib/bookings/repo'
 import { THEMES, DEFAULT_THEME, type SiteTheme } from '@/lib/sites/types'
+import { fontVars } from '@/lib/sites/fonts'
 import BookingForm from './BookingForm'
 
 export const dynamic = 'force-dynamic'
@@ -23,9 +25,10 @@ export default async function BookPage({
   const data = await getBookingPage(params.slug)
   const services = data?.services ?? []
   const sent = searchParams.sent === '1'
+  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: theme.bg, color: theme.text }}>
+    <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}2e` }}>
         <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
           {brand}

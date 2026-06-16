@@ -49,6 +49,7 @@ export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
   layout?: SiteLayout
+  fontSystem?: string
   brand?: string
   seoTitle?: string
   seoDescription?: string

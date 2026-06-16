@@ -4,9 +4,10 @@ import { useMemo, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { THEMES } from '@/lib/sites/types'
 import { STYLE_PRESETS, WEBSITE_TYPES, PAGE_OPTIONS } from '@/lib/sites/styles'
+import { FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { aiCreateSiteAction } from './actions'
 
-const STEPS = ['Type', 'About', 'Pages', 'Style']
+const STEPS = ['Type', 'About', 'Pages', 'Colours', 'Fonts']
 
 interface CustomPage {
   title: string
@@ -46,6 +47,7 @@ export default function AiWizard({
   const [newPageTitle, setNewPageTitle] = useState('')
   const [newPagePurpose, setNewPagePurpose] = useState('')
   const [styleKey, setStyleKey] = useState('')
+  const [fontKey, setFontKey] = useState('')
 
   const resolvedType = type === 'Other' ? customType.trim() : type
 
@@ -71,11 +73,19 @@ export default function AiWizard({
       ...PAGE_OPTIONS.filter(p => selected.has(p.title)).map(p => ({ title: p.title, purpose: p.purpose })),
       ...customPages,
     ]
-    return JSON.stringify({ type: resolvedType, description: description.trim(), styleKey, pages })
-  }, [selected, customPages, resolvedType, description, styleKey])
+    return JSON.stringify({ type: resolvedType, description: description.trim(), styleKey, fontKey, pages })
+  }, [selected, customPages, resolvedType, description, styleKey, fontKey])
 
   const canNext =
-    step === 0 ? Boolean(resolvedType) : step === 1 ? description.trim().length > 10 : step === 2 ? true : Boolean(styleKey)
+    step === 0
+      ? Boolean(resolvedType)
+      : step === 1
+        ? description.trim().length > 10
+        : step === 2
+          ? true
+          : step === 3
+            ? Boolean(styleKey)
+            : Boolean(fontKey)
 
   const card = 'border border-gold/20 rounded-sm p-4 text-left transition-colors hover:border-gold/50'
   const cardOn = 'border-gold bg-gold/10'
@@ -207,21 +217,49 @@ export default function AiWizard({
 
       {step === 3 && (
         <div className="space-y-4">
-          <h2 className="font-display text-2xl italic text-parchment">Choose your visual style</h2>
-          <p className="font-body text-ash/70 text-sm">Each style sets a matching palette — you can fine-tune colours afterwards.</p>
+          <h2 className="font-display text-2xl italic text-parchment">Choose your colours</h2>
+          <p className="font-body text-ash/70 text-sm">Pick a palette — you can fine-tune every colour afterwards in the editor.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {STYLE_PRESETS.map(s => {
               const t = THEMES[s.theme]
               const on = styleKey === s.key
               return (
                 <button key={s.key} type="button" onClick={() => setStyleKey(s.key)} className={`${card} ${on ? cardOn : ''} flex items-center gap-3`}>
-                  <span className="shrink-0 rounded-sm flex items-center justify-center" style={{ width: 46, height: 46, background: t.bg, border: `1px solid ${s.accentColor}` }}>
-                    <span style={{ width: 16, height: 16, borderRadius: 3, background: s.accentColor }} />
+                  <span
+                    className="shrink-0 rounded-sm flex items-center justify-center gap-1"
+                    style={{ width: 64, height: 46, background: t.bg, border: `1px solid ${s.accentColor}44` }}
+                  >
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: s.accentColor }} />
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: t.text }} />
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: t.muted }} />
                   </span>
                   <span>
                     <span className="block font-body text-parchment text-sm">{s.name}</span>
                     <span className="block font-body text-ash/60 text-xs">{s.description}</span>
                   </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="space-y-4">
+          <h2 className="font-display text-2xl italic text-parchment">Choose your fonts</h2>
+          <p className="font-body text-ash/70 text-sm">Pick a typography style — you can change it any time in the editor.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {FONT_SYSTEMS.map(f => {
+              const on = fontKey === f.key
+              return (
+                <button key={f.key} type="button" onClick={() => setFontKey(f.key)} className={`${card} ${on ? cardOn : ''}`}>
+                  <span className="block text-parchment" style={{ fontFamily: f.display, fontSize: 22, lineHeight: 1.1 }}>
+                    Anima Temple
+                  </span>
+                  <span className="block text-ash/70 mt-1" style={{ fontFamily: f.body, fontSize: 13 }}>
+                    A calm space for your work and words.
+                  </span>
+                  <span className="block font-body text-ash/50 text-xs mt-2">{f.name}</span>
                 </button>
               )
             })}
@@ -258,7 +296,7 @@ export default function AiWizard({
           <form action={aiCreateSiteAction}>
             <input type="hidden" name="id" value={siteId} />
             <input type="hidden" name="payload" value={payload} />
-            <GenerateButton disabled={!styleKey || description.trim().length < 10} />
+            <GenerateButton disabled={!styleKey || !fontKey || description.trim().length < 10} />
           </form>
         )}
       </div>

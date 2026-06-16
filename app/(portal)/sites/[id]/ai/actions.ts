@@ -7,6 +7,7 @@ import { getSite, saveSiteContent } from '@/lib/sites/store'
 import { slugify } from '@/lib/sites/slug'
 import { generateSitePages } from '@/lib/sites/generate'
 import { getStylePreset } from '@/lib/sites/styles'
+import { getFontSystem } from '@/lib/sites/fonts'
 import type { SiteContent, SitePage } from '@/lib/sites/types'
 
 export async function aiCreateSiteAction(formData: FormData): Promise<void> {
@@ -20,6 +21,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     type?: string
     description?: string
     styleKey?: string
+    fontKey?: string
     pages?: { title?: string; purpose?: string }[]
   }
   try {
@@ -88,6 +90,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
   const content: SiteContent = {
     theme: style.theme,
     accentColor: style.accentColor,
+    fontSystem: getFontSystem(payload.fontKey).key,
     brand: existing?.brand,
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription || description.slice(0, 160) || undefined,

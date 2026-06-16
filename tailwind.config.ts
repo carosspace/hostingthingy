@@ -20,9 +20,12 @@ const config: Config = {
         ash: "#786652", // muted text (warm taupe)
       },
       fontFamily: {
-        display: ["var(--font-cormorant)", "Georgia", "serif"],
-        body: ["var(--font-eb-garamond)", "Georgia", "serif"],
-        label: ["var(--font-cinzel)", "serif"],
+        // Resolve through generic vars so a site can swap its typography by setting
+        // --font-display / --font-body / --font-label on its wrapper (see globals.css
+        // for the defaults used everywhere else).
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"],
+        label: ["var(--font-label)"],
       },
       animation: {
         "pulse-gold": "pulseGold 2s ease-in-out infinite",

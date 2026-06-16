@@ -1,4 +1,6 @@
+import type { CSSProperties } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType } from '@/lib/sites/types'
+import { fontVars } from '@/lib/sites/fonts'
 
 export default function PublicPage({
   siteSlug,
@@ -56,8 +58,10 @@ export default function PublicPage({
   }
   const ctaButton = makeCta(page.ctaLabel, page.ctaType, page.ctaHref)
 
+  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: theme.bg, color: theme.text }}>
+    <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className="px-6 py-5 flex flex-col items-center gap-3" style={{ borderBottom: `1px solid ${accent}2e` }}>
         <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
           {brand}

@@ -3,6 +3,7 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout } from '@/lib/sites/types'
+import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { saveSiteContentJsonAction } from '../../actions'
 
 interface EdSection {
@@ -195,6 +196,7 @@ export default function LiveEditor({
   const [theme, setTheme] = useState<SiteTheme>(initial?.theme ?? 'sand')
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
   const [layout, setLayout] = useState<SiteLayout>(initial?.layout ?? 'contained')
+  const [fontSystem, setFontSystem] = useState(initial?.fontSystem ?? 'serif')
   const [heroImage, setHeroImage] = useState(initial?.heroImage ?? '')
   const [contactEmail, setContactEmail] = useState(initial?.contactEmail ?? '')
   const [seoTitle, setSeoTitle] = useState(initial?.seoTitle ?? '')
@@ -311,6 +313,7 @@ export default function LiveEditor({
       theme,
       accentColor: accentColor || undefined,
       layout,
+      fontSystem,
       brand: read('brand') || undefined,
       seoTitle: seoTitle.trim() || undefined,
       seoDescription: seoDescription.trim() || undefined,
@@ -390,6 +393,19 @@ export default function LiveEditor({
             Full
           </button>
         </span>
+        <label className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
+          font
+          <select
+            value={fontSystem}
+            onChange={e => { setFontSystem(e.target.value); touched() }}
+            className="bg-surface border border-gold/30 text-parchment rounded-sm px-1.5 py-1"
+            style={{ fontSize: 11 }}
+          >
+            {FONT_SYSTEMS.map(f => (
+              <option key={f.key} value={f.key}>{f.name}</option>
+            ))}
+          </select>
+        </label>
         <div className="flex-1" />
         <button
           type="button"
@@ -441,7 +457,7 @@ export default function LiveEditor({
         </div>
       </details>
 
-      <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text }}>
+      <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
         <div className="px-6 py-5 text-center" style={{ borderBottom: `1px solid ${accent}33` }}>
           <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
             {initial?.brand || siteName}

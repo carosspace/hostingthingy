@@ -35,6 +35,8 @@ export default async function DesignPage({
   const pageView: SiteContent = {
     theme: c?.theme ?? 'sand',
     accentColor: c?.accentColor,
+    layout: c?.layout,
+    fontSystem: c?.fontSystem,
     brand: c?.brand,
     seoTitle: c?.seoTitle,
     seoDescription: c?.seoDescription,

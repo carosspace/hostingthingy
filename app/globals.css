@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --font-display: var(--font-cormorant), Georgia, serif;
+  --font-body: var(--font-eb-garamond), Georgia, serif;
+  --font-label: var(--font-cinzel), serif;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
