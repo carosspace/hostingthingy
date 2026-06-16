@@ -34,6 +34,8 @@ export interface SiteSection {
   image?: string // an inline image shown above the section text
   bgImage?: string // a full-width background photo behind the section (text overlaid)
   bgColor?: string // a solid/tinted panel colour behind the section (when no bgImage)
+  borderColor?: string // the colour of the box outline around the section
+  borderWidth?: number // the thickness (px, 0-8) of the box outline; 0/undefined = no outline
   align?: SiteAlign // text alignment within the section
   kind?: SectionKind // cards/faq/gallery/embed/layout change the section layout
   items?: SectionItem[] // repeatable items for cards/faq, photos for gallery, or blocks for layout

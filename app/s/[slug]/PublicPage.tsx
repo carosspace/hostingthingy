@@ -425,16 +425,23 @@ export default function PublicPage({
                     </>
                   )
                 }
-                return wrapSec(i, sec.reveal, (
-                  <section
-                    className={sec.bgColor ? '' : `${bodyMax} mx-auto px-6`}
-                    style={sec.bgColor ? { background: sec.bgColor } : undefined}
-                  >
-                    <div className={sec.bgColor ? `${bodyMax} mx-auto px-6 py-16` : ''} style={{ textAlign: sec.align || 'left' }}>
-                      {inner}
-                    </div>
-                  </section>
-                ))
+                {
+                  const boxed = Boolean(sec.bgColor) || Boolean(sec.borderColor && sec.borderWidth)
+                  return wrapSec(i, sec.reveal, (
+                    <section className={`${bodyMax} mx-auto px-6`}>
+                      <div
+                        className={boxed ? 'px-6 py-12 md:px-10 rounded-lg' : ''}
+                        style={{
+                          textAlign: sec.align || 'left',
+                          background: sec.bgColor || undefined,
+                          border: sec.borderColor && sec.borderWidth ? `${sec.borderWidth}px solid ${sec.borderColor}` : undefined,
+                        }}
+                      >
+                        {inner}
+                      </div>
+                    </section>
+                  ))
+                }
               })}
             </div>
           )}

@@ -308,6 +308,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
       const colsRaw = Number(s?.columns)
       const columns = colsRaw >= 1 && colsRaw <= 3 ? (Math.round(colsRaw) as 1 | 2 | 3) : undefined
       const ov = Number(s?.overlay)
+      const bw = Number(s?.borderWidth)
       const imgLayoutRaw = String(s?.imageLayout ?? '')
       const imageLayout = (['imageLeft', 'imageRight'].includes(imgLayoutRaw) ? imgLayoutRaw : undefined) as
         | SectionImageLayout
@@ -340,6 +341,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         // other kinds so it doesn't linger as invisible orphan data after a retype.
         bgImage: !kind ? String(s?.bgImage ?? '').trim() || undefined : undefined,
         bgColor: String(s?.bgColor ?? '').trim() || undefined,
+        borderColor: /^#[0-9a-f]{6}$/i.test(String(s?.borderColor ?? '').trim()) ? String(s?.borderColor).trim() : undefined,
+        borderWidth: bw > 0 ? Math.min(8, Math.round(bw)) : undefined,
         align: (['left', 'center', 'right'].includes(alignRaw) ? alignRaw : undefined) as SiteAlign | undefined,
         kind,
         columns,
