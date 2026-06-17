@@ -758,6 +758,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       reveal: reveal(e?.reveal),
       revealDelay: e?.reveal && e?.revealDelay ? num(e?.revealDelay, 0, 2000, 0) || undefined : undefined,
       hover: hover(e?.hover),
+      parallax: num(e?.parallax, -5, 5, 0) || undefined,
     }
   })
   return {

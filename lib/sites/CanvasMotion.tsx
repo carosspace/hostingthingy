@@ -56,5 +56,37 @@ export default function CanvasMotion() {
     return () => document.removeEventListener('click', onClick)
   }, [])
 
+  // Parallax: [data-parallax] elements drift as the page scrolls. We measure each
+  // element's resting centre once (before applying any transform) so its own drift
+  // never feeds back into the measurement.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-parallax]'))
+    if (!nodes.length) return
+    const items = nodes.map(el => {
+      const r = el.getBoundingClientRect()
+      return { el, baseCenter: r.top + window.scrollY + r.height / 2, speed: Number(el.dataset.parallax) || 0 }
+    })
+    let raf = 0
+    const apply = () => {
+      raf = 0
+      const mid = window.scrollY + window.innerHeight / 2
+      for (const it of items) {
+        const offset = (mid - it.baseCenter) * (it.speed * 0.06)
+        it.el.style.transform = `translateY(${offset.toFixed(1)}px)`
+      }
+    }
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(apply) }
+    apply()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (raf) window.cancelAnimationFrame(raf)
+    }
+  }, [])
+
   return null
 }

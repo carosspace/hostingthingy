@@ -12,6 +12,7 @@ function withMotion(el: CanvasElement, child: ReactNode): ReactNode {
   let node = child
   if (el.hover) node = <div className={`canvas-hover canvas-hover-${el.hover}`} style={{ width: '100%', height: '100%' }}>{node}</div>
   if (el.reveal) node = <div data-reveal={el.reveal} data-reveal-delay={el.revealDelay || undefined} style={{ width: '100%', height: '100%' }}>{node}</div>
+  if (el.parallax) node = <div data-parallax={el.parallax} style={{ width: '100%', height: '100%', willChange: 'transform' }}>{node}</div>
   return node
 }
 

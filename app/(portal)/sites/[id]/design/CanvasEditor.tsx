@@ -155,7 +155,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'adjust', 'lightbox']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'adjust', 'lightbox']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -1132,6 +1132,11 @@ export default function CanvasEditor({
                 <option value="none">None</option>
                 {HOVER_KINDS.map(h => <option key={h} value={h}>{({ grow: 'Grow', lift: 'Lift', glow: 'Glow', dim: 'Dim', rotate: 'Tilt' } as Record<string, string>)[h]}</option>)}
               </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Parallax</span>
+              <input type="range" min={-5} max={5} value={sel.parallax ?? 0} onChange={e => update(sel.id, { parallax: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Drift speed as the visitor scrolls" />
+              <span style={{ fontSize: 11, color: '#666', width: 18 }}>{sel.parallax ?? 0}</span>
             </div>
           </div>
         ) : selectedIds.length > 1 ? (

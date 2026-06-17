@@ -239,6 +239,7 @@ export interface CanvasElement {
   reveal?: RevealKind // animate in as the visitor scrolls to it
   revealDelay?: number // ms delay before the reveal (for staggering)
   hover?: HoverKind // how it reacts to the pointer hovering over it
+  parallax?: number // drift speed as the visitor scrolls (-5..5; 0 = none)
 }
 
 export interface PageCanvas {
