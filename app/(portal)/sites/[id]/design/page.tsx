@@ -90,6 +90,8 @@ export default async function DesignPage({
           ))}
           <form action={addPageAction} className="flex items-center gap-1">
             <input type="hidden" name="id" value={site.id} />
+            {/* Inherit the current build mode: a new page added from a canvas page is a canvas page. */}
+            <input type="hidden" name="canvas" value={current.canvas ? '1' : ''} />
             <input
               name="title"
               placeholder="New page name"
@@ -174,7 +176,11 @@ export default async function DesignPage({
 
       <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
         <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
-        <p className="font-body text-ash/70 text-sm mt-3 mb-3">Describe this page and Claude writes it — then edit it right here.</p>
+        <p className="font-body text-ash/70 text-sm mt-3 mb-3">
+          {current.canvas
+            ? 'Describe this page and Claude lays it out on your canvas — then drag, restyle and rearrange it. (This replaces what’s on the canvas now.)'
+            : 'Describe this page and Claude writes it — then edit it right here.'}
+        </p>
         <form action={generateSiteAction} className="space-y-3">
           <input type="hidden" name="id" value={site.id} />
           <input type="hidden" name="pageSlug" value={current.slug} />
@@ -217,7 +223,7 @@ export default async function DesignPage({
           <form action={startCanvasAction} className="mb-1">
             <input type="hidden" name="id" value={site.id} />
             <input type="hidden" name="pageSlug" value={current.slug} />
-            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">✨ Try the free canvas (beta) — build this page like Canva</button>
+            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">✨ Switch this page to the free canvas (Canva-style) — brings your content across</button>
           </form>
           <LiveEditor
             key={current.slug + ':' + site.updatedAt}

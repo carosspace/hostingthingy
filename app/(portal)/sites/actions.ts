@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
+import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS } from '@/lib/sites/types'
 import type {
   SiteContent,
@@ -152,6 +153,23 @@ export async function generateSiteAction(formData: FormData): Promise<void> {
   const pageSlug = String(formData.get('pageSlug') ?? '')
   const gen = await generateSiteContent(site.name, description)
   const existing = site.content ?? null
+
+  // If this page is a free-canvas page, lay the AI-written content out ON the canvas
+  // (so AI and the free canvas work together) instead of writing block sections.
+  const targetPage = getPages(existing).find(p => p.slug === pageSlug)
+  if (targetPage?.canvas) {
+    const canvas = sanitizeCanvas(canvasFromContent({
+      headline: gen.headline,
+      subheadline: gen.subheadline,
+      heroImage: gen.heroImage,
+      sections: gen.sections,
+      theme: gen.theme,
+      accent: existing?.accentColor,
+    }))
+    await setPageCanvas(id, pageSlug, canvas)
+    return
+  }
+
   const updatedPages: SitePage[] = getPages(existing).map(p =>
     p.slug === pageSlug
       ? { ...p, headline: gen.headline, subheadline: gen.subheadline, heroImage: gen.heroImage, sections: gen.sections }
@@ -500,7 +518,11 @@ export async function addPageAction(formData: FormData): Promise<void> {
     slug = `${base}-${n}`
   }
 
-  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [] }
+  // Inherit the build mode you're in: if you add a page while working on the free
+  // canvas, the new page starts as a (blank) canvas too, instead of bouncing you
+  // back to the block editor.
+  const wantCanvas = String(formData.get('canvas') ?? '') === '1'
+  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [], ...(wantCanvas ? { canvas: { h: 1000, elements: [] } } : {}) }
   const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
   await saveSiteContent(id, { ...baseContent, pages: [...pages, newPage] })
   revalidatePath(`/sites/${id}/design`)
@@ -866,7 +888,27 @@ export async function startCanvasAction(formData: FormData): Promise<void> {
   if (!user) return
   const id = String(formData.get('id') ?? '')
   if (!id) return
-  await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), { h: 1000, elements: [] })
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  const existing = (await getSite(id))?.content ?? null
+  const page = getPages(existing).find(p => p.slug === pageSlug)
+  // Seed the new canvas from whatever the page already has (hand-written or AI-written
+  // blocks), so switching to the free canvas brings your content across as draggable
+  // elements instead of dropping you onto a blank page.
+  const hasContent = !!(page && (page.headline || page.subheadline || (page.sections && page.sections.length)))
+  const canvas = hasContent && page
+    ? sanitizeCanvas(canvasFromContent({
+        headline: page.headline,
+        subheadline: page.subheadline,
+        heroImage: page.heroImage,
+        sections: page.sections,
+        ctaLabel: page.ctaLabel,
+        ctaType: page.ctaType,
+        ctaHref: page.ctaHref,
+        theme: existing?.theme,
+        accent: existing?.accentColor,
+      }))
+    : { h: 1000, elements: [] }
+  await setPageCanvas(id, pageSlug, canvas)
 }
 
 // Search free stock photos via a server-side Pexels proxy (the key never reaches
