@@ -2,6 +2,7 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social, type SectionItem } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { socialIcon } from '@/lib/sites/socialIcons'
+import { CanvasView } from '@/lib/sites/CanvasView'
 import Reveal from './Reveal'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
@@ -241,7 +242,11 @@ export default function PublicPage({
         )}
       </header>
 
-      {hasContent ? (
+      {page.canvas && page.canvas.elements.length > 0 ? (
+        <main className={`flex-1 ${contentPad}`}>
+          <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} />
+        </main>
+      ) : hasContent ? (
         <main className={`flex-1 ${contentPad}`}>
           {heroImage ? (
             <section className="relative" style={{ height: '60vh', minHeight: 360 }}>

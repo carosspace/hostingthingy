@@ -23,6 +23,9 @@ import type {
   SocialKind,
   BlockType,
   MenuPosition,
+  PageCanvas,
+  CanvasElement,
+  CanvasElementType,
 } from '@/lib/sites/types'
 import {
   createSiteRecord,
@@ -624,4 +627,113 @@ export async function deleteSiteAction(formData: FormData): Promise<void> {
 
   revalidatePath('/sites')
   redirect('/sites')
+}
+
+// --- Free canvas (Canva-style) pages ---------------------------------------
+
+// Whitelist + clamp a free-canvas payload (THE GATE for canvas pages).
+function sanitizeCanvas(raw: unknown): PageCanvas {
+  const c = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const num = (v: unknown, min: number, max: number, dflt: number) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : dflt
+  }
+  const hex = (v: unknown) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : undefined)
+  const dataOrHttp = (v: unknown) => {
+    const s = String(v ?? '').trim()
+    return s.startsWith('data:image/') || /^https?:\/\//i.test(s) ? s : undefined
+  }
+  const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
+  const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
+    const type = (['text', 'image', 'button', 'box'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
+    const al = String(e?.align)
+    const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
+    const ff = String(e?.fontFamily)
+    const fontFamily = (['display', 'body', 'label'].includes(ff) ? ff : undefined) as 'display' | 'body' | 'label' | undefined
+    const ct = String(e?.ctaType)
+    const ctaType = (['booking', 'email', 'link'].includes(ct) ? ct : undefined) as CtaType | undefined
+    return {
+      id: String(e?.id ?? 'e' + i).slice(0, 24) || 'e' + i,
+      type,
+      x: num(e?.x, -2000, 8000, 0),
+      y: num(e?.y, 0, 40000, 0),
+      w: num(e?.w, 8, 4000, 100),
+      h: num(e?.h, 8, 8000, 60),
+      z: num(e?.z, -9999, 9999, i),
+      opacity: num(e?.opacity, 0, 100, 100),
+      text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
+      fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,
+      color: hex(e?.color),
+      align,
+      bold: e?.bold ? true : undefined,
+      italic: e?.italic ? true : undefined,
+      fontFamily,
+      href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
+      ctaType,
+      src: type === 'image' ? dataOrHttp(e?.src) : undefined,
+      fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
+      fill: hex(e?.fill),
+      radius: num(e?.radius, 0, 400, 0) || undefined,
+      borderColor: hex(e?.borderColor),
+      borderWidth: num(e?.borderWidth, 0, 40, 0) || undefined,
+    }
+  })
+  return {
+    h: num(c.h, 200, 40000, 1000),
+    bg: hex(c.bg),
+    bgImage: dataOrHttp(c.bgImage),
+    elements,
+  }
+}
+
+async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {
+  const existing = (await getSite(id))?.content ?? null
+  if (!existing) return
+  // Keep the page's blocks so switching back to the block editor restores them; the
+  // public page renders the canvas only when it has elements, otherwise the blocks.
+  const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, canvas } : p))
+  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+  await saveSiteContent(id, {
+    ...existing,
+    headline: home.headline,
+    subheadline: home.subheadline,
+    sections: home.sections,
+    pages: updatedPages,
+  })
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}`)
+}
+
+// Save the current free-canvas page.
+export async function saveCanvasAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  let raw: unknown = {}
+  try {
+    raw = JSON.parse(String(formData.get('canvas') ?? '{}'))
+  } catch {
+    // ignore bad payload
+  }
+  await setPageCanvas(id, pageSlug, sanitizeCanvas(raw))
+}
+
+// Turn a page into a blank free canvas.
+export async function startCanvasAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), { h: 1000, elements: [] })
+}
+
+// Switch a page back to the block editor.
+export async function clearCanvasAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), undefined)
 }

@@ -94,6 +94,50 @@ export const THEMES: Record<
 
 export const DEFAULT_THEME: SiteTheme = 'sand'
 
+// --- Free canvas (Canva-style) page model ---
+// Elements are positioned in design pixels on a fixed design width (CANVAS_W).
+// The renderer scales the whole canvas with the viewport using cqw units, so it
+// stays pixel-faithful on desktop; on phones the elements stack top-to-bottom.
+export const CANVAS_W = 1000
+
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box'
+
+export interface CanvasElement {
+  id: string
+  type: CanvasElementType
+  x: number // left, design px
+  y: number // top, design px
+  w: number // width, design px
+  h: number // height, design px
+  z?: number // layer order (higher = front)
+  opacity?: number // 0-100
+  // text / button
+  text?: string
+  fontSize?: number // design px
+  color?: string
+  align?: SiteAlign
+  bold?: boolean
+  italic?: boolean
+  fontFamily?: 'display' | 'body' | 'label'
+  href?: string
+  ctaType?: CtaType
+  // image
+  src?: string
+  fit?: ImageFit
+  // box / button / image shared
+  fill?: string
+  radius?: number // corner radius, design px
+  borderColor?: string
+  borderWidth?: number
+}
+
+export interface PageCanvas {
+  h: number // canvas height in design px (width is always CANVAS_W)
+  bg?: string // background colour
+  bgImage?: string // full background photo
+  elements: CanvasElement[]
+}
+
 export interface SitePage {
   id: string
   title: string
@@ -104,6 +148,7 @@ export interface SitePage {
   subheadline: string
   heroImage?: string
   sections: SiteSection[]
+  canvas?: PageCanvas // when present, this page is a free-canvas page (replaces sections)
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string

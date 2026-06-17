@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
-import { getPages, type SiteContent } from '@/lib/sites/types'
-import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction } from '../../actions'
+import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
+import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction, startCanvasAction, clearCanvasAction } from '../../actions'
 import LiveEditor from './LiveEditor'
+import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
 
 export const dynamic = 'force-dynamic'
@@ -190,17 +191,46 @@ export default async function DesignPage({
         </form>
       </details>
 
-      <LiveEditor
-        key={current.slug + ':' + site.updatedAt}
-        siteId={site.id}
-        siteSlug={site.slug}
-        siteName={site.name}
-        siteStatus={site.status}
-        pageSlug={current.slug}
-        navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
-        navLinks={c?.navLinks ?? []}
-        initial={pageView}
-      />
+      {current.canvas ? (
+        <div className="space-y-3">
+          <CanvasEditor
+            key={'canvas:' + current.slug + ':' + site.updatedAt}
+            siteId={site.id}
+            siteSlug={site.slug}
+            siteStatus={site.status}
+            pageSlug={current.slug}
+            theme={(c?.theme as SiteTheme) ?? 'sand'}
+            accent={c?.accentColor || THEMES[(c?.theme as SiteTheme) ?? 'sand'].accent}
+            fontSystem={c?.fontSystem ?? 'serif'}
+            contactEmail={c?.contactEmail ?? ''}
+            initial={current.canvas}
+          />
+          <form action={clearCanvasAction}>
+            <input type="hidden" name="id" value={site.id} />
+            <input type="hidden" name="pageSlug" value={current.slug} />
+            <button className="font-label text-[9px] tracking-[2px] uppercase text-ash/50 hover:text-gold">← Switch this page back to the block editor</button>
+          </form>
+        </div>
+      ) : (
+        <>
+          <form action={startCanvasAction} className="mb-1">
+            <input type="hidden" name="id" value={site.id} />
+            <input type="hidden" name="pageSlug" value={current.slug} />
+            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">✨ Try the free canvas (beta) — build this page like Canva</button>
+          </form>
+          <LiveEditor
+            key={current.slug + ':' + site.updatedAt}
+            siteId={site.id}
+            siteSlug={site.slug}
+            siteName={site.name}
+            siteStatus={site.status}
+            pageSlug={current.slug}
+            navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
+            navLinks={c?.navLinks ?? []}
+            initial={pageView}
+          />
+        </>
+      )}
     </div>
   )
 }
