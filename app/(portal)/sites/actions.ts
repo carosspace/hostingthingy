@@ -813,6 +813,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
           .filter(Boolean)
           .slice(0, 4) as SiteFont[]
       : undefined,
+    uploads: Array.isArray(c.uploads)
+      ? ((c.uploads as unknown[]).map(dataOrHttp).filter(Boolean) as string[]).slice(0, 24)
+      : undefined,
   }
 }
 

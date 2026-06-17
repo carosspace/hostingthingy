@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
@@ -51,6 +51,8 @@ export default function CanvasEditor({
   const [fonts, setFonts] = useState<SiteFont[]>(initial?.fonts ?? [])
   const [components, setComponents] = useState<SiteComponent[]>(initial?.components ?? [])
   const [editingComp, setEditingComp] = useState<{ id: string; outsideIds: string[]; origX: number; origY: number; origW: number; origH: number; origOpacity: number; origZ: number } | null>(null) // editing a component master in place
+  const [uploads, setUploads] = useState<string[]>(initial?.uploads ?? []) // reusable image/logo library to drag onto the canvas
+  const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
@@ -63,6 +65,7 @@ export default function CanvasEditor({
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<Drag>(null)
   const idc = useRef(
@@ -578,6 +581,55 @@ export default function CanvasEditor({
     }
     inp.click()
   }
+  // Read a file straight to a data URL (used for SVGs, which we keep vector rather
+  // than rasterising; they render via <img>, so no scripts run).
+  const fileToDataUrl = (f: File) => new Promise<string>((res, rej) => {
+    const r = new FileReader(); r.onerror = () => rej(new Error('read failed')); r.onload = () => res(String(r.result)); r.readAsDataURL(f)
+  })
+  // Upload one or more logos/pictures into the reusable library.
+  function uploadPick() {
+    const inp = document.createElement('input')
+    inp.type = 'file'
+    inp.accept = 'image/*'
+    inp.multiple = true
+    inp.onchange = async () => {
+      const files = Array.from(inp.files || []).filter(f => f.type.startsWith('image/'))
+      if (!files.length) return
+      const urls = await Promise.all(files.map(f => (f.type === 'image/svg+xml' ? fileToDataUrl(f) : resizeToDataUrl(f, 1200, 0.85))))
+      setUploads(p => [...p, ...urls].slice(0, MAX_UPLOADS))
+      touch()
+    }
+    inp.click()
+  }
+  // Work out a tidy on-canvas size for a logo/picture (cap the width, keep aspect).
+  const sizeForSrc = (src: string) => new Promise<{ w: number; h: number }>(res => {
+    const img = new window.Image()
+    img.onload = () => { const w = Math.min(320, img.width || 320); res({ w, h: Math.max(20, Math.round(w * (img.height || 200) / (img.width || 320))) }) }
+    img.onerror = () => res({ w: 240, h: 160 })
+    img.src = src
+  })
+  // Place an uploaded image onto the canvas — at a drop point if given, else centred.
+  const placeUpload = async (src: string, clientX?: number, clientY?: number) => {
+    const { w, h } = await sizeForSrc(src)
+    if (clientX !== undefined && clientY !== undefined && !editingMobile) {
+      const rect = canvasRef.current?.getBoundingClientRect()
+      if (rect) {
+        const scale = rect.width / CW
+        const x = Math.max(0, Math.round((clientX - rect.left) / scale - w / 2))
+        const y = Math.max(0, Math.round((clientY - rect.top) / scale - h / 2))
+        place({ type: 'image', src, fit: 'contain', radius: 0, w, h, x, y })
+        return
+      }
+    }
+    place({ type: 'image', src, fit: 'contain', radius: 0, w, h })
+  }
+  const onCanvasDrop = (e: RDragEvent) => {
+    const src = dragUploadSrc.current
+    if (!src) return
+    e.preventDefault()
+    dragUploadSrc.current = null
+    void placeUpload(src, e.clientX, e.clientY)
+  }
 
   // Drag / resize via window-level pointer tracking (works for mouse + touch).
   useEffect(() => {
@@ -776,15 +828,28 @@ export default function CanvasEditor({
       palette: palette.length ? palette : undefined,
       fonts: fonts.length ? fonts : undefined,
       components: components.length ? components : undefined,
+      uploads: uploads.length ? uploads : undefined,
+    }
+    const payload = JSON.stringify(canvas)
+    // Guard against the Server Actions body limit (12 MB, see next.config) — embedded
+    // images add up fast. Warn with something actionable instead of a silent failure.
+    if (payload.length > 11_500_000) {
+      setSaving(false)
+      setSaveError('This page is too heavy to save — its images add up to more than ~11 MB. Remove some uploads or use smaller/fewer photos, then save again.')
+      return
     }
     const fd = new FormData()
     fd.set('id', siteId)
     fd.set('pageSlug', pageSlug)
-    fd.set('canvas', JSON.stringify(canvas))
+    fd.set('canvas', payload)
     try {
       await saveCanvasAction(fd)
       dirty.current = false
       setSaved(true)
+      setSaveError('')
+    } catch {
+      // Keep dirty so the work isn't considered saved; tell the user it failed.
+      setSaveError('Couldn’t save — please check your connection and try again. If it keeps failing, your page may have too many large images.')
     } finally {
       setSaving(false)
     }
@@ -941,6 +1006,9 @@ export default function CanvasEditor({
         <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
+        {saveError && (
+          <p className="font-body text-[11px] leading-relaxed rounded-sm px-2.5 py-2" style={{ color: '#8a2b1d', background: '#fbe9e6', border: '1px solid rgba(179,64,47,0.3)' }}>{saveError}</p>
+        )}
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
           <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
@@ -970,6 +1038,35 @@ export default function CanvasEditor({
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Your uploads</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Upload logos &amp; pictures once, then drag one onto the page — or click to drop it in. Reuse them anywhere (header, footer, anywhere).</p>
+          {uploads.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {uploads.map((src, i) => (
+                <span key={i} className="relative inline-flex" style={{ width: 52, height: 52 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt=""
+                    title="Drag onto the page, or click to place"
+                    draggable
+                    onDragStart={e => { dragUploadSrc.current = src; e.dataTransfer.effectAllowed = 'copy'; try { e.dataTransfer.setData('text/plain', 'upload') } catch { /* some browsers restrict */ } }}
+                    onDragEnd={() => { dragUploadSrc.current = null }}
+                    onClick={() => void placeUpload(src)}
+                    style={{ width: 52, height: 52, objectFit: 'contain', cursor: 'grab', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 5, background: 'repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 12px 12px' }}
+                  />
+                  <button type="button" onClick={() => { setUploads(p => p.filter((_, j) => j !== i)); touch() }} title="Remove from library" style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, lineHeight: '14px', textAlign: 'center', fontSize: 11, color: '#fff', background: '#b3402f', borderRadius: '50%' }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          {uploads.length < MAX_UPLOADS && (
+            <button type="button" onClick={uploadPick} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">+ Upload logo / picture</button>
+          )}
         </div>
 
         <div className="h-px bg-gold/15" />
@@ -1477,6 +1574,8 @@ export default function CanvasEditor({
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}
+              onDragOver={e => { if (dragUploadSrc.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
+              onDrop={onCanvasDrop}
               style={{
                 position: 'relative',
                 width: '100%',

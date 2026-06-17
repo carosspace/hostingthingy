@@ -295,7 +295,11 @@ export interface PageCanvas {
   palette?: string[] // brand swatches (hex); referenced by colours as var(--brand-N)
   fonts?: SiteFont[] // uploaded brand fonts, referenced by fontFamily 'custom:<id>'
   components?: SiteComponent[] // reusable components placed via 'component' elements
+  uploads?: string[] // an asset library of uploaded logos/images (data URLs) to drag onto the canvas
 }
+
+// The most images a page's upload library can hold.
+export const MAX_UPLOADS = 24
 
 export interface SitePage {
   id: string
