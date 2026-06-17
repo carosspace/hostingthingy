@@ -99,6 +99,9 @@ export const DEFAULT_THEME: SiteTheme = 'sand'
 // The renderer scales the whole canvas with the viewport using cqw units, so it
 // stays pixel-faithful on desktop; on phones the elements stack top-to-bottom.
 export const CANVAS_W = 1000
+// The phone artboard's design width. When a page's mobile layout is "custom",
+// elements carry their own mx/my/mw/mh on this narrower canvas.
+export const MOBILE_W = 440
 
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu'
 
@@ -113,7 +116,13 @@ export interface CanvasElement {
   rotate?: number // rotation in degrees (-180..180)
   opacity?: number // 0-100
   locked?: boolean // can't be moved/resized/deleted on the canvas (only via the Layers panel)
-  hidden?: boolean // kept in the design but not shown on the published page
+  hidden?: boolean // kept in the design but not shown on the published page (any device)
+  // --- per-phone overrides (used only when the page's mobile layout is 'custom') ---
+  mx?: number // mobile left, design px on MOBILE_W
+  my?: number // mobile top
+  mw?: number // mobile width
+  mh?: number // mobile height
+  mHidden?: boolean // shown on desktop but hidden on phones
   // text / button
   text?: string
   fontSize?: number // design px
@@ -140,6 +149,8 @@ export interface PageCanvas {
   bg?: string // background colour
   bgImage?: string // full background photo
   elements: CanvasElement[]
+  mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)
+  mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
 }
 
 export interface SitePage {

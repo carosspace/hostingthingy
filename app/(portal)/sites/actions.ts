@@ -675,6 +675,11 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       opacity: num(e?.opacity, 0, 100, 100),
       locked: e?.locked ? true : undefined,
       hidden: e?.hidden ? true : undefined,
+      mx: e?.mx === undefined || e?.mx === null ? undefined : num(e?.mx, -2000, 8000, 0),
+      my: e?.my === undefined || e?.my === null ? undefined : num(e?.my, 0, 40000, 0),
+      mw: e?.mw === undefined || e?.mw === null ? undefined : num(e?.mw, 8, 4000, 100),
+      mh: e?.mh === undefined || e?.mh === null ? undefined : num(e?.mh, 8, 8000, 60),
+      mHidden: e?.mHidden ? true : undefined,
       text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
       fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,
       color: hex(e?.color),
@@ -698,6 +703,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     bg: hex(c.bg),
     bgImage: dataOrHttp(c.bgImage),
     elements,
+    mobileCustom: c.mobileCustom ? true : undefined,
+    mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
   }
 }
 
