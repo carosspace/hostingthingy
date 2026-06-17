@@ -11,6 +11,7 @@ import type {
   SiteContent,
   SavedDesign,
   SiteFont,
+  StockPhoto,
   Gradient,
   BlendMode,
   RevealKind,
@@ -843,6 +844,38 @@ export async function startCanvasAction(formData: FormData): Promise<void> {
   const id = String(formData.get('id') ?? '')
   if (!id) return
   await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), { h: 1000, elements: [] })
+}
+
+// Search free stock photos via a server-side Pexels proxy (the key never reaches
+// the browser). Returns { error: 'nokey' } when no PEXELS_API_KEY is configured.
+export async function searchStockPhotos(query: string): Promise<{ ok: boolean; error?: string; photos?: StockPhoto[] }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'auth' }
+  const key = process.env.PEXELS_API_KEY
+  if (!key) return { ok: false, error: 'nokey' }
+  const q = String(query ?? '').trim().slice(0, 100)
+  if (!q) return { ok: true, photos: [] }
+  try {
+    const res = await fetch(`https://api.pexels.com/v1/search?per_page=28&query=${encodeURIComponent(q)}`, {
+      headers: { Authorization: key },
+      cache: 'no-store',
+    })
+    if (!res.ok) return { ok: false, error: 'failed' }
+    const data = (await res.json()) as { photos?: Array<Record<string, unknown>> }
+    const photos: StockPhoto[] = (data.photos ?? []).map(p => {
+      const src = (p.src ?? {}) as Record<string, string>
+      return {
+        id: String(p.id ?? ''),
+        thumb: src.tiny || src.small || src.medium || '',
+        url: src.large2x || src.large || src.original || src.medium || '',
+        alt: String(p.alt ?? ''),
+        credit: String(p.photographer ?? ''),
+      }
+    }).filter(p => p.url)
+    return { ok: true, photos }
+  } catch {
+    return { ok: false, error: 'failed' }
+  }
 }
 
 // Switch a page back to the block editor.

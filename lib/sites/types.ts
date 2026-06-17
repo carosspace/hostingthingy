@@ -366,6 +366,15 @@ export function getPages(content: SiteContent | null): SitePage[] {
   ]
 }
 
+// A stock photo search result (from the Pexels proxy). Transient — not stored.
+export interface StockPhoto {
+  id: string
+  thumb: string // small preview URL
+  url: string // the full-size CDN URL stored as the image src
+  alt: string
+  credit: string // photographer name
+}
+
 export interface Site {
   id: string
   ownerId: string

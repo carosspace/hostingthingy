@@ -6,6 +6,7 @@ import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
+import StockPhotos from './StockPhotos'
 import { saveCanvasAction } from '../../actions'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
@@ -54,6 +55,7 @@ export default function CanvasEditor({
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
   const [cropId, setCropId] = useState('') // image element being cropped (modal open)
+  const [stockId, setStockId] = useState('') // image element picking a stock photo (modal open)
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -1027,8 +1029,9 @@ export default function CanvasEditor({
             )}
             {sel.type === 'image' && (
               <>
-                <div className="flex items-center gap-1.5">
-                  <button type="button" onClick={() => imgPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">{sel.src ? 'Replace photo' : 'Upload photo'}</button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button type="button" onClick={() => imgPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">{sel.src ? 'Replace' : 'Upload'}</button>
+                  <button type="button" onClick={() => setStockId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Stock photos</button>
                   {sel.src && <button type="button" onClick={() => setCropId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Crop</button>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -1336,6 +1339,8 @@ export default function CanvasEditor({
           <CropModal src={el.src} onApply={u => { update(cropId, { src: u }); setCropId('') }} onClose={() => setCropId('')} />
         ) : null
       })()}
+
+      {stockId && <StockPhotos onSelect={u => { update(stockId, { src: u }); setStockId('') }} onClose={() => setStockId('')} />}
     </div>
   )
 }
