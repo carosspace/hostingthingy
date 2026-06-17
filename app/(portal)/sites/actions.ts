@@ -6,12 +6,14 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS } from '@/lib/sites/types'
 import type {
   SiteContent,
   SavedDesign,
   Gradient,
   BlendMode,
+  RevealKind,
+  HoverKind,
   SiteTheme,
   SitePage,
   CtaType,
@@ -657,6 +659,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const s = String(v ?? '')
     return BLEND_MODES.includes(s as BlendMode) && s !== 'normal' ? (s as BlendMode) : undefined
   }
+  const reveal = (v: unknown) => { const s = String(v ?? ''); return REVEAL_KINDS.includes(s as RevealKind) ? (s as RevealKind) : undefined }
+  const hover = (v: unknown) => { const s = String(v ?? ''); return HOVER_KINDS.includes(s as HoverKind) ? (s as HoverKind) : undefined }
   // A unitless line-height multiplier kept to two decimals.
   const lineH = (v: unknown) => {
     const n = Number(v)
@@ -723,6 +727,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       borderColor: hex(e?.borderColor),
       borderWidth: num(e?.borderWidth, 0, 40, 0) || undefined,
       blend: blend(e?.blend),
+      reveal: reveal(e?.reveal),
+      revealDelay: e?.reveal && e?.revealDelay ? num(e?.revealDelay, 0, 2000, 0) || undefined : undefined,
+      hover: hover(e?.hover),
     }
   })
   return {

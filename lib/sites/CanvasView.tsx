@@ -1,5 +1,17 @@
-import { type CSSProperties } from 'react'
+import { type CSSProperties, type ReactNode } from 'react'
 import { CANVAS_W, MOBILE_W, gradientCss, type PageCanvas, type CanvasElement } from './types'
+import CanvasMotion from './CanvasMotion'
+
+// Wrap an element's content so it can reveal on scroll and react to hover. Reveal
+// sits on the outer wrapper, hover on an inner one, so their transforms never fight
+// (and neither fights the positioned element's own rotate/blend).
+function withMotion(el: CanvasElement, child: ReactNode): ReactNode {
+  if (child == null) return child
+  let node = child
+  if (el.hover) node = <div className={`canvas-hover canvas-hover-${el.hover}`} style={{ width: '100%', height: '100%' }}>{node}</div>
+  if (el.reveal) node = <div data-reveal={el.reveal} data-reveal-delay={el.revealDelay || undefined} style={{ width: '100%', height: '100%' }}>{node}</div>
+  return node
+}
 
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : 'var(--font-display)')
 // A design-pixel value as a container-query-width unit (scales the canvas with the viewport).
@@ -97,7 +109,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
         {desktopEls.map(el => (
           <div key={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
-            {inner(el, cq)}
+            {withMotion(el, inner(el, cq))}
           </div>
         ))}
       </div>
@@ -108,7 +120,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
           <div style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${MOBILE_W} / ${Math.max(200, canvas.mobileH || canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
             {phoneEls.map(el => (
               <div key={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round(el.y * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
-                {inner(el, cqm)}
+                {withMotion(el, inner(el, cqm))}
               </div>
             ))}
           </div>
@@ -116,6 +128,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
           <MobileStack canvas={canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={navPages} />
         )}
       </div>
+      <CanvasMotion />
     </div>
   )
 }

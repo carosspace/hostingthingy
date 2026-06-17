@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, gradientCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, gradientCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -140,7 +140,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'blend', 'opacity']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -913,6 +913,29 @@ export default function CanvasEditor({
               <span style={labelCss}>Blend</span>
               <select value={sel.blend || 'normal'} onChange={e => update(sel.id, { blend: e.target.value === 'normal' ? undefined : (e.target.value as BlendMode) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                 {BLEND_MODES.map(b => <option key={b} value={b}>{b === 'normal' ? 'Normal' : b.replace('-', ' ')}</option>)}
+              </select>
+            </div>
+            <div className="h-px bg-gold/10" />
+            <p style={labelCss}>Motion <span style={{ textTransform: 'none', letterSpacing: 0, color: '#b0a07a' }}>(plays on your live site)</span></p>
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Reveal</span>
+              <select value={sel.reveal || 'none'} onChange={e => update(sel.id, { reveal: e.target.value === 'none' ? undefined : (e.target.value as RevealKind) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                <option value="none">None</option>
+                {REVEAL_KINDS.map(r => <option key={r} value={r}>{({ fade: 'Fade in', up: 'Rise up', down: 'Drop down', left: 'Slide ←', right: 'Slide →', zoom: 'Zoom in' } as Record<string, string>)[r]}</option>)}
+              </select>
+            </div>
+            {sel.reveal && (
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Delay</span>
+                <input type="range" min={0} max={1200} step={50} value={sel.revealDelay ?? 0} onChange={e => update(sel.id, { revealDelay: Number(e.target.value) || undefined })} style={{ flex: 1 }} />
+                <span style={{ fontSize: 11, color: '#666', width: 38 }}>{((sel.revealDelay ?? 0) / 1000).toFixed(2)}s</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Hover</span>
+              <select value={sel.hover || 'none'} onChange={e => update(sel.id, { hover: e.target.value === 'none' ? undefined : (e.target.value as HoverKind) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                <option value="none">None</option>
+                {HOVER_KINDS.map(h => <option key={h} value={h}>{({ grow: 'Grow', lift: 'Lift', glow: 'Glow', dim: 'Dim', rotate: 'Tilt' } as Record<string, string>)[h]}</option>)}
               </select>
             </div>
           </div>

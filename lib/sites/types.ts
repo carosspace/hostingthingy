@@ -114,6 +114,12 @@ export interface Gradient {
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
 export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
 
+// How an element animates into view as the visitor scrolls to it, and how it reacts to hover.
+export type RevealKind = 'fade' | 'up' | 'down' | 'left' | 'right' | 'zoom'
+export type HoverKind = 'grow' | 'lift' | 'glow' | 'dim' | 'rotate'
+export const REVEAL_KINDS: RevealKind[] = ['fade', 'up', 'down', 'left', 'right', 'zoom']
+export const HOVER_KINDS: HoverKind[] = ['grow', 'lift', 'glow', 'dim', 'rotate']
+
 // CSS for a gradient, or undefined when it isn't a valid two-stop gradient.
 export function gradientCss(g?: Gradient | null): string | undefined {
   if (!g || !g.from || !g.to) return undefined
@@ -161,6 +167,10 @@ export interface CanvasElement {
   borderColor?: string
   borderWidth?: number
   blend?: BlendMode // mix-blend-mode against what's behind it
+  // motion (applied on the published page, not while editing)
+  reveal?: RevealKind // animate in as the visitor scrolls to it
+  revealDelay?: number // ms delay before the reveal (for staggering)
+  hover?: HoverKind // how it reacts to the pointer hovering over it
 }
 
 export interface PageCanvas {
