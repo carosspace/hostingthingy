@@ -7,7 +7,7 @@ import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction } from '../../actions'
+import { saveCanvasAction, aiTextAction } from '../../actions'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
@@ -108,6 +108,8 @@ export default function CanvasEditor({
   const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
   const [cropId, setCropId] = useState('') // image element being cropped (modal open)
   const [stockId, setStockId] = useState('') // image element picking a stock photo (modal open)
+  const [aiInstr, setAiInstr] = useState('') // the instruction for the AI text rewrite
+  const [aiBusy, setAiBusy] = useState(false)
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -719,6 +721,20 @@ export default function CanvasEditor({
     dragUploadSrc.current = null
     void placeUpload(src, e.clientX, e.clientY)
   }
+  // Rewrite a text/button element's words with AI from a plain-language instruction.
+  const runAiText = async (id: string, instruction: string) => {
+    if (aiBusy) return
+    const el = elsRef.current.find(e => e.id === id)
+    if (!el) return
+    setAiBusy(true)
+    try {
+      const res = await aiTextAction({ siteId, instruction, text: el.text || '' })
+      const next = (res.text || '').trim()
+      if (next && next !== (el.text || '')) { snapshot(true); setEls(p => p.map(e => (e.id === id ? { ...e, text: next } : e))); touch() }
+    } finally {
+      setAiBusy(false)
+    }
+  }
 
   // Drag / resize via window-level pointer tracking (works for mouse + touch).
   useEffect(() => {
@@ -1319,6 +1335,23 @@ export default function CanvasEditor({
             {(sel.type === 'text' || sel.type === 'button') && (
               <>
                 <textarea value={sel.text || ''} onChange={e => update(sel.id, { text: e.target.value })} rows={2} placeholder="Type here…" style={{ ...inputCss, resize: 'none' }} />
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={aiInstr}
+                    onChange={e => setAiInstr(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); runAiText(sel.id, aiInstr.trim() || 'Improve the writing — clearer and warmer, same meaning.') } }}
+                    disabled={aiBusy}
+                    placeholder="✨ Ask AI: shorter, warmer, fix typos…"
+                    style={{ ...inputCss, fontSize: 12, padding: '6px 8px' }}
+                  />
+                  <button
+                    type="button"
+                    disabled={aiBusy}
+                    onClick={() => runAiText(sel.id, aiInstr.trim() || 'Improve the writing — clearer and warmer, same meaning.')}
+                    title="Rewrite this text with AI"
+                    className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-2 rounded-sm disabled:opacity-50 shrink-0"
+                  >{aiBusy ? '…' : '✨ AI'}</button>
+                </div>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>{editingMobile ? 'Size (phone)' : 'Size'}</span>
                   {editingMobile ? (

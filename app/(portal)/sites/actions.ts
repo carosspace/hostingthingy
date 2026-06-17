@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS } from '@/lib/sites/types'
@@ -211,6 +211,29 @@ export async function aiSectionAction(args: {
       instruction: args.instruction || 'Improve the writing — clearer, warmer and more professional, same meaning.',
       heading: args.heading,
       body: args.body,
+    })
+  } catch {
+    return fallback
+  }
+}
+
+// Rewrite a single text element on the free canvas with AI. Returns the new text so
+// the editor can drop it straight onto the element (no full save round-trip).
+export async function aiTextAction(args: {
+  siteId: string
+  instruction: string
+  text: string
+}): Promise<{ text: string }> {
+  const fallback = { text: args.text }
+  const user = await getCurrentUser()
+  if (!user) return fallback
+  const site = await getSite(args.siteId)
+  if (!site) return fallback
+  try {
+    return await aiText({
+      siteName: site.name,
+      instruction: args.instruction || 'Improve the writing — clearer, warmer and more professional, same meaning.',
+      text: args.text,
     })
   } catch {
     return fallback

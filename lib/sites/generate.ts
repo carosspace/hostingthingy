@@ -123,6 +123,47 @@ export async function aiSection(opts: {
   return { heading: (input.heading ?? '').trim(), body: (input.body ?? '').trim() }
 }
 
+// Rewrite (or write) ONE piece of free-text copy from a plain-language instruction —
+// used to edit a single text element on the free canvas with AI.
+export async function aiText(opts: {
+  siteName: string
+  instruction: string
+  text: string
+}): Promise<{ text: string }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const isNew = !opts.text.trim()
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 700,
+    tools: [
+      {
+        name: 'write_text',
+        description: 'Provide the rewritten copy for one piece of website text.',
+        input_schema: {
+          type: 'object',
+          properties: { text: { type: 'string', description: 'The new text only.' } },
+          required: ['text'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'write_text' },
+    messages: [
+      {
+        role: 'user',
+        content: isNew
+          ? `For the website "${opts.siteName}", write a short piece of copy.\n\nWhat it should say: ${opts.instruction}\n\nWarm, clear, professional. Return ONLY the text — no quotes, no preamble, no markdown.`
+          : `For the website "${opts.siteName}", rewrite this text.\n\nInstruction: ${opts.instruction}\n\nCurrent text:\n${opts.text}\n\nKeep it warm, clear and professional, and roughly the same length unless the instruction says otherwise. Preserve line breaks where they make sense. Return ONLY the new text — no quotes, no preamble, no markdown.`,
+      },
+    ],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') {
+    throw new Error('The AI did not return text. Please try again.')
+  }
+  const input = block.input as { text?: string }
+  return { text: (input.text ?? '').trim() }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string
