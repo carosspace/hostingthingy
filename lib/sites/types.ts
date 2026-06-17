@@ -105,6 +105,21 @@ export const MOBILE_W = 440
 
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu'
 
+// A two-stop linear gradient (used for box/button fills and the page background).
+export interface Gradient {
+  from: string // hex
+  to: string // hex
+  angle: number // degrees 0-360
+}
+export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
+export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
+
+// CSS for a gradient, or undefined when it isn't a valid two-stop gradient.
+export function gradientCss(g?: Gradient | null): string | undefined {
+  if (!g || !g.from || !g.to) return undefined
+  return `linear-gradient(${g.angle ?? 90}deg, ${g.from}, ${g.to})`
+}
+
 export interface CanvasElement {
   id: string
   type: CanvasElementType
@@ -131,6 +146,9 @@ export interface CanvasElement {
   bold?: boolean
   italic?: boolean
   fontFamily?: 'display' | 'body' | 'label'
+  letterSpacing?: number // design px (can be negative)
+  lineHeight?: number // unitless multiplier (0.8-4)
+  dropCap?: boolean // enlarge the first letter of a text block
   href?: string
   ctaType?: CtaType
   // image
@@ -138,15 +156,18 @@ export interface CanvasElement {
   fit?: ImageFit
   // box / button / image shared
   fill?: string
+  gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)
   radius?: number // corner radius, design px
   borderColor?: string
   borderWidth?: number
+  blend?: BlendMode // mix-blend-mode against what's behind it
 }
 
 export interface PageCanvas {
   h: number // canvas height in design px (width is always CANVAS_W)
   width?: 'full' | 'contained' // full = the canvas spans the screen; contained = a centred column
   bg?: string // background colour
+  bgGradient?: Gradient // a background gradient (used when there's no bgImage)
   bgImage?: string // full background photo
   elements: CanvasElement[]
   mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, gradientCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -42,11 +42,13 @@ export default function CanvasEditor({
   const t = THEMES[theme] ?? THEMES.sand
   const [els, setEls] = useState<CanvasElement[]>(initial?.elements ?? [])
   const [bg, setBg] = useState(initial?.bg ?? '')
+  const [bgGrad, setBgGrad] = useState<Gradient | null>(initial?.bgGradient ?? null)
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
@@ -65,6 +67,7 @@ export default function CanvasEditor({
   const history = useRef<CanvasElement[][]>([])
   const future = useRef<CanvasElement[][]>([])
   const clip = useRef<CanvasElement[]>([])
+  const styleClip = useRef<Partial<CanvasElement> | null>(null) // format painter: copied style
   const lastSnap = useRef(0)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
@@ -136,6 +139,23 @@ export default function CanvasEditor({
     setSelectedIds([copy.id])
     touch()
   }
+  // --- Format painter: copy an element's look, paint it onto others ---
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'blend', 'opacity']
+  const copyStyle = (el: CanvasElement) => {
+    const s: Partial<CanvasElement> = {}
+    for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
+    styleClip.current = s
+    setHasStyle(true)
+  }
+  const pasteStyle = (ids: string[]) => {
+    const s = styleClip.current
+    if (!s || !ids.length) return
+    const set = new Set(ids)
+    snapshot(true)
+    setEls(p => p.map(e => (set.has(e.id) && !e.locked ? { ...e, ...s } : e)))
+    touch()
+  }
+
   // Move one element one step forward/back in the layer order, renormalising z to
   // the list position so the order never drifts. dir +1 = toward front, -1 = back.
   const reorderLayer = (id: string, dir: 1 | -1) => {
@@ -427,8 +447,11 @@ export default function CanvasEditor({
       if (mod && k === 'y') { e.preventDefault(); redo(); return }
       if (mod && k === 'a') { e.preventDefault(); setSelectedIds(elsRef.current.map(x => x.id)); return }
       if (mod && k === 'd' && selectedIds.length) { e.preventDefault(); duplicateMany(selectedIds); return }
-      if (mod && k === 'c' && selectedIds.length) { e.preventDefault(); const set = new Set(selectedIds); clip.current = elsRef.current.filter(x => set.has(x.id)); return }
-      if (mod && k === 'v' && clip.current.length) {
+      // Format painter: Ctrl/Cmd+Shift+C copies the look, Ctrl/Cmd+Shift+V paints it.
+      if (mod && e.shiftKey && k === 'c' && selectedId) { e.preventDefault(); const el = elsRef.current.find(x => x.id === selectedId); if (el) copyStyle(el); return }
+      if (mod && e.shiftKey && k === 'v' && styleClip.current && selectedIds.length) { e.preventDefault(); pasteStyle(selectedIds); return }
+      if (mod && !e.shiftKey && k === 'c' && selectedIds.length) { e.preventDefault(); const set = new Set(selectedIds); clip.current = elsRef.current.filter(x => set.has(x.id)); return }
+      if (mod && !e.shiftKey && k === 'v' && clip.current.length) {
         e.preventDefault()
         snapshot(true)
         let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
@@ -516,6 +539,7 @@ export default function CanvasEditor({
       h: desktopH,
       width: pageWidth === 'contained' ? 'contained' : undefined,
       bg: bg.trim() || undefined,
+      bgGradient: bgGrad || undefined,
       bgImage: bgImage.trim() || undefined,
       elements: els,
       mobileCustom: mobileCustom || undefined,
@@ -543,7 +567,7 @@ export default function CanvasEditor({
       ) : (
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>+ photo</div>
       )
-    if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
+    if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
     if (el.type === 'menu')
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cqv(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden', pointerEvents: 'none' }}>
@@ -559,6 +583,7 @@ export default function CanvasEditor({
         contentEditable={editing}
         suppressContentEditableWarning
         data-edit={el.id}
+        className={el.dropCap && !isBtn && !editing ? 'dbp-dropcap' : undefined}
         onBlur={editing ? e => { update(el.id, { text: (e.currentTarget as HTMLElement).innerText }); setEditingId('') } : undefined}
         style={{
           width: '100%',
@@ -569,15 +594,16 @@ export default function CanvasEditor({
           fontFamily: fontVar(el.fontFamily),
           fontSize: cqv(el.fontSize || 24),
           color: isBtn ? '#fff' : el.color || t.text,
-          background: isBtn ? el.fill || accent : undefined,
+          background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
           borderRadius: isBtn ? cqv(el.radius ?? 6) : undefined,
           fontWeight: el.bold ? 700 : 400,
           fontStyle: el.italic ? 'italic' : undefined,
+          letterSpacing: el.letterSpacing ? cqv(el.letterSpacing) : undefined,
           textAlign: el.align || (isBtn ? 'center' : 'left'),
           whiteSpace: 'pre-wrap',
           overflow: 'hidden',
           padding: isBtn ? `0 ${cqv(18)}` : undefined,
-          lineHeight: 1.25,
+          lineHeight: el.lineHeight ?? 1.25,
           outline: 'none',
           cursor: editing ? 'text' : undefined,
         }}
@@ -603,6 +629,24 @@ export default function CanvasEditor({
     else setSelectedIds([id])
   }
   const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
+  const swatch: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
+  // A compact on/off two-stop gradient editor, reused for boxes, buttons and the page background.
+  const gradientControls = (g: Gradient | null | undefined, onChange: (g: Gradient | null) => void) => (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span style={labelCss}>Gradient</span>
+        <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? accent : 'rgba(0,0,0,0.15)'}`, background: g ? accent : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
+      </div>
+      {g && (
+        <div className="flex items-center gap-2">
+          <input type="color" value={g.from} onChange={e => onChange({ ...g, from: e.target.value })} style={swatch} title="From" />
+          <input type="color" value={g.to} onChange={e => onChange({ ...g, to: e.target.value })} style={swatch} title="To" />
+          <span style={labelCss}>Angle</span>
+          <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
@@ -658,7 +702,7 @@ export default function CanvasEditor({
         </div>
 
         <div className="h-px bg-gold/15" />
-        <div>
+        <div className="space-y-1.5">
           <p style={labelCss}>Page background</p>
           <div className="flex items-center gap-2 mt-1.5">
             <input type="color" value={bg || '#faf7f2'} onChange={e => { setBg(e.target.value); touch() }} style={{ width: 30, height: 26, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0, cursor: 'pointer' }} title="Background colour" />
@@ -666,6 +710,7 @@ export default function CanvasEditor({
             <button type="button" onClick={pickBg} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{bgImage ? 'Change photo' : '+ Photo'}</button>
             {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
           </div>
+          {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
         </div>
 
         <div className="h-px bg-gold/15" />
@@ -710,6 +755,8 @@ export default function CanvasEditor({
             <div className="flex items-center justify-between">
               <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
+                <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
+                {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
                 <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicate(sel.id)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Bring forward" onClick={() => layer(sel.id, 1)} style={{ fontSize: 13, color: accent }}>▲</button>
                 <button type="button" title="Send back" onClick={() => layer(sel.id, -1)} style={{ fontSize: 13, color: accent }}>▼</button>
@@ -752,6 +799,21 @@ export default function CanvasEditor({
                     <option value="label">Label font</option>
                   </select>
                 </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Spacing</span>
+                  <input type="range" min={-5} max={30} value={sel.letterSpacing ?? 0} onChange={e => update(sel.id, { letterSpacing: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Letter spacing" />
+                  <span style={{ fontSize: 11, color: '#666', width: 24 }}>{sel.letterSpacing ?? 0}</span>
+                </div>
+                {sel.type === 'text' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Lines</span>
+                      <input type="range" min={0.8} max={3} step={0.05} value={sel.lineHeight ?? 1.25} onChange={e => update(sel.id, { lineHeight: Number(e.target.value) })} style={{ flex: 1 }} title="Line height" />
+                      <span style={{ fontSize: 11, color: '#666', width: 28 }}>{(sel.lineHeight ?? 1.25).toFixed(2)}</span>
+                    </div>
+                    <button type="button" onClick={() => update(sel.id, { dropCap: !sel.dropCap })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.dropCap ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.dropCap ? accent : 'transparent', color: sel.dropCap ? '#fff' : '#666' }}>Drop cap {sel.dropCap ? 'on' : 'off'}</button>
+                  </>
+                )}
                 {sel.type === 'text' && (
                   <div className="flex items-center gap-2">
                     <span style={labelCss}>Link</span>
@@ -780,6 +842,7 @@ export default function CanvasEditor({
                   </select>
                 </div>
                 {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={inputCss} />}
+                {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
             {sel.type === 'image' && (
@@ -833,6 +896,7 @@ export default function CanvasEditor({
                     <option value={8}>thick</option>
                   </select>
                 </div>
+                {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
             <div className="flex items-center gap-2">
@@ -845,12 +909,19 @@ export default function CanvasEditor({
               <input type="range" min={-180} max={180} value={sel.rotate ?? 0} onChange={e => update(sel.id, { rotate: Number(e.target.value) })} style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: '#666', width: 32 }}>{sel.rotate ?? 0}°</span>
             </div>
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Blend</span>
+              <select value={sel.blend || 'normal'} onChange={e => update(sel.id, { blend: e.target.value === 'normal' ? undefined : (e.target.value as BlendMode) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                {BLEND_MODES.map(b => <option key={b} value={b}>{b === 'normal' ? 'Normal' : b.replace('-', ' ')}</option>)}
+              </select>
+            </div>
           </div>
         ) : selectedIds.length > 1 ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span style={labelCss}>{selectedIds.length} selected</span>
               <div className="flex items-center gap-2">
+                {hasStyle && <button type="button" title="Paste style onto all (Ctrl+Shift+V)" onClick={() => pasteStyle(selectedIds)} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste style</button>}
                 <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicateMany(selectedIds)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Delete (Del)" onClick={() => removeMany(selectedIds)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
@@ -911,7 +982,7 @@ export default function CanvasEditor({
           // The automatic phone layout, shown read-only in a phone frame.
           <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSystem) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
-              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgImage: bgImage.trim() || undefined, elements: els }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
             </div>
           </div>
         ) : (
@@ -924,7 +995,7 @@ export default function CanvasEditor({
                 width: '100%',
                 aspectRatio: `${CW} / ${CH}`,
                 containerType: 'inline-size',
-                background: bg || t.bg,
+                background: bgImage ? bg || t.bg : gradientCss(bgGrad) || bg || t.bg,
                 backgroundImage: bgImage ? `url('${bgImage}')` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -937,7 +1008,7 @@ export default function CanvasEditor({
                     key={el.id}
                     onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
                     onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
-                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(gy(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
+                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(gy(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
                   >
                     {elInner(el)}
                     {selectedId === el.id && !el.locked && (

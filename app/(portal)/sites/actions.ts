@@ -6,10 +6,12 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import { getPages, MAX_SAVED_DESIGNS } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES } from '@/lib/sites/types'
 import type {
   SiteContent,
   SavedDesign,
+  Gradient,
+  BlendMode,
   SiteTheme,
   SitePage,
   CtaType,
@@ -642,6 +644,24 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : dflt
   }
   const hex = (v: unknown) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : undefined)
+  // A two-stop gradient is only kept if both stops are valid hex (so the stored
+  // value can never inject arbitrary CSS); the angle is clamped to 0-360.
+  const grad = (v: unknown): Gradient | undefined => {
+    const g = v && typeof v === 'object' ? (v as Record<string, unknown>) : null
+    const from = hex(g?.from)
+    const to = hex(g?.to)
+    if (!from || !to) return undefined
+    return { from, to, angle: num(g?.angle, 0, 360, 90) }
+  }
+  const blend = (v: unknown) => {
+    const s = String(v ?? '')
+    return BLEND_MODES.includes(s as BlendMode) && s !== 'normal' ? (s as BlendMode) : undefined
+  }
+  // A unitless line-height multiplier kept to two decimals.
+  const lineH = (v: unknown) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0.8 && n <= 4 ? Math.round(n * 100) / 100 : undefined
+  }
   const dataOrHttp = (v: unknown) => {
     const s = String(v ?? '').trim()
     // Strict allowlist so a stored value can never break out of a CSS url(...) or an
@@ -690,20 +710,26 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       bold: e?.bold ? true : undefined,
       italic: e?.italic ? true : undefined,
       fontFamily,
+      letterSpacing: e?.letterSpacing === undefined || e?.letterSpacing === null ? undefined : num(e?.letterSpacing, -20, 200, 0),
+      lineHeight: lineH(e?.lineHeight),
+      dropCap: type === 'text' && e?.dropCap ? true : undefined,
       href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
       ctaType,
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
       fill: hex(e?.fill),
+      gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,
       borderColor: hex(e?.borderColor),
       borderWidth: num(e?.borderWidth, 0, 40, 0) || undefined,
+      blend: blend(e?.blend),
     }
   })
   return {
     h: num(c.h, 200, 40000, 1000),
     width: c.width === 'contained' ? 'contained' : undefined,
     bg: hex(c.bg),
+    bgGradient: grad(c.bgGradient),
     bgImage: dataOrHttp(c.bgImage),
     elements,
     mobileCustom: c.mobileCustom ? true : undefined,
