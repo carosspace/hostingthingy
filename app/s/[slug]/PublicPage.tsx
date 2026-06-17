@@ -63,7 +63,6 @@ export default function PublicPage({
   const accent = content?.accentColor || theme.accent
   const brand = content?.brand || siteName
   const contactEmail = content?.contactEmail ?? ''
-  const contactLabel = content?.contactLabel || 'Get in touch'
   const footerText = content?.footer || brand
   const sections = page.sections ?? []
   const heroImage = page.heroImage
@@ -167,7 +166,7 @@ export default function PublicPage({
   const contentPad = menuPos === 'side' ? 'md:pl-52' : ''
   const navCls = `flex flex-wrap items-center justify-center gap-5 ${menuPos === 'side' ? 'md:flex-col md:items-start' : ''}`
 
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const rootStyle = { background: content?.pageBg || theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
 
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
@@ -468,17 +467,6 @@ export default function PublicPage({
             </div>
           )}
 
-          {contactEmail && (
-            <section className="px-6 pb-24 text-center">
-              <a
-                href={`mailto:${contactEmail}`}
-                className="inline-block font-label"
-                style={{ background: accent, color: theme.bg, fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', padding: '12px 28px', borderRadius: 3 }}
-              >
-                {contactLabel}
-              </a>
-            </section>
-          )}
         </main>
       ) : (
         <main className={`flex-1 flex flex-col items-center justify-center px-6 text-center ${contentPad}`}>

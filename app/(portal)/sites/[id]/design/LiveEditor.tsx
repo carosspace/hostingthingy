@@ -366,6 +366,7 @@ export default function LiveEditor({
   const rootRef = useRef<HTMLDivElement>(null)
   const [theme, setTheme] = useState<SiteTheme>(initial?.theme ?? 'sand')
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
+  const [pageBg, setPageBg] = useState(initial?.pageBg ?? '')
   const [logoImage, setLogoImage] = useState(initial?.logoImage ?? '')
   const [logoOpen, setLogoOpen] = useState(false)
   const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
@@ -860,6 +861,7 @@ export default function LiveEditor({
     const content: SiteContent = {
       theme,
       accentColor: accentColor || undefined,
+      pageBg: pageBg.trim() || undefined,
       layout,
       fontSystem,
       brand: read('brand') || initial?.brand || undefined,
@@ -897,7 +899,7 @@ export default function LiveEditor({
   }
 
   return (
-    <div className="lg:flex lg:gap-5 lg:items-start">
+    <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm">
       <style>{`.ht-ed[contenteditable]:hover{background:rgba(128,128,128,0.14);border-radius:4px}.ht-ed[contenteditable]:empty:before{content:'Click to edit';opacity:.4}`}</style>
 
       <div
@@ -960,6 +962,18 @@ export default function LiveEditor({
             style={{ border: '1px solid rgba(201,168,76,0.3)' }}
           />
         </label>
+        <label className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
+          background
+          <input
+            type="color"
+            value={pageBg || '#f6f0e6'}
+            onChange={e => { setPageBg(e.target.value); touched() }}
+            className="w-7 h-7 rounded cursor-pointer bg-transparent"
+            style={{ border: '1px solid rgba(201,168,76,0.3)' }}
+            title="Whole-page background colour"
+          />
+          {pageBg && <button type="button" onClick={() => { setPageBg(''); touched() }} title="Use theme background" style={{ fontSize: 11, color: '#999' }}>×</button>}
+        </label>
         <span className="flex items-center gap-1.5 font-label text-[9px] tracking-[2px] uppercase text-ash ml-1">
           width
           <button
@@ -990,6 +1004,11 @@ export default function LiveEditor({
             </button>
           ))}
         </span>
+        <div className="h-px bg-gold/15" />
+        <label className="flex flex-col gap-1">
+          <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70">Contact email (for email buttons)</span>
+          <input value={contactEmail} onChange={e => { setContactEmail(e.target.value); touched() }} placeholder="you@email.com" className="text-xs px-2 py-1.5 rounded-sm" style={{ ...urlInput }} />
+        </label>
         <div className="h-px bg-gold/15" />
         <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/70">Font</span>
         <div className="space-y-2">
@@ -1109,7 +1128,7 @@ export default function LiveEditor({
         </div>
       </details>
 
-      <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
+      <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: pageBg || t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
        <div className={previewWrapCls}>
         <div className={`${previewHeaderCls} ${previewHeaderColCls}`} style={previewHeaderStyle}>
           {logoImage ? (
@@ -1305,10 +1324,8 @@ export default function LiveEditor({
                   {Array.from({ length: s.columns || 1 }).map((_, col) => (
                     <div key={col} className="flex-1 min-w-0 space-y-3">
                       {s.items.filter(it => Math.min(it.col ?? 0, (s.columns || 1) - 1) === col).map(it => (
-                        <div key={it.id} className="rounded-sm" style={{ border: it.outline ? `1px solid ${accent}55` : '1px solid rgba(0,0,0,0.1)', background: it.outline ? 'transparent' : it.boxColor || 'rgba(255,255,255,0.55)', padding: 10 }}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: '#999' }}>{it.block || 'text'}</span>
-                            <div className="flex items-center gap-2">
+                        <div key={it.id} className="group/blk relative rounded-sm" style={(it.boxColor || it.outline) ? { border: it.outline ? `1px solid ${accent}55` : undefined, background: it.outline ? 'transparent' : it.boxColor || undefined, borderRadius: 6, padding: 14 } : undefined}>
+                          <div className="absolute -right-1 -top-2.5 z-10 flex items-center gap-1.5 opacity-0 group-hover/blk:opacity-100 transition-opacity rounded px-1.5 py-0.5" style={{ background: 'rgba(255,255,255,0.94)', boxShadow: '0 1px 4px rgba(0,0,0,0.18)' }}>
                               {(s.columns || 1) >= 2 && (
                                 <button type="button" title="Move to next column" onClick={() => updateItem(s.id, it.id, { col: (((it.col ?? 0) + 1) % (s.columns || 1)) as 0 | 1 | 2 })} style={{ fontSize: 13, color: accent }}>⇄</button>
                               )}
@@ -1320,7 +1337,6 @@ export default function LiveEditor({
                               )}
                               {it.boxColor && <button type="button" onClick={() => updateItem(s.id, it.id, { boxColor: '' })} title="No box" style={{ fontSize: 11, color: '#888' }}>×</button>}
                               <button type="button" onClick={() => removeItem(s.id, it.id)} style={{ fontSize: 12, color: '#b3402f' }} aria-label="Remove block">✕</button>
-                            </div>
                           </div>
                           {it.block === 'heading' && (
                             <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Title" className="w-full" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 20, color: accent }} />
@@ -1331,7 +1347,23 @@ export default function LiveEditor({
                           {(it.block === 'text' || !it.block) && (
                             <textarea value={it.body} onChange={e => updateItem(s.id, it.id, { body: e.target.value })} placeholder="Your text…" rows={3} className="w-full resize-none" style={{ background: 'transparent', border: 'none', outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, color: t.text, opacity: 0.85 }} />
                           )}
-                          {it.block === 'image' && <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />}
+                          {it.block === 'image' && (
+                            it.image ? (
+                              <div className="relative group/img">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={it.image} alt="" className="w-full rounded-sm" style={{ display: 'block' }} />
+                                <div className="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover/img:opacity-100 transition-opacity rounded-sm" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                                  <label style={{ cursor: 'pointer', fontSize: 12, color: '#fff', textDecoration: 'underline' }}>
+                                    replace
+                                    <input type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; if (f && f.type.startsWith('image/')) updateItem(s.id, it.id, { image: await resizeToDataUrl(f) }) }} />
+                                  </label>
+                                  <button type="button" onClick={() => updateItem(s.id, it.id, { image: '' })} style={{ fontSize: 12, color: '#fff' }}>remove</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
+                            )
+                          )}
                           {it.block === 'button' && (
                             <div className="space-y-1">
                               <input value={it.title} onChange={e => updateItem(s.id, it.id, { title: e.target.value })} placeholder="Button text" className="w-full" style={{ ...urlInput, fontSize: 13, padding: '6px 8px', borderRadius: 3 }} />
@@ -1724,24 +1756,6 @@ export default function LiveEditor({
               + Add your first section
             </button>
           )}
-        </div>
-
-        <div className="px-6 pb-12 text-center">
-          <span className="ht-ed" contentEditable suppressContentEditableWarning data-field="contactLabel" style={{ background: accent, color: t.bg, padding: '11px 26px', borderRadius: 3, display: 'inline-block', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', outline: 'none', cursor: 'text' }}>
-            {initial?.contactLabel || 'Get in touch'}
-          </span>
-          <div className="mt-3 flex justify-center">
-            <input
-              value={contactEmail}
-              onChange={e => {
-                setContactEmail(e.target.value)
-                touched()
-              }}
-              placeholder="contact email (the button links here)"
-              className="text-xs px-3 py-1.5 rounded-sm"
-              style={{ ...urlInput, width: 300 }}
-            />
-          </div>
         </div>
 
         <div className="py-8 text-center" style={{ borderTop: `1px solid ${accent}22` }}>

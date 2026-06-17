@@ -426,6 +426,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
   const content: SiteContent = {
     theme,
     accentColor: String(parsed.accentColor ?? '').trim() || undefined,
+    pageBg: /^#[0-9a-f]{6}$/i.test(String(parsed.pageBg ?? '').trim()) ? String(parsed.pageBg).trim() : undefined,
     layout,
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,

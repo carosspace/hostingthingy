@@ -112,6 +112,7 @@ export interface SitePage {
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
+  pageBg?: string // a custom background colour for the whole site (overrides the theme background)
   layout?: SiteLayout
   fontSystem?: string
   brand?: string
