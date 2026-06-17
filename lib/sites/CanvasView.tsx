@@ -158,42 +158,41 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
   const els = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
 
   return (
-    <div style={{ ...bg, padding: '28px 18px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ ...bg, padding: '28px 18px', display: 'flex', flexDirection: 'column', gap: 18, overflowX: 'hidden' }}>
       {els.map(el => {
         const o = (el.opacity ?? 100) / 100
-        if (el.type === 'image')
-          return el.src ? (
+        let node: ReactNode = null
+        if (el.type === 'image') {
+          node = el.src ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img key={el.id} src={el.src} alt="" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust) }} />
+            <img src={el.src} alt="" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust) }} />
           ) : null
-        if (el.type === 'box')
-          return el.fill || el.gradient || el.borderColor ? <div key={el.id} style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o }} /> : null
-        if (el.type === 'button') {
+        } else if (el.type === 'box') {
+          node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o }} /> : null
+        } else if (el.type === 'button') {
           const h = ctaHref(el)
           const btn = (
             <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 18, 20), opacity: o }}>{el.text}</span>
           )
-          return (
-            <div key={el.id} style={{ textAlign: el.align || 'left' }}>
-              {h ? <a href={h}>{btn}</a> : btn}
-            </div>
-          )
-        }
-        if (el.type === 'menu')
-          return (
-            <div key={el.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', opacity: o }}>
+          node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h}>{btn}</a> : btn}</div>
+        } else if (el.type === 'menu') {
+          node = (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', opacity: o }}>
               {navPages.map(p => (
                 <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: Math.min(el.fontSize || 16, 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: 1.5 }}>{p.label}</a>
               ))}
             </div>
           )
-        const txt = (
-          <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 24, 44), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
-            {el.text}
-          </div>
-        )
-        const th = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
-        return <div key={el.id}>{th ? <a href={th}>{txt}</a> : txt}</div>
+        } else {
+          const txt = (
+            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 24, 44), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
+              {el.text}
+            </div>
+          )
+          const th = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
+          node = <div>{th ? <a href={th}>{txt}</a> : txt}</div>
+        }
+        return node == null ? null : <div key={el.id}>{withMotion(el, node)}</div>
       })}
     </div>
   )
