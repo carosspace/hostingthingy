@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type ImageAdjust } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -156,7 +156,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'adjust', 'lightbox']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'cursor', 'adjust', 'lightbox']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -1140,6 +1140,13 @@ export default function CanvasEditor({
               <span style={labelCss}>Parallax</span>
               <input type="range" min={-5} max={5} value={sel.parallax ?? 0} onChange={e => update(sel.id, { parallax: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Drift speed as the visitor scrolls" />
               <span style={{ fontSize: 11, color: '#666', width: 18 }}>{sel.parallax ?? 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Cursor</span>
+              <select value={sel.cursor || 'default'} onChange={e => update(sel.id, { cursor: e.target.value === 'default' ? undefined : (e.target.value as CursorKind) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                <option value="default">Default</option>
+                {CURSOR_KINDS.map(c => <option key={c} value={c}>{c.replace('-', ' ')}</option>)}
+              </select>
             </div>
           </div>
         ) : selectedIds.length > 1 ? (

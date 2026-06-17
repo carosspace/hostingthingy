@@ -168,6 +168,10 @@ export const HOVER_KINDS: HoverKind[] = ['grow', 'lift', 'glow', 'dim', 'rotate'
 // A drop shadow preset for boxes, buttons and photos (depth, or a soft glow).
 export type ShadowKind = 'sm' | 'md' | 'lg' | 'xl' | 'glow'
 export const SHADOW_KINDS: ShadowKind[] = ['sm', 'md', 'lg', 'xl', 'glow']
+
+// A custom pointer cursor shown when hovering an element on the published page.
+export type CursorKind = 'pointer' | 'grab' | 'zoom-in' | 'crosshair' | 'help'
+export const CURSOR_KINDS: CursorKind[] = ['pointer', 'grab', 'zoom-in', 'crosshair', 'help']
 export function shadowCss(s?: ShadowKind): string | undefined {
   switch (s) {
     case 'sm': return '0 1px 3px rgba(0,0,0,0.14)'
@@ -235,6 +239,7 @@ export interface CanvasElement {
   borderWidth?: number
   shadow?: ShadowKind // a drop shadow (box/button/image)
   blend?: BlendMode // mix-blend-mode against what's behind it
+  cursor?: CursorKind // custom pointer cursor on hover (published page)
   // motion (applied on the published page, not while editing)
   reveal?: RevealKind // animate in as the visitor scrolls to it
   revealDelay?: number // ms delay before the reveal (for staggering)
