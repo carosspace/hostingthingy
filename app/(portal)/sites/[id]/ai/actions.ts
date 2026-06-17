@@ -103,6 +103,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     contactEmail: existing?.contactEmail ?? '',
     footer: existing?.footer,
     pages,
+    savedDesigns: existing?.savedDesigns, // never drop the owner's saved designs on an AI regenerate
   }
 
   await saveSiteContent(id, content)

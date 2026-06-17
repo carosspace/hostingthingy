@@ -169,6 +169,17 @@ export interface SitePage {
   ctaHref?: string
 }
 
+// A whole-site snapshot the owner can keep in one of a few slots and switch back to.
+// `snapshot` is a full SiteContent copy WITHOUT its own savedDesigns (no nesting).
+export interface SavedDesign {
+  id: string
+  name: string
+  savedAt: string // ISO timestamp
+  snapshot: SiteContent
+}
+
+export const MAX_SAVED_DESIGNS = 3
+
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
@@ -203,6 +214,8 @@ export interface SiteContent {
   // When set, the full list of pages (pages[0] is home, slug ''). Migrated from
   // the legacy top-level fields for older single-page sites.
   pages?: SitePage[]
+  // Up to MAX_SAVED_DESIGNS whole-site snapshots the owner can switch between.
+  savedDesigns?: SavedDesign[]
 }
 
 // Always returns the page list, migrating a legacy single-page site on the fly.

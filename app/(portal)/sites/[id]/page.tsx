@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
 import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction } from '../actions'
+import SavedDesigns from './SavedDesigns'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +82,11 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
       <p className="font-body text-ash/50 text-xs -mt-6">
         Build it by hand, or let AI draft it — switch between both anytime.
       </p>
+
+      <SavedDesigns
+        siteId={site.id}
+        designs={(site.content?.savedDesigns ?? []).map(d => ({ id: d.id, name: d.name, savedAt: d.savedAt }))}
+      />
 
       <section className="border border-gold/15 rounded-sm divide-y divide-gold/10">
         {rows.map(([k, v]) => (

@@ -6,9 +6,10 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import { getPages } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS } from '@/lib/sites/types'
 import type {
   SiteContent,
+  SavedDesign,
   SiteTheme,
   SitePage,
   CtaType,
@@ -270,6 +271,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
     footer: existing?.footer,
     pages: updatedPages,
+    savedDesigns: existing?.savedDesigns, // never drop saved designs on a content save
   })
 
   revalidatePath(`/sites/${id}`)
@@ -460,6 +462,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     socials: socials.length ? socials : undefined,
     heroOverlay,
     pages: updatedPages,
+    savedDesigns: existing?.savedDesigns, // managed elsewhere; never drop on a content save
   }
 
   await saveSiteContent(id, content)
@@ -757,4 +760,83 @@ export async function clearCanvasAction(formData: FormData): Promise<void> {
   const id = String(formData.get('id') ?? '')
   if (!id) return
   await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), undefined)
+}
+
+// --- Saved designs: keep up to MAX_SAVED_DESIGNS whole-site snapshots and switch between them ---
+
+// A snapshot must never carry its own savedDesigns (no nesting / runaway growth).
+function stripSavedDesigns(c: SiteContent): SiteContent {
+  const { savedDesigns: _omit, ...rest } = c
+  void _omit
+  return rest as SiteContent
+}
+
+// Save the current live design into a slot — a new one, or overwriting an existing slot.
+export async function saveDesignAction(siteId: string, name: string, slotId?: string): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'auth' }
+  const site = await getSite(siteId)
+  if (!site || !site.content) return { ok: false, error: 'missing' }
+
+  const designs: SavedDesign[] = [...(site.content.savedDesigns ?? [])]
+  const cleanName = (name || '').trim().slice(0, 40) || `Design ${designs.length + 1}`
+  const snapshot = stripSavedDesigns(site.content)
+  const now = new Date().toISOString()
+
+  if (slotId) {
+    const i = designs.findIndex(d => d.id === slotId)
+    if (i < 0) return { ok: false, error: 'slot' }
+    designs[i] = { ...designs[i], name: cleanName, savedAt: now, snapshot }
+  } else {
+    if (designs.length >= MAX_SAVED_DESIGNS) return { ok: false, error: 'full' }
+    designs.push({ id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: cleanName, savedAt: now, snapshot })
+  }
+
+  await saveSiteContent(siteId, { ...site.content, savedDesigns: designs })
+  revalidatePath(`/sites/${siteId}`)
+  return { ok: true }
+}
+
+// Make a saved slot the live design (keeping the slot list intact, so nothing is lost).
+export async function loadDesignAction(siteId: string, slotId: string): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'auth' }
+  const site = await getSite(siteId)
+  if (!site || !site.content) return { ok: false, error: 'missing' }
+
+  const designs = site.content.savedDesigns ?? []
+  const slot = designs.find(d => d.id === slotId)
+  if (!slot) return { ok: false, error: 'slot' }
+
+  const next: SiteContent = { ...stripSavedDesigns(slot.snapshot), savedDesigns: designs }
+  await saveSiteContent(siteId, next)
+  revalidatePath(`/sites/${siteId}`)
+  revalidatePath(`/sites/${siteId}/design`)
+  revalidatePath(`/sites/${siteId}/edit`)
+  revalidatePath(`/s/${site.slug}`)
+  return { ok: true }
+}
+
+// Rename a saved slot.
+export async function renameDesignAction(siteId: string, slotId: string, name: string): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(siteId)
+  if (!site || !site.content) return { ok: false }
+  const designs = (site.content.savedDesigns ?? []).map(d => (d.id === slotId ? { ...d, name: (name || '').trim().slice(0, 40) || d.name } : d))
+  await saveSiteContent(siteId, { ...site.content, savedDesigns: designs })
+  revalidatePath(`/sites/${siteId}`)
+  return { ok: true }
+}
+
+// Delete a saved slot.
+export async function deleteDesignAction(siteId: string, slotId: string): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(siteId)
+  if (!site || !site.content) return { ok: false }
+  const designs = (site.content.savedDesigns ?? []).filter(d => d.id !== slotId)
+  await saveSiteContent(siteId, { ...site.content, savedDesigns: designs })
+  revalidatePath(`/sites/${siteId}`)
+  return { ok: true }
 }
