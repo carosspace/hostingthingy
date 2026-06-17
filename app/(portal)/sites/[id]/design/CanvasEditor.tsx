@@ -53,22 +53,65 @@ export default function CanvasEditor({
     }, 1),
   )
   const dirty = useRef(false)
+  const elsRef = useRef(els)
+  elsRef.current = els
+  const history = useRef<CanvasElement[][]>([])
+  const future = useRef<CanvasElement[][]>([])
+  const clip = useRef<CanvasElement | null>(null)
+  const lastSnap = useRef(0)
+  const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
   const sel = els.find(e => e.id === selectedId) || null
   const canvasH = Math.max(900, ...els.map(e => e.y + e.h + 80), 0)
 
   const touch = () => { dirty.current = true; setSaved(false) }
-  const update = (id: string, patch: Partial<CanvasElement>) => { setEls(p => p.map(e => (e.id === id ? { ...e, ...patch } : e))); touch() }
-  const remove = (id: string) => { setEls(p => p.filter(e => e.id !== id)); setSelectedId(''); touch() }
+  // Push the current state onto the undo stack. Rapid edits within 500ms coalesce into one.
+  const snapshot = (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastSnap.current < 500) return
+    lastSnap.current = now
+    history.current.push(elsRef.current)
+    if (history.current.length > 60) history.current.shift()
+    future.current = []
+  }
+  const undo = () => {
+    const prev = history.current.pop()
+    if (prev === undefined) return
+    setEls(cur => { future.current.push(cur); return prev })
+    setSelectedId('')
+    dirty.current = true
+    setSaved(false)
+  }
+  const redo = () => {
+    const next = future.current.pop()
+    if (next === undefined) return
+    setEls(cur => { history.current.push(cur); return next })
+    dirty.current = true
+    setSaved(false)
+  }
+  const update = (id: string, patch: Partial<CanvasElement>) => { snapshot(); setEls(p => p.map(e => (e.id === id ? { ...e, ...patch } : e))); touch() }
+  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id)); setSelectedId(''); touch() }
   const layer = (id: string, dir: 1 | -1) => {
+    snapshot(true)
     setEls(p => {
       const sorted = [...p].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
       return p.map(e => (e.id === id ? { ...e, z: (e.z ?? 0) + dir * (sorted.length + 1) } : e))
     })
     touch()
   }
+  const duplicate = (id: string) => {
+    const el = elsRef.current.find(e => e.id === id)
+    if (!el) return
+    snapshot(true)
+    const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const copy: CanvasElement = { ...el, id: 'e' + idc.current++, x: el.x + 16, y: el.y + 16, z: maxZ + 1 }
+    setEls(p => [...p, copy])
+    setSelectedId(copy.id)
+    touch()
+  }
 
   const place = (partial: Partial<CanvasElement> & { type: CanvasElementType }) => {
+    snapshot(true)
     const maxZ = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const n = els.length
     const el: CanvasElement = { id: 'e' + idc.current++, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
@@ -94,6 +137,7 @@ export default function CanvasEditor({
   }
   // Drop a small group of pre-arranged elements.
   const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer') => {
+    snapshot(true)
     let z = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const mk = (p: Partial<CanvasElement> & { type: CanvasElementType }): CanvasElement => ({ id: 'e' + idc.current++, x: 0, y: 0, w: 100, h: 60, opacity: 100, z: ++z, ...p })
     const bx = 150, by = 150
@@ -171,17 +215,33 @@ export default function CanvasEditor({
       if (!d) return
       const dx = (e.clientX - d.px) / d.scale
       const dy = (e.clientY - d.py) / d.scale
-      setEls(p =>
-        p.map(el =>
-          el.id !== d.id
-            ? el
-            : d.mode === 'move'
-              ? { ...el, x: Math.round(d.x + dx), y: Math.max(0, Math.round(d.y + dy)) }
-              : { ...el, w: Math.max(24, Math.round(d.w + dx)), h: Math.max(20, Math.round(d.h + dy)) },
-        ),
-      )
+      if (d.mode === 'resize') {
+        setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, w: Math.max(24, Math.round(d.w + dx)), h: Math.max(20, Math.round(d.h + dy)) })))
+        return
+      }
+      // Move with snapping to the canvas centre and other elements' edges/centres.
+      let nx = Math.round(d.x + dx)
+      let ny = Math.max(0, Math.round(d.y + dy))
+      const others = elsRef.current.filter(el => el.id !== d.id)
+      const T = 8
+      let gx: number | null = null
+      let gy: number | null = null
+      const vlines = [CANVAS_W / 2, ...others.flatMap(el => [el.x, el.x + el.w / 2, el.x + el.w])]
+      const mx = [nx, nx + d.w / 2, nx + d.w]
+      for (const line of vlines) {
+        const hit = mx.findIndex(m => Math.abs(m - line) <= T)
+        if (hit >= 0) { nx += line - mx[hit]; gx = line; break }
+      }
+      const hlines = others.flatMap(el => [el.y, el.y + el.h / 2, el.y + el.h])
+      const my = [ny, ny + d.h / 2, ny + d.h]
+      for (const line of hlines) {
+        const hit = my.findIndex(m => Math.abs(m - line) <= T)
+        if (hit >= 0) { ny = Math.max(0, ny + line - my[hit]); gy = line; break }
+      }
+      setGuides({ x: gx, y: gy })
+      setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, x: nx, y: ny })))
     }
-    const up = () => { if (dragRef.current) { dragRef.current = null; touch() } }
+    const up = () => { if (dragRef.current) { dragRef.current = null; setGuides({ x: null, y: null }); touch() } }
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -193,16 +253,40 @@ export default function CanvasEditor({
     }
   }, [])
 
-  // Delete / Backspace removes the selected element (unless typing in a field).
+  // Keyboard: undo/redo, duplicate, copy/paste, nudge with arrows, delete.
+  // All ignored while typing in a field so normal text editing/undo still works.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      if (!selectedId) return
-      const el = e.target as HTMLElement | null
-      const tag = el?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
-      e.preventDefault()
-      remove(selectedId)
+      const t = e.target as HTMLElement | null
+      const tag = t?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      const mod = e.ctrlKey || e.metaKey
+      const k = e.key.toLowerCase()
+      if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return }
+      if (mod && k === 'y') { e.preventDefault(); redo(); return }
+      if (mod && k === 'd' && selectedId) { e.preventDefault(); duplicate(selectedId); return }
+      if (mod && k === 'c' && selectedId) { e.preventDefault(); clip.current = elsRef.current.find(x => x.id === selectedId) ?? null; return }
+      if (mod && k === 'v' && clip.current) {
+        e.preventDefault()
+        const src = clip.current
+        snapshot(true)
+        const maxZ = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+        const copy: CanvasElement = { ...src, id: 'e' + idc.current++, x: src.x + 20, y: src.y + 20, z: maxZ + 1 }
+        setEls(p => [...p, copy])
+        setSelectedId(copy.id)
+        touch()
+        return
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { e.preventDefault(); remove(selectedId); return }
+      if (selectedId && e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        const s = e.shiftKey ? 10 : 1
+        const dx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0
+        const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0
+        snapshot()
+        setEls(p => p.map(el => (el.id === selectedId ? { ...el, x: el.x + dx, y: Math.max(0, el.y + dy) } : el)))
+        touch()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -212,6 +296,7 @@ export default function CanvasEditor({
     e.stopPropagation()
     e.preventDefault()
     setSelectedId(el.id)
+    snapshot(true)
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     dragRef.current = { mode, id: el.id, px: e.clientX, py: e.clientY, x: el.x, y: el.y, w: el.w, h: el.h, scale: rect.width / CANVAS_W }
@@ -292,6 +377,10 @@ export default function CanvasEditor({
         <button type="button" onClick={save} disabled={saving} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
+          <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
+        </div>
 
         <div className="space-y-2">
           {([
@@ -346,9 +435,10 @@ export default function CanvasEditor({
             <div className="flex items-center justify-between">
               <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
+                <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicate(sel.id)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Bring forward" onClick={() => layer(sel.id, 1)} style={{ fontSize: 13, color: accent }}>▲</button>
                 <button type="button" title="Send back" onClick={() => layer(sel.id, -1)} style={{ fontSize: 13, color: accent }}>▼</button>
-                <button type="button" title="Delete" onClick={() => remove(sel.id)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
+                <button type="button" title="Delete (Del)" onClick={() => remove(sel.id)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
             </div>
 
@@ -477,7 +567,7 @@ export default function CanvasEditor({
 
       {/* CANVAS */}
       <div className="flex-1 min-w-0">
-        <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move · drag the corner ◢ to resize · click an element to edit it on the left. On phones everything stacks automatically.</p>
+        <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (it snaps to line things up) · corner ◢ to resize · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes. On phones everything stacks automatically.</p>
         <div className={`rounded-sm overflow-hidden border border-gold/15 ${pageWidth === 'contained' ? 'max-w-3xl mx-auto' : ''}`} style={{ ...fontVars(fontSystem) } as CSSProperties}>
           <div
             ref={canvasRef}
@@ -508,6 +598,8 @@ export default function CanvasEditor({
                 )}
               </div>
             ))}
+            {guides.x !== null && <div style={{ position: 'absolute', left: cq(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
+            {guides.y !== null && <div style={{ position: 'absolute', top: cq(guides.y), left: 0, height: 1, width: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
           </div>
         </div>
       </div>
