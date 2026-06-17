@@ -42,6 +42,7 @@ export default function CanvasEditor({
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedId, setSelectedId] = useState('')
+  const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -292,6 +293,20 @@ export default function CanvasEditor({
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedId])
 
+  // Focus the element being inline-edited and drop the cursor at the end.
+  useEffect(() => {
+    if (!editingId) return
+    const node = canvasRef.current?.querySelector(`[data-edit="${editingId}"]`) as HTMLElement | null
+    if (!node) return
+    node.focus()
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    range.collapse(false)
+    const s = window.getSelection()
+    s?.removeAllRanges()
+    s?.addRange(range)
+  }, [editingId])
+
   const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize') => {
     e.stopPropagation()
     e.preventDefault()
@@ -337,8 +352,13 @@ export default function CanvasEditor({
         </div>
       )
     const isBtn = el.type === 'button'
+    const editing = editingId === el.id
     return (
       <div
+        contentEditable={editing}
+        suppressContentEditableWarning
+        data-edit={el.id}
+        onBlur={editing ? e => { update(el.id, { text: (e.currentTarget as HTMLElement).innerText }); setEditingId('') } : undefined}
         style={{
           width: '100%',
           height: '100%',
@@ -357,9 +377,11 @@ export default function CanvasEditor({
           overflow: 'hidden',
           padding: isBtn ? `0 ${cq(18)}` : undefined,
           lineHeight: 1.25,
+          outline: 'none',
+          cursor: editing ? 'text' : undefined,
         }}
       >
-        {el.text || (isBtn ? 'Button' : 'Text')}
+        {editing ? el.text : el.text || (isBtn ? 'Button' : 'Text')}
       </div>
     )
   }
@@ -559,6 +581,11 @@ export default function CanvasEditor({
               <input type="range" min={10} max={100} value={sel.opacity ?? 100} onChange={e => update(sel.id, { opacity: Number(e.target.value) })} style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: '#666', width: 32 }}>{sel.opacity ?? 100}%</span>
             </div>
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Rotate</span>
+              <input type="range" min={-180} max={180} value={sel.rotate ?? 0} onChange={e => update(sel.id, { rotate: Number(e.target.value) })} style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: '#666', width: 32 }}>{sel.rotate ?? 0}°</span>
+            </div>
           </div>
         ) : (
           <p className="font-body text-ash/50 text-[11px] leading-relaxed">Add something above, or click any element on the canvas to edit it here. Drag to move, drag the corner to resize.</p>
@@ -586,8 +613,9 @@ export default function CanvasEditor({
             {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => (
               <div
                 key={el.id}
-                onPointerDown={e => startDrag(e, el, 'move')}
-                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, cursor: 'move', touchAction: 'none', outline: selectedId === el.id ? `2px solid ${accent}` : undefined, outlineOffset: 1 }}
+                onPointerDown={e => { if (editingId === el.id) return; startDrag(e, el, 'move') }}
+                onDoubleClick={() => { if (el.type === 'text' || el.type === 'button') { setSelectedId(el.id); setEditingId(el.id) } }}
+                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedId === el.id ? `2px solid ${accent}` : undefined, outlineOffset: 1 }}
               >
                 {elInner(el)}
                 {selectedId === el.id && (

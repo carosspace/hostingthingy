@@ -671,6 +671,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       w: num(e?.w, 8, 4000, 100),
       h: num(e?.h, 8, 8000, 60),
       z: num(e?.z, -9999, 9999, i),
+      rotate: num(e?.rotate, -180, 180, 0) || undefined,
       opacity: num(e?.opacity, 0, 100, 100),
       text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
       fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,

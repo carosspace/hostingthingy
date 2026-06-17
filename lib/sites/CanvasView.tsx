@@ -90,7 +90,7 @@ export function CanvasView({
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
         {els.map(el => (
-          <div key={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100 }}>
+          <div key={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined }}>
             {desktopInner(el)}
           </div>
         ))}

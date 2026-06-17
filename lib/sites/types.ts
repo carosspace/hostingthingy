@@ -110,6 +110,7 @@ export interface CanvasElement {
   w: number // width, design px
   h: number // height, design px
   z?: number // layer order (higher = front)
+  rotate?: number // rotation in degrees (-180..180)
   opacity?: number // 0-100
   // text / button
   text?: string
