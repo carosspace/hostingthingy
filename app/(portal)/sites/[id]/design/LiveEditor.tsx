@@ -491,7 +491,7 @@ export default function LiveEditor({
         <span key={key} style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: it.block === 'subheading' ? 14 : 18, color: it.block === 'subheading' ? t.text : accent }}>{it.title}</span>
       ) : null
     if (it.block === 'social')
-      return <span key={key} style={{ color: accent, display: 'inline-flex' }}>{socialIcon(it.title || 'website', it.imgH || 22)}</span>
+      return it.href && it.href.trim() ? <span key={key} style={{ color: accent, display: 'inline-flex' }}>{socialIcon(it.title || 'website', it.imgH || 22)}</span> : null
     if (it.block === 'button')
       return it.title ? (
         <span key={key} style={{ background: accent, color: t.bg, padding: '7px 15px', borderRadius: 3, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', display: 'inline-block' }}>{it.title}</span>
@@ -501,7 +501,7 @@ export default function LiveEditor({
     return txt ? <span key={key} style={{ fontSize: 13, color: t.muted, whiteSpace: 'pre-wrap' }}>{txt}</span> : null
   }
   const barZonesPreview = (items: EdItem[]) =>
-    [0, 1, 2].map(z => items.filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z).map((it, i) => renderBarPreview(it, i)))
+    [0, 1, 2].map(z => items.filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z).map((it, i) => renderBarPreview(it, i)).filter(Boolean))
 
   const ctaPreview =
     ctaType !== 'none' ? (
@@ -1204,9 +1204,10 @@ export default function LiveEditor({
           {(() => {
             /* eslint-disable-next-line @next/next/no-img-element */
             const logoEl = logoImage ? <img key="logo" src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} /> : null
-            if (headerItems.length > 0) {
-              const zones = barZonesPreview(headerItems).map(z => [...z])
-              if (logoEl) zones[headerLogoPos].unshift(logoEl)
+            const zones = barZonesPreview(headerItems).map(z => [...z])
+            const hasBlocks = zones.some(z => z.length > 0)
+            if (hasBlocks) {
+              if (logoEl) zones[Math.min(2, Math.max(0, headerLogoPos))].unshift(logoEl)
               return (
                 <div className="flex items-center w-full gap-3">
                   <div className="flex-1 flex flex-wrap items-center gap-3 justify-start">{zones[0]}</div>

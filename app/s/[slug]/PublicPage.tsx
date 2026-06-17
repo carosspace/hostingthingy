@@ -122,8 +122,9 @@ export default function PublicPage({
       el = makeCta(it.title, it.ctaType, it.href)
     } else if (it.block === 'social') {
       const href = safeHref(it.href ?? '')
+      const isMail = (href ?? '').startsWith('mailto:')
       el = href ? (
-        <a href={href} target="_blank" rel="noreferrer" aria-label={it.title || 'social link'} style={{ color: accent, display: 'inline-flex' }}>
+        <a href={href} target={isMail ? undefined : '_blank'} rel={isMail ? undefined : 'noreferrer'} aria-label={it.title || 'social link'} style={{ color: accent, display: 'inline-flex' }}>
           {socialIcon(it.title || 'website', it.imgH && it.imgH > 0 ? it.imgH : 22)}
         </a>
       ) : null

@@ -406,8 +406,9 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         const zone = Number(it?.col)
         const ih = Number(it?.imgH)
         const rawHref = String(it?.href ?? '').trim()
-        // A bare social URL like "instagram.com/you" gets an https:// prefix so it stays a link.
-        const normHref = String(it?.block) === 'social' && rawHref && !/^[a-z][a-z0-9+.-]*:/i.test(rawHref) && !rawHref.startsWith('/') ? 'https://' + rawHref : rawHref
+        // A bare social URL gets a scheme so it stays a link: email → mailto:, the rest → https://.
+        const schemeless = String(it?.block) === 'social' && rawHref && !/^[a-z][a-z0-9+.-]*:/i.test(rawHref) && !rawHref.startsWith('/')
+        const normHref = schemeless ? (String(it?.title) === 'email' ? 'mailto:' + rawHref : 'https://' + rawHref) : rawHref
         return {
           title: String(it?.title ?? '').trim() || undefined,
           body: String(it?.body ?? '').trim() || undefined,
