@@ -45,6 +45,7 @@ export default function CanvasEditor({
   const [bg, setBg] = useState(initial?.bg ?? '')
   const [bgGrad, setBgGrad] = useState<Gradient | null>(initial?.bgGradient ?? null)
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
+  const [bgVideo, setBgVideo] = useState(initial?.bgVideo ?? '')
   const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -594,6 +595,7 @@ export default function CanvasEditor({
       bg: bg.trim() || undefined,
       bgGradient: bgGrad || undefined,
       bgImage: bgImage.trim() || undefined,
+      bgVideo: bgVideo.trim() || undefined,
       elements: els,
       mobileCustom: mobileCustom || undefined,
       mobileH: mobileCustom ? mobileH : undefined,
@@ -798,6 +800,7 @@ export default function CanvasEditor({
             {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
           </div>
           {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
+          <input value={bgVideo} onChange={e => { setBgVideo(e.target.value); touch() }} placeholder="Background video URL (https://…mp4)" style={{ ...inputCss, fontSize: 11, marginTop: 4 }} />
         </div>
 
         <div className="h-px bg-gold/15" />
@@ -1225,6 +1228,7 @@ export default function CanvasEditor({
                 ...brandVars,
               } as CSSProperties}
             >
+              {bgVideo.trim() && <video src={bgVideo.trim()} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />}
               {showGrid && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)}), repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)})` }} />}
               {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
                 const elHidden = el.hidden || (editingMobile && el.mHidden)

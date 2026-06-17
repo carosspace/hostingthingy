@@ -771,7 +771,15 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     mobileCustom: c.mobileCustom ? true : undefined,
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
     palette: Array.isArray(c.palette) ? (c.palette.map(hex).filter(Boolean) as string[]).slice(0, 6) : undefined,
+    bgVideo: httpUrl(c.bgVideo),
   }
+}
+
+// A plain https URL (no quotes/parens/spaces) — for a background video source.
+function httpUrl(v: unknown): string | undefined {
+  const s = String(v ?? '').trim()
+  if (!/^https?:\/\/[^\s()'"\\;<>]+$/i.test(s)) return undefined
+  try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? s : undefined } catch { return undefined }
 }
 
 async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {

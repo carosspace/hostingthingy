@@ -248,6 +248,7 @@ export interface PageCanvas {
   bg?: string // background colour
   bgGradient?: Gradient // a background gradient (used when there's no bgImage)
   bgImage?: string // full background photo
+  bgVideo?: string // a full-background looping video (https URL); shown over the colour/photo
   elements: CanvasElement[]
   mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)
   mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
