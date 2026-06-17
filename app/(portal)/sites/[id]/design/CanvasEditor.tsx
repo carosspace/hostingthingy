@@ -13,7 +13,7 @@ const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform
 
 type Drag =
   | { kind: 'move'; px: number; py: number; scale: number; m: boolean; starts: { id: string; x: number; y: number }[] }
-  | { kind: 'resize'; id: string; px: number; py: number; scale: number; m: boolean; w: number; h: number }
+  | { kind: 'resize'; id: string; px: number; py: number; scale: number; m: boolean; w: number; h: number; ar: number }
   | { kind: 'marquee'; px: number; py: number; scale: number; m: boolean; ox: number; oy: number }
   | null
 
@@ -52,6 +52,7 @@ export default function CanvasEditor({
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
   const [cropId, setCropId] = useState('') // image element being cropped (modal open)
+  const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
@@ -401,7 +402,10 @@ export default function CanvasEditor({
       const aw = (el: CanvasElement) => (d.m ? el.mw ?? Math.round(el.w * R) : el.w)
       const ah = (el: CanvasElement) => (d.m ? el.mh ?? Math.round(el.h * R) : el.h)
       if (d.kind === 'resize') {
-        const nw = Math.max(24, Math.round(d.w + dx)), nh = Math.max(20, Math.round(d.h + dy))
+        let nw = Math.max(24, Math.round(d.w + dx))
+        let nh = Math.max(20, Math.round(d.h + dy))
+        // Hold Shift to keep the element's proportions (no distortion).
+        if (e.shiftKey && d.ar > 0) { nh = Math.max(20, Math.round(nw / d.ar)) }
         setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, ...(d.m ? { mw: nw, mh: nh } : { w: nw, h: nh }) })))
         return
       }
@@ -530,7 +534,7 @@ export default function CanvasEditor({
     if (mode === 'resize') {
       setSelectedIds([el.id])
       snapshot(true)
-      dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el) }
+      dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el), ar: gh(el) > 0 ? gw(el) / gh(el) : 1 }
       return
     }
     // Shift-click toggles an element in/out of the selection — no drag.
@@ -706,6 +710,7 @@ export default function CanvasEditor({
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
           <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
+          <button type="button" onClick={() => setShowGrid(g => !g)} title="Toggle alignment grid" className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? accent : 'rgba(0,0,0,0.2)', background: showGrid ? accent : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
         </div>
 
         <div className="space-y-2">
@@ -1083,7 +1088,7 @@ export default function CanvasEditor({
             )}
           </div>
         ) : (
-          <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (snaps to align) · drag a box to select several · corner ◢ resizes · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes.</p>
+          <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (snaps to align) · drag a box to select several · corner ◢ resizes (hold Shift to keep proportions) · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes.</p>
         )}
 
         {device === 'mobile' && !mobileCustom ? (
@@ -1110,6 +1115,7 @@ export default function CanvasEditor({
                 ...brandVars,
               } as CSSProperties}
             >
+              {showGrid && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)}), repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)})` }} />}
               {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
                 const elHidden = el.hidden || (editingMobile && el.mHidden)
                 return (
