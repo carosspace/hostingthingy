@@ -3,10 +3,11 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { THEMES } from '@/lib/sites/types'
-import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType, MenuPosition } from '@/lib/sites/types'
+import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType, MenuPosition, SitePage } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
+import PublicPage from '@/app/s/[slug]/PublicPage'
 
 interface EdItem {
   id: string
@@ -434,6 +435,7 @@ export default function LiveEditor({
   const [inspectorNode, setInspectorNode] = useState<HTMLDivElement | null>(null)
   const [dragBlockId, setDragBlockId] = useState('')
   const [dropTarget, setDropTarget] = useState('') // `${blockId}` (drop before) or `col:${sectionId}:${col}` (drop at end)
+  const [previewContent, setPreviewContent] = useState<SiteContent | null>(null) // a live draft preview (not yet published)
   // Which optional slots the user has chosen to add (sections by id; hero by flag).
   const [heroImgOpen, setHeroImgOpen] = useState(false)
   const [heroBtnOpen, setHeroBtnOpen] = useState(false)
@@ -827,8 +829,7 @@ export default function LiveEditor({
     })
     touched()
   }
-  async function save() {
-    setSaving(true)
+  function buildContent(): SiteContent {
     const root = rootRef.current
     const read = (f: string) =>
       ((root?.querySelector(`[data-field="${f}"]`) as HTMLElement | null)?.innerText ?? '').trim()
@@ -900,7 +901,7 @@ export default function LiveEditor({
         .filter(it => it.block === 'divider' || it.title || it.body || it.image)
     const builtHeader = buildBar(headerItems)
     const builtFooter = buildBar(footerItems)
-    const content: SiteContent = {
+    return {
       theme,
       accentColor: accentColor || undefined,
       pageBg: pageBg.trim() || undefined,
@@ -928,6 +929,10 @@ export default function LiveEditor({
       socials: socials.length ? socials : undefined,
       heroOverlay: heroImage.trim() ? heroOverlay : undefined,
     }
+  }
+  async function save() {
+    setSaving(true)
+    const content = buildContent()
     const fd = new FormData()
     fd.set('id', siteId)
     fd.set('pageSlug', pageSlug)
@@ -950,9 +955,7 @@ export default function LiveEditor({
       >
         <div className="flex items-center justify-between">
           <span className="font-label text-[11px] tracking-[3px] uppercase text-gold">Design</span>
-          {siteStatus === 'live' && (
-            <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">View ↗</a>
-          )}
+          <button type="button" onClick={() => setPreviewContent(buildContent())} className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">Preview ⛶</button>
         </div>
         <div className="flex flex-col gap-2">
           <button type="button" onClick={save} disabled={saving} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
@@ -1847,6 +1850,32 @@ export default function LiveEditor({
        </div>
       </div>
       </div>
+      {previewContent && (() => {
+        const pv = previewContent
+        const previewPage: SitePage = {
+          id: pageSlug || 'home',
+          title: navPages.find(p => p.slug === pageSlug)?.label || siteName,
+          slug: pageSlug,
+          headline: pv.headline,
+          subheadline: pv.subheadline,
+          heroImage: pv.heroImage,
+          sections: pv.sections,
+          ctaLabel: pv.ctaLabel,
+          ctaType: pv.ctaType,
+          ctaHref: pv.ctaHref,
+        }
+        const previewPages: SitePage[] = navPages.map(p => ({ id: p.slug || 'home', title: p.label, slug: p.slug, navLabel: p.label, headline: '', subheadline: '', sections: [] }))
+        return (
+          <div className="fixed inset-0 z-50 overflow-auto" style={{ background: '#ffffff' }}>
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-4 py-2" style={{ background: 'rgba(255,255,255,0.96)', borderBottom: '1px solid rgba(0,0,0,0.1)', backdropFilter: 'blur(4px)' }}>
+              <button type="button" onClick={() => setPreviewContent(null)} className="font-label text-[10px] tracking-[2px] uppercase text-gold hover:text-goldLight">← Back to editing</button>
+              <span className="font-label text-[9px] tracking-[2px] uppercase" style={{ color: '#999' }}>Preview — your unsaved changes, not yet published</span>
+              <button type="button" onClick={async () => { await save(); setPreviewContent(null) }} disabled={saving} className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm disabled:opacity-50">{saving ? 'Saving…' : 'Save & publish'}</button>
+            </div>
+            <PublicPage siteSlug={siteSlug} siteName={siteName} content={pv} page={previewPage} pages={previewPages} currentSlug={pageSlug} />
+          </div>
+        )
+      })()}
     </div>
   )
 }
