@@ -110,6 +110,9 @@ export default function CanvasEditor({
   const [stockId, setStockId] = useState('') // image element picking a stock photo (modal open)
   const [aiInstr, setAiInstr] = useState('') // the instruction for the AI text rewrite
   const [aiBusy, setAiBusy] = useState(false)
+  // Which tool category the left panel shows (Canva-style). Selecting an element
+  // overrides this with its properties (the inspector); deselect to see a tab again.
+  const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers'>('design')
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -173,6 +176,8 @@ export default function CanvasEditor({
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
+  // Nothing selected → the left panel shows the active tool tab; otherwise the inspector.
+  const lib = selectedIds.length === 0
   // A footer element's stored y is an offset down from bodyBottom on the desktop
   // artboard; everything else uses its own y. (gy already handles the phone fallback.)
   const topOf = (e: CanvasElement) => (!editingMobile && e.pin === 'footer' ? bodyBottom + e.y : gy(e))
@@ -1128,10 +1133,24 @@ export default function CanvasEditor({
   return (
     <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
       {fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(fonts) }} />}
-      {/* LEFT PANEL */}
-      <div className="lg:sticky lg:top-2 lg:w-[300px] lg:shrink-0 lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-sm border border-gold/15 px-4 py-4 mb-4 lg:mb-0 flex flex-col gap-4" style={{ background: 'rgba(246,240,230,0.97)' }}>
+      {/* LEFT: a Canva-style icon rail + the active tool panel */}
+      <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2 mb-4 lg:mb-0">
+        <div className="flex flex-col gap-1 shrink-0">
+          {([['design', '🎨', 'Design'], ['text', 'T', 'Text'], ['elements', '＋', 'Add'], ['uploads', '☁', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
+            const on = lib && panelTab === key
+            return (
+              <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
+                className="flex flex-col items-center justify-center gap-0.5 rounded-md transition-colors"
+                style={{ width: 52, height: 54, border: '1px solid', borderColor: on ? accent : 'rgba(0,0,0,0.08)', background: on ? 'rgba(168,92,54,0.10)' : 'transparent', color: on ? accent : '#8a7c63' }}>
+                <span style={{ fontSize: 16, lineHeight: 1, fontWeight: key === 'text' ? 700 : 400 }}>{icon}</span>
+                <span style={{ fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase' }}>{lbl}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="lg:w-[290px] lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-sm border border-gold/15 px-4 py-4 flex flex-col gap-4" style={{ background: 'rgba(246,240,230,0.97)' }}>
         <div className="flex items-center justify-between">
-          <span className="font-label text-[11px] tracking-[3px] uppercase text-gold">Canvas</span>
+          <span className="font-label text-[11px] tracking-[3px] uppercase text-gold">{lib ? ({ design: 'Design', text: 'Text', elements: 'Add', uploads: 'Uploads', layers: 'Layers' } as const)[panelTab] : 'Selected'}</span>
           {siteStatus === 'live' && (
             <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">View ↗</a>
           )}
@@ -1148,32 +1167,44 @@ export default function CanvasEditor({
           <button type="button" onClick={() => setShowGrid(g => !g)} title="Toggle alignment grid" className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? accent : 'rgba(0,0,0,0.2)', background: showGrid ? accent : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
         </div>
 
-        <div className="space-y-2">
-          {([
-            ['Text', [['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']]],
-            ['Media & buttons', [['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
-            ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']]],
-          ] as [string, [string, string][]][]).map(([group, items]) => (
-            <div key={group}>
-              <p style={labelCss}>{group}</p>
+        {lib && panelTab === 'text' && (
+          <div>
+            <p style={labelCss}>Add text</p>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {([['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']] as [string, string][]).map(([key, lbl]) => (
+                <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+              ))}
+            </div>
+            <p className="font-body text-ash/50 text-[11px] mt-3 leading-relaxed">Add a text box, then select it to change the words (✨ with AI too), size, colour and font.</p>
+          </div>
+        )}
+        {lib && panelTab === 'elements' && (
+          <div className="space-y-3">
+            {([
+              ['Media & buttons', [['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
+              ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']]],
+            ] as [string, [string, string][]][]).map(([group, items]) => (
+              <div key={group}>
+                <p style={labelCss}>{group}</p>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {items.map(([key, lbl]) => (
+                    <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div>
+              <p style={labelCss}>Starters</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {items.map(([key, lbl]) => (
-                  <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                {([['header', 'Header'], ['footer', 'Footer'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
               </div>
             </div>
-          ))}
-          <div>
-            <p style={labelCss}>Starters</p>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {([['header', 'Header'], ['footer', 'Footer'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
-                <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
-              ))}
-            </div>
           </div>
-        </div>
+        )}
 
-        <div className="h-px bg-gold/15" />
+        {lib && panelTab === 'uploads' && (
         <div>
           <p style={labelCss}>Your uploads</p>
           <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Upload logos &amp; pictures once, then drag one onto the page — or click to drop it in. Reuse them anywhere (header, footer, anywhere).</p>
@@ -1201,8 +1232,9 @@ export default function CanvasEditor({
             <button type="button" onClick={uploadPick} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">+ Upload logo / picture</button>
           )}
         </div>
+        )}
 
-        <div className="h-px bg-gold/15" />
+        {lib && panelTab === 'design' && (<>
         <div>
           <p style={labelCss}>Page width</p>
           <div className="flex items-center gap-1.5 mt-1.5">
@@ -1254,8 +1286,9 @@ export default function CanvasEditor({
             )}
           </div>
         </div>
+        </>)}
 
-        <div className="h-px bg-gold/15" />
+        {lib && panelTab === 'elements' && (
         <div>
           <p style={labelCss}>Components</p>
           <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Select things, then “Make component”. Place it again to reuse the same design.</p>
@@ -1272,9 +1305,9 @@ export default function CanvasEditor({
             </div>
           )}
         </div>
+        )}
 
-        <div className="h-px bg-gold/15" />
-        {/* LAYERS */}
+        {lib && panelTab === 'layers' && (
         <div>
           <div className="flex items-center justify-between">
             <p style={labelCss}>Layers</p>
@@ -1307,10 +1340,10 @@ export default function CanvasEditor({
             </div>
           )}
         </div>
+        )}
 
-        <div className="h-px bg-gold/15" />
-        {/* INSPECTOR */}
-        {sel ? (
+        {/* INSPECTOR — properties of the selected element(s) */}
+        {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
@@ -1670,9 +1703,8 @@ export default function CanvasEditor({
             {!editingComp && <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>}
             <p className="font-body text-ash/50 text-[11px] leading-relaxed">Drag any selected element to move them all together. Shift-click an element to add or remove it.</p>
           </div>
-        ) : (
-          <p className="font-body text-ash/50 text-[11px] leading-relaxed">Add something above, or click any element on the canvas to edit it here. Drag a box around several to select them at once.</p>
-        )}
+        ) : null)}
+      </div>
       </div>
 
       {/* CANVAS */}
