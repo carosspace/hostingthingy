@@ -50,6 +50,7 @@ export default function CanvasEditor({
   const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
   const [fonts, setFonts] = useState<SiteFont[]>(initial?.fonts ?? [])
   const [components, setComponents] = useState<SiteComponent[]>(initial?.components ?? [])
+  const [editingComp, setEditingComp] = useState<{ id: string; outsideIds: string[]; origX: number; origY: number; origW: number; origH: number; origOpacity: number; origZ: number } | null>(null) // editing a component master in place
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
@@ -133,6 +134,7 @@ export default function CanvasEditor({
     setPalette(prev.palette)
     setComponents(prev.components)
     setSelectedIds([])
+    setEditingComp(null) // leaving component-edit mode cleanly: the edited elements may no longer exist
     dirty.current = true
     setSaved(false)
   }
@@ -143,6 +145,7 @@ export default function CanvasEditor({
     setEls(next.els)
     setPalette(next.palette)
     setComponents(next.components)
+    setEditingComp(null)
     dirty.current = true
     setSaved(false)
   }
@@ -278,6 +281,7 @@ export default function CanvasEditor({
   // --- Reusable components ---
   // Turn the current selection into a reusable component + replace it with one instance.
   const makeComponent = (ids: string[]) => {
+    if (editingComp) return // not while editing a master in place
     const set = new Set(ids)
     const sel = elsRef.current.filter(e => set.has(e.id) && e.type !== 'component')
     if (!sel.length) return
@@ -300,6 +304,7 @@ export default function CanvasEditor({
   }
   // Drop another instance of an existing component onto the page.
   const placeComponent = (compId: string) => {
+    if (editingComp) return // not while editing a master in place
     const comp = components.find(c => c.id === compId)
     if (!comp) return
     snapshot(true)
@@ -327,12 +332,75 @@ export default function CanvasEditor({
     touch()
   }
   const deleteComponent = (compId: string) => {
+    if (editingComp) return // not while editing a master in place
     if (!confirm('Delete this component? Any instances of it on this page will disappear.')) return
     snapshot(true)
     setComponents(p => p.filter(c => c.id !== compId))
     setEls(p => p.filter(e => !(e.type === 'component' && e.componentId === compId)))
     touch()
   }
+  // STAGE 2 — edit the master, propagate to every instance. "Edit" unlinks ONE
+  // instance into real, fully-editable elements (like detach) and remembers which
+  // component + which elements are being edited; "Save to all" writes them back to
+  // the master and re-links, so every other instance updates at once.
+  const editComponent = (id: string) => {
+    if (editingComp) return
+    const inst = elsRef.current.find(e => e.id === id)
+    if (!inst || inst.type !== 'component' || !inst.componentId) return
+    const comp = components.find(c => c.id === inst.componentId)
+    if (!comp) return
+    snapshot(true)
+    // Edit the master at its OWN native size (scale 1), NOT the instance's possibly
+    // shrunken footprint — committing back then can't rescale/distort the stored
+    // master (font sizes, spacing, etc. stay in the master's own coordinate space).
+    const baseX = Math.max(0, Math.min(Math.round(inst.x), CANVAS_W - comp.w))
+    const baseY = Math.max(0, Math.round(inst.y))
+    let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const newEls: CanvasElement[] = comp.elements.map(ce => ({ ...ce, id: 'e' + idc.current++, x: baseX + ce.x, y: baseY + ce.y, z: ++z }))
+    // Everything already on the page (except this instance) is "outside" the edit;
+    // anything that is NOT outside at commit time (the unlinked elements + anything
+    // the user adds while editing) folds into the master.
+    const outsideIds = elsRef.current.filter(e => e.id !== id).map(e => e.id)
+    setEls(p => [...p.filter(e => e.id !== id), ...newEls])
+    setSelectedIds(newEls.map(e => e.id))
+    setEditingComp({ id: inst.componentId, outsideIds, origX: Math.round(inst.x), origY: Math.round(inst.y), origW: Math.max(8, Math.round(inst.w)), origH: Math.max(8, Math.round(inst.h)), origOpacity: inst.opacity ?? 100, origZ: inst.z ?? (z + 1) })
+    setDevice('desktop') // master edits happen on the desktop canvas (elements are in desktop coords)
+    touch()
+  }
+  // Commit the elements being edited back into the master + collapse them to one
+  // instance. Every other instance re-renders from the updated master automatically.
+  const finishEditComponent = () => {
+    if (!editingComp) return
+    const outside = new Set(editingComp.outsideIds)
+    const sel = elsRef.current.filter(e => !outside.has(e.id) && e.type !== 'component')
+    if (!sel.length) { setEditingComp(null); return }
+    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => e.y))
+    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => e.y + e.h))
+    const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
+    const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci
+      return { ...rest, x: e.x - minX, y: e.y - minY }
+    })
+    const compId = editingComp.id
+    const selIds = new Set(sel.map(e => e.id))
+    snapshot(true)
+    setComponents(p => p.some(c => c.id === compId)
+      ? p.map(c => c.id === compId ? { ...c, w, h, elements: cels } : c)
+      : [...p, { id: compId, name: `Component ${p.length + 1}`, w, h, elements: cels }]) // master deleted mid-edit: recreate it rather than strand a dangling instance
+    // Re-collapse to ONE instance, keeping the source instance's footprint, opacity
+    // and stacking; only its content/proportions update. Height tracks the new aspect.
+    const instW = Math.max(8, Math.round(editingComp.origW))
+    const instH = Math.max(8, Math.round((instW * h) / Math.max(1, w)))
+    const inst: CanvasElement = { id: 'e' + idc.current++, type: 'component', componentId: compId, x: editingComp.origX, y: editingComp.origY, w: instW, h: instH, z: editingComp.origZ, opacity: editingComp.origOpacity }
+    setEls(p => [...p.filter(e => !selIds.has(e.id)), inst])
+    setSelectedIds([inst.id])
+    setEditingComp(null)
+    touch()
+  }
+  // Leave edit mode without touching the master — the unlinked elements stay as
+  // loose elements (Undo restores the original instance).
+  const cancelEditComponent = () => setEditingComp(null)
   // Remove a brand swatch without breaking references: elements on the removed slot
   // freeze to its current colour, and higher slots shift down to match the new indices.
   const removePaletteColor = (i: number) => {
@@ -693,6 +761,7 @@ export default function CanvasEditor({
   }
 
   async function save() {
+    if (editingComp) return // finish or cancel the master edit first — never persist mid-edit loose elements
     setSaving(true)
     const canvas: PageCanvas = {
       h: desktopH,
@@ -869,7 +938,7 @@ export default function CanvasEditor({
             <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">View ↗</a>
           )}
         </div>
-        <button type="button" onClick={save} disabled={saving} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
+        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
         <div className="flex items-center gap-1.5">
@@ -965,9 +1034,9 @@ export default function CanvasEditor({
           ) : (
             <div className="space-y-0.5">
               {components.map(c => (
-                <div key={c.id} className="flex items-center gap-1.5">
-                  <button type="button" onClick={() => placeComponent(c.id)} title="Place another instance" className="flex-1 text-left" style={{ fontSize: 12, color: '#5a513f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>＋ {c.name}</button>
-                  <button type="button" onClick={() => deleteComponent(c.id)} title="Delete component" style={{ fontSize: 11, color: '#b3402f' }}>×</button>
+                <div key={c.id} className="flex items-center gap-1.5" style={{ opacity: editingComp ? 0.45 : 1 }}>
+                  <button type="button" onClick={() => placeComponent(c.id)} disabled={!!editingComp} title={editingComp ? 'Finish the current edit first' : 'Place another instance'} className="flex-1 text-left disabled:cursor-not-allowed" style={{ fontSize: 12, color: '#5a513f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>＋ {c.name}</button>
+                  <button type="button" onClick={() => deleteComponent(c.id)} disabled={!!editingComp} title="Delete component" className="disabled:cursor-not-allowed" style={{ fontSize: 11, color: '#b3402f' }}>×</button>
                 </div>
               ))}
             </div>
@@ -1252,12 +1321,15 @@ export default function CanvasEditor({
             {sel.type === 'component' ? (
               <>
                 <p className="font-body text-[12px]" style={{ color: '#5a513f' }}>❖ {components.find(c => c.id === sel.componentId)?.name || 'Component'}</p>
-                <button type="button" onClick={() => detachComponent(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">Detach (unlink)</button>
-                <p className="font-body text-ash/50 text-[11px] leading-relaxed">An instance of a reusable component. Detach to edit it as plain elements.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => editComponent(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:opacity-90 px-2.5 py-1.5 rounded-sm">✎ Edit component</button>
+                  <button type="button" onClick={() => detachComponent(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">Detach</button>
+                </div>
+                <p className="font-body text-ash/50 text-[11px] leading-relaxed">An instance of a reusable component. <b>Edit</b> changes every instance at once; <b>Detach</b> unlinks just this one into plain elements.</p>
               </>
-            ) : (
+            ) : !editingComp ? (
               <button type="button" onClick={() => makeComponent([sel.id])} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>
-            )}
+            ) : null}
             <div className="flex items-center gap-2">
               <span style={labelCss}>Opacity</span>
               <input type="range" min={10} max={100} value={sel.opacity ?? 100} onChange={e => update(sel.id, { opacity: Number(e.target.value) })} style={{ flex: 1 }} />
@@ -1346,7 +1418,7 @@ export default function CanvasEditor({
                 </div>
               </div>
             )}
-            <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>
+            {!editingComp && <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>}
             <p className="font-body text-ash/50 text-[11px] leading-relaxed">Drag any selected element to move them all together. Shift-click an element to add or remove it.</p>
           </div>
         ) : (
@@ -1356,12 +1428,23 @@ export default function CanvasEditor({
 
       {/* CANVAS */}
       <div className="flex-1 min-w-0">
+        {editingComp && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-sm px-3.5 py-2.5" style={{ background: '#fbf3da', border: '1px solid rgba(154,125,46,0.4)' }}>
+            <span className="font-body text-[12px]" style={{ color: '#7a5c0e' }}>✎ Editing <b>{components.find(c => c.id === editingComp.id)?.name || 'component'}</b> — rearrange these elements, then save to update every instance.</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={cancelEditComponent} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2.5 py-1.5">Cancel</button>
+              <button type="button" onClick={finishEditComponent} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:opacity-90 px-3 py-1.5 rounded-sm">✓ Save to all instances</button>
+            </div>
+          </div>
+        )}
         {/* Desktop / Phone toggle */}
+        {!editingComp && (
         <div className="flex items-center justify-center gap-2 mb-3">
           {([['desktop', '🖥 Desktop'], ['mobile', '📱 Phone']] as const).map(([d, lbl]) => (
             <button key={d} type="button" onClick={() => { setDevice(d); setSelectedIds([]); setEditingId('') }} className="font-label text-[10px] tracking-[1px] uppercase px-3.5 py-1.5 rounded-sm border" style={{ borderColor: device === d ? accent : 'rgba(0,0,0,0.15)', background: device === d ? accent : 'transparent', color: device === d ? '#fff' : '#888' }}>{lbl}</button>
           ))}
         </div>
+        )}
 
         {device === 'mobile' ? (
           <div className="mb-3 flex flex-wrap items-center justify-center gap-2 text-center">
