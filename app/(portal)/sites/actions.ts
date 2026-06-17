@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS } from '@/lib/sites/types'
 import type {
   SiteContent,
   SavedDesign,
@@ -14,6 +14,7 @@ import type {
   BlendMode,
   RevealKind,
   HoverKind,
+  ShadowKind,
   ImageAdjust,
   SiteTheme,
   SitePage,
@@ -663,6 +664,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const s = String(v ?? '')
     return BLEND_MODES.includes(s as BlendMode) && s !== 'normal' ? (s as BlendMode) : undefined
   }
+  const shadow = (v: unknown) => { const s = String(v ?? ''); return SHADOW_KINDS.includes(s as ShadowKind) ? (s as ShadowKind) : undefined }
   const reveal = (v: unknown) => { const s = String(v ?? ''); return REVEAL_KINDS.includes(s as RevealKind) ? (s as RevealKind) : undefined }
   const hover = (v: unknown) => { const s = String(v ?? ''); return HOVER_KINDS.includes(s as HoverKind) ? (s as HoverKind) : undefined }
   // Photo adjustments: every field is a clamped number, so nothing can inject CSS.
@@ -746,6 +748,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       radius: num(e?.radius, 0, 400, 0) || undefined,
       borderColor: color(e?.borderColor),
       borderWidth: num(e?.borderWidth, 0, 40, 0) || undefined,
+      shadow: type === 'box' || type === 'button' || type === 'image' ? shadow(e?.shadow) : undefined,
       blend: blend(e?.blend),
       reveal: reveal(e?.reveal),
       revealDelay: e?.reveal && e?.revealDelay ? num(e?.revealDelay, 0, 2000, 0) || undefined : undefined,

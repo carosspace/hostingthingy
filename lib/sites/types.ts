@@ -150,6 +150,20 @@ export type HoverKind = 'grow' | 'lift' | 'glow' | 'dim' | 'rotate'
 export const REVEAL_KINDS: RevealKind[] = ['fade', 'up', 'down', 'left', 'right', 'zoom']
 export const HOVER_KINDS: HoverKind[] = ['grow', 'lift', 'glow', 'dim', 'rotate']
 
+// A drop shadow preset for boxes, buttons and photos (depth, or a soft glow).
+export type ShadowKind = 'sm' | 'md' | 'lg' | 'xl' | 'glow'
+export const SHADOW_KINDS: ShadowKind[] = ['sm', 'md', 'lg', 'xl', 'glow']
+export function shadowCss(s?: ShadowKind): string | undefined {
+  switch (s) {
+    case 'sm': return '0 1px 3px rgba(0,0,0,0.14)'
+    case 'md': return '0 4px 12px rgba(0,0,0,0.16)'
+    case 'lg': return '0 10px 30px rgba(0,0,0,0.20)'
+    case 'xl': return '0 22px 55px rgba(0,0,0,0.26)'
+    case 'glow': return '0 0 26px rgba(255,255,255,0.55)'
+    default: return undefined
+  }
+}
+
 // CSS for a gradient, or undefined when it isn't a valid two-stop gradient.
 export function gradientCss(g?: Gradient | null): string | undefined {
   if (!g || !g.from || !g.to) return undefined
@@ -198,6 +212,7 @@ export interface CanvasElement {
   radius?: number // corner radius, design px
   borderColor?: string
   borderWidth?: number
+  shadow?: ShadowKind // a drop shadow (box/button/image)
   blend?: BlendMode // mix-blend-mode against what's behind it
   // motion (applied on the published page, not while editing)
   reveal?: RevealKind // animate in as the visitor scrolls to it
