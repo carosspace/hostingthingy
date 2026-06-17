@@ -744,6 +744,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
       adjust: type === 'image' ? adjust(e?.adjust) : undefined,
+      lightbox: type === 'image' && e?.lightbox ? true : undefined,
       slides: type === 'carousel' && Array.isArray(e?.slides) ? (e.slides.map(dataOrHttp).filter(Boolean) as string[]).slice(0, 10) : undefined,
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,

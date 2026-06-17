@@ -221,6 +221,7 @@ export interface CanvasElement {
   src?: string
   fit?: ImageFit
   adjust?: ImageAdjust // non-destructive photo adjustments (CSS filter)
+  lightbox?: boolean // clicking the image opens it full-screen
   // carousel
   slides?: string[] // image data URLs for a 'carousel' element
   interval?: number // auto-advance seconds (0 = manual only)

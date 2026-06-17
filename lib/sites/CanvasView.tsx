@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode } from 'react'
 import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement } from './types'
 import CanvasMotion from './CanvasMotion'
+import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
@@ -56,7 +57,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     if (el.type === 'image')
       return el.src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow) }} />
+        <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
       ) : null
     if (el.type === 'carousel')
       return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
@@ -142,6 +143,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
         )}
       </div>
       <CanvasMotion />
+      <CanvasLightbox />
     </div>
   )
 }
@@ -175,7 +177,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         if (el.type === 'image') {
           node = el.src ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow) }} />
+            <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
           ) : null
         } else if (el.type === 'carousel') {
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
