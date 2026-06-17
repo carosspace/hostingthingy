@@ -112,6 +112,8 @@ export interface CanvasElement {
   z?: number // layer order (higher = front)
   rotate?: number // rotation in degrees (-180..180)
   opacity?: number // 0-100
+  locked?: boolean // can't be moved/resized/deleted on the canvas (only via the Layers panel)
+  hidden?: boolean // kept in the design but not shown on the published page
   // text / button
   text?: string
   fontSize?: number // design px

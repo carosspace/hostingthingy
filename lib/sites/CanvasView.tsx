@@ -23,7 +23,7 @@ export function CanvasView({
   navPages: { slug: string; label: string }[]
 }) {
   const pageHref = (slug: string) => (slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${slug}`)
-  const els = [...canvas.elements].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  const els = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   const ctaHref = (el: CanvasElement): string => {
     if (el.ctaType === 'booking') return `/book/${siteSlug}`
     if (el.ctaType === 'email') return contactEmail ? `mailto:${contactEmail}` : ''

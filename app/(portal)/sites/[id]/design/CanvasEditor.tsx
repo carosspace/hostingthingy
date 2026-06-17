@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { CANVAS_W, THEMES, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -111,16 +111,31 @@ export default function CanvasEditor({
     if (!el) return
     snapshot(true)
     const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
-    const copy: CanvasElement = { ...el, id: 'e' + idc.current++, x: el.x + 16, y: el.y + 16, z: maxZ + 1 }
+    const copy: CanvasElement = { ...el, id: 'e' + idc.current++, x: el.x + 16, y: el.y + 16, z: maxZ + 1, locked: undefined }
     setEls(p => [...p, copy])
     setSelectedIds([copy.id])
     touch()
   }
+  // Move one element one step forward/back in the layer order, renormalising z to
+  // the list position so the order never drifts. dir +1 = toward front, -1 = back.
+  const reorderLayer = (id: string, dir: 1 | -1) => {
+    snapshot(true)
+    setEls(p => {
+      const sorted = [...p].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+      const i = sorted.findIndex(e => e.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= sorted.length) return p
+      ;[sorted[i], sorted[j]] = [sorted[j], sorted[i]]
+      const zmap = new Map(sorted.map((e, idx) => [e.id, idx]))
+      return p.map(e => ({ ...e, z: zmap.get(e.id) ?? e.z }))
+    })
+    touch()
+  }
   // --- Multi-selection group operations ---
   const removeMany = (ids: string[]) => {
-    if (!ids.length) return
+    const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
+    if (!set.size) return
     snapshot(true)
-    const set = new Set(ids)
     setEls(p => p.filter(e => !set.has(e.id)))
     setSelectedIds([])
     touch()
@@ -138,7 +153,7 @@ export default function CanvasEditor({
   }
   const alignSelected = (how: 'left' | 'hcenter' | 'right' | 'top' | 'vmiddle' | 'bottom') => {
     const set = new Set(selectedIds)
-    const sels = elsRef.current.filter(e => set.has(e.id))
+    const sels = elsRef.current.filter(e => set.has(e.id) && !e.locked)
     if (sels.length < 2) return
     snapshot(true)
     const minX = Math.min(...sels.map(e => e.x)), maxX = Math.max(...sels.map(e => e.x + e.w))
@@ -157,7 +172,7 @@ export default function CanvasEditor({
   }
   const distributeSelected = (axis: 'h' | 'v') => {
     const set = new Set(selectedIds)
-    const sels = elsRef.current.filter(e => set.has(e.id))
+    const sels = elsRef.current.filter(e => set.has(e.id) && !e.locked)
     if (sels.length < 3) return
     snapshot(true)
     const sorted = [...sels].sort((a, b) => (axis === 'h' ? a.x - b.x : a.y - b.y))
@@ -284,7 +299,7 @@ export default function CanvasEditor({
         const cx = d.ox + dx, cy = d.oy + dy
         const x = Math.min(d.ox, cx), y = Math.min(d.oy, cy), w = Math.abs(dx), h = Math.abs(dy)
         setMarquee({ x, y, w, h })
-        const hits = elsRef.current.filter(el => el.x < x + w && el.x + el.w > x && el.y < y + h && el.y + el.h > y).map(el => el.id)
+        const hits = elsRef.current.filter(el => !el.locked && el.x < x + w && el.x + el.w > x && el.y < y + h && el.y + el.h > y).map(el => el.id)
         setSelectedIds(hits)
         return
       }
@@ -365,7 +380,7 @@ export default function CanvasEditor({
         const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0
         snapshot()
         const set = new Set(selectedIds)
-        setEls(p => p.map(el => (set.has(el.id) ? { ...el, x: el.x + dx, y: Math.max(0, el.y + dy) } : el)))
+        setEls(p => p.map(el => (set.has(el.id) && !el.locked ? { ...el, x: el.x + dx, y: Math.max(0, el.y + dy) } : el)))
         touch()
       }
     }
@@ -409,9 +424,10 @@ export default function CanvasEditor({
     if (!selectedIds.includes(el.id)) setSelectedIds([el.id])
     snapshot(true)
     const cur = elsRef.current
+    // Locked elements stay put even when part of a dragged group.
     const starts = ids
       .map(id => cur.find(x => x.id === id))
-      .filter((m): m is CanvasElement => !!m)
+      .filter((m): m is CanvasElement => !!m && !m.locked)
       .map(m => ({ id: m.id, x: m.x, y: m.y }))
     dragRef.current = { kind: 'move', px: e.clientX, py: e.clientY, scale, starts }
   }
@@ -497,6 +513,23 @@ export default function CanvasEditor({
     )
   }
 
+  // A short label + glyph for the Layers list.
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elName = (el: CanvasElement) => {
+    if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
+    if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
+    if (el.type === 'image') return 'Picture'
+    if (el.type === 'menu') return 'Page menu'
+    if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
+    if (el.h <= 10) return 'Line'
+    return 'Box'
+  }
+  const selectFromList = (e: ReactMouseEvent, id: string) => {
+    if (e.shiftKey) setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+    else setSelectedIds([id])
+  }
+  const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
+
   return (
     <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
       {/* LEFT PANEL */}
@@ -562,6 +595,39 @@ export default function CanvasEditor({
         </div>
 
         <div className="h-px bg-gold/15" />
+        {/* LAYERS */}
+        <div>
+          <div className="flex items-center justify-between">
+            <p style={labelCss}>Layers</p>
+            {els.length > 0 && <span style={{ fontSize: 9, color: '#b0a07a' }}>front → back</span>}
+          </div>
+          {els.length === 0 ? (
+            <p className="font-body text-ash/40 text-[11px] mt-1.5">Nothing on the page yet.</p>
+          ) : (
+            <div className="mt-1.5 space-y-0.5 max-h-60 overflow-y-auto pr-0.5">
+              {[...els].sort((a, b) => (b.z ?? 0) - (a.z ?? 0)).map((el, i, arr) => {
+                const isSel = selectedIds.includes(el.id)
+                return (
+                  <div
+                    key={el.id}
+                    onClick={e => selectFromList(e, el.id)}
+                    className="flex items-center gap-1 px-1.5 py-1 rounded-sm cursor-pointer"
+                    style={{ background: isSel ? accent : 'transparent', color: isSel ? '#fff' : '#5a513f' }}
+                  >
+                    <span style={{ fontSize: 11, width: 13, textAlign: 'center', opacity: 0.7 }}>{elIcon(el)}</span>
+                    <span style={{ fontSize: 11, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: el.hidden ? 'italic' : undefined, opacity: el.hidden ? 0.55 : 1 }}>{elName(el)}</span>
+                    <button type="button" title="Bring forward" disabled={i === 0} onClick={e => { e.stopPropagation(); reorderLayer(el.id, 1) }} style={layerBtn(isSel, i === 0)}>↑</button>
+                    <button type="button" title="Send back" disabled={i === arr.length - 1} onClick={e => { e.stopPropagation(); reorderLayer(el.id, -1) }} style={layerBtn(isSel, i === arr.length - 1)}>↓</button>
+                    <button type="button" title={el.hidden ? 'Show on the page' : 'Hide from the page'} onClick={e => { e.stopPropagation(); update(el.id, { hidden: !el.hidden }) }} style={{ ...layerBtn(isSel, false), opacity: el.hidden ? 1 : 0.4 }}>{el.hidden ? '🚫' : '👁'}</button>
+                    <button type="button" title={el.locked ? 'Unlock' : 'Lock in place'} onClick={e => { e.stopPropagation(); update(el.id, { locked: !el.locked }) }} style={{ ...layerBtn(isSel, false), opacity: el.locked ? 1 : 0.4 }}>{el.locked ? '🔒' : '🔓'}</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="h-px bg-gold/15" />
         {/* INSPECTOR */}
         {sel ? (
           <div className="space-y-3">
@@ -571,9 +637,12 @@ export default function CanvasEditor({
                 <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicate(sel.id)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Bring forward" onClick={() => layer(sel.id, 1)} style={{ fontSize: 13, color: accent }}>▲</button>
                 <button type="button" title="Send back" onClick={() => layer(sel.id, -1)} style={{ fontSize: 13, color: accent }}>▼</button>
+                <button type="button" title={sel.hidden ? 'Show on the page' : 'Hide from the page'} onClick={() => update(sel.id, { hidden: !sel.hidden })} style={{ fontSize: 12, color: accent, opacity: sel.hidden ? 1 : 0.45 }}>{sel.hidden ? '🚫' : '👁'}</button>
+                <button type="button" title={sel.locked ? 'Unlock' : 'Lock in place'} onClick={() => update(sel.id, { locked: !sel.locked })} style={{ fontSize: 12, color: accent, opacity: sel.locked ? 1 : 0.45 }}>{sel.locked ? '🔒' : '🔓'}</button>
                 <button type="button" title="Delete (Del)" onClick={() => remove(sel.id)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
             </div>
+            {sel.locked && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>🔒 Locked — it won&rsquo;t move or resize on the canvas. Unlock above to change it.</p>}
 
             {(sel.type === 'text' || sel.type === 'button') && (
               <>
@@ -752,12 +821,12 @@ export default function CanvasEditor({
             {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => (
               <div
                 key={el.id}
-                onPointerDown={e => { if (editingId === el.id) return; startDrag(e, el, 'move') }}
-                onDoubleClick={() => { if (el.type === 'text' || el.type === 'button') { setSelectedIds([el.id]); setEditingId(el.id) } }}
-                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : undefined, outlineOffset: 1 }}
+                onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
+                onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
+                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.hidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : el.hidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
               >
                 {elInner(el)}
-                {selectedId === el.id && (
+                {selectedId === el.id && !el.locked && (
                   <div
                     onPointerDown={e => startDrag(e, el, 'resize')}
                     style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 3, background: accent, border: '2px solid #fff', cursor: 'nwse-resize', touchAction: 'none', zIndex: 2 }}
