@@ -487,8 +487,6 @@ export default function LiveEditor({
   }
   const barZonesPreview = (items: EdItem[]) =>
     [0, 1, 2].map(z => items.filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z).map((it, i) => renderBarPreview(it, i)))
-  // Mirror the published content width so the Middle/Full toggle is visible while editing.
-  const editBodyMax = layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'
 
   const ctaPreview =
     ctaType !== 'none' ? (
@@ -1279,7 +1277,7 @@ export default function LiveEditor({
           </div>
         </div>
 
-        <div className={`${layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto px-6 py-10 space-y-10`}>
+        <div className={`${layout === 'full' ? 'max-w-6xl' : 'max-w-2xl'} mx-auto px-6 py-10 space-y-10`}>
           {sections.map(s => {
             const onBg = Boolean(s.bgImage) && s.kind === 'prose'
             const showImg = openImg.has(s.id) || Boolean(s.image)
@@ -1510,7 +1508,7 @@ export default function LiveEditor({
                     </div>
                   </div>
                 ) : (
-                  <div className={`${editBodyMax} mx-auto w-full`} style={{ background: s.bgColor || undefined, border: s.borderColor && s.borderWidth ? `${s.borderWidth}px solid ${s.borderColor}` : undefined, borderRadius: s.bgColor || (s.borderColor && s.borderWidth) ? 8 : undefined, padding: s.bgColor || (s.borderColor && s.borderWidth) ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
+                  <div style={{ background: s.bgColor || undefined, border: s.borderColor && s.borderWidth ? `${s.borderWidth}px solid ${s.borderColor}` : undefined, borderRadius: s.bgColor || (s.borderColor && s.borderWidth) ? 8 : undefined, padding: s.bgColor || (s.borderColor && s.borderWidth) ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
                     {s.kind === 'layout' ? (
                       <>
                         {layoutEditor}
