@@ -734,6 +734,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       mw: e?.mw === undefined || e?.mw === null ? undefined : num(e?.mw, 8, 4000, 100),
       mh: e?.mh === undefined || e?.mh === null ? undefined : num(e?.mh, 8, 8000, 60),
       mHidden: e?.mHidden ? true : undefined,
+      mFontSize: (type === 'text' || type === 'button') && e?.mFontSize ? num(e?.mFontSize, 6, 400, 24) : undefined,
       text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
       fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,
       color: color(e?.color),

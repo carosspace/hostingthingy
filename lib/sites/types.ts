@@ -227,6 +227,7 @@ export interface CanvasElement {
   mw?: number // mobile width
   mh?: number // mobile height
   mHidden?: boolean // shown on desktop but hidden on phones
+  mFontSize?: number // a phone-specific text/button font size (design px)
   // text / button
   text?: string
   fontSize?: number // design px

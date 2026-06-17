@@ -703,7 +703,7 @@ export default function CanvasEditor({
           alignItems: 'center',
           justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
           fontFamily: fontVar(el.fontFamily),
-          fontSize: cqv(el.fontSize || 24),
+          fontSize: cqv((editingMobile && el.mFontSize) || el.fontSize || 24),
           color: isBtn ? '#fff' : el.color || t.text,
           background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
           borderRadius: isBtn ? cqv(el.radius ?? 6) : undefined,
@@ -941,10 +941,15 @@ export default function CanvasEditor({
               <>
                 <textarea value={sel.text || ''} onChange={e => update(sel.id, { text: e.target.value })} rows={2} placeholder="Type here…" style={{ ...inputCss, resize: 'none' }} />
                 <div className="flex items-center gap-2">
-                  <span style={labelCss}>Size</span>
-                  <input type="range" min={12} max={120} value={sel.fontSize || 24} onChange={e => update(sel.id, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
-                  <span style={{ fontSize: 11, color: '#666', width: 28 }}>{sel.fontSize || 24}</span>
+                  <span style={labelCss}>{editingMobile ? 'Size (phone)' : 'Size'}</span>
+                  {editingMobile ? (
+                    <input type="range" min={12} max={120} value={sel.mFontSize ?? sel.fontSize ?? 24} onChange={e => update(sel.id, { mFontSize: Number(e.target.value) })} style={{ flex: 1 }} title="Font size on phones" />
+                  ) : (
+                    <input type="range" min={12} max={120} value={sel.fontSize || 24} onChange={e => update(sel.id, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
+                  )}
+                  <span style={{ fontSize: 11, color: '#666', width: 28 }}>{editingMobile ? (sel.mFontSize ?? sel.fontSize ?? 24) : sel.fontSize || 24}</span>
                 </div>
+                {editingMobile && sel.mFontSize && <button type="button" onClick={() => update(sel.id, { mFontSize: undefined })} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold self-start">↺ match desktop size</button>}
                 <div className="flex flex-wrap items-center gap-2">
                   {sel.type === 'text' && (
                     <>

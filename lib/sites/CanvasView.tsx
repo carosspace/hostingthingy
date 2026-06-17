@@ -53,8 +53,10 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     backgroundPosition: 'center',
   }
 
-  // The absolute renderer for one element, parameterised by the cq scale (desktop vs phone artboard).
-  const inner = (el: CanvasElement, cqf: (px: number) => string) => {
+  // The absolute renderer for one element, parameterised by the cq scale (desktop vs
+  // phone artboard) and whether it's the phone (which may use a per-phone font size).
+  const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => {
+    const fontSize = (mobile && el.mFontSize) || el.fontSize || 24
     if (el.type === 'image')
       return el.src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
@@ -89,7 +91,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
           alignItems: 'center',
           justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
           fontFamily: fontVar(el.fontFamily),
-          fontSize: cqf(el.fontSize || 24),
+          fontSize: cqf(fontSize),
           color: isBtn ? '#ffffff' : el.color || '#1a1612',
           background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
           borderRadius: isBtn ? cqf(el.radius ?? 6) : undefined,
@@ -138,7 +140,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
             {canvas.bgVideo && <video src={canvas.bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
             {phoneEls.map(el => (
               <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round(el.y * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
-                {withMotion(el, inner(el, cqm))}
+                {withMotion(el, inner(el, cqm, true))}
               </div>
             ))}
           </div>
@@ -192,7 +194,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'button') {
           const h = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
           const btn = (
-            <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 18, 20), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
+            <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
           )
           node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined}>{btn}</a> : btn}</div>
         } else if (el.type === 'menu') {
@@ -205,7 +207,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           )
         } else {
           const txt = (
-            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 24, 44), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
+            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 24, 48), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
               {el.text}
             </div>
           )
