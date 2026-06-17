@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement } from './types'
+import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -16,7 +16,7 @@ function withMotion(el: CanvasElement, child: ReactNode): ReactNode {
   return node
 }
 
-const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : 'var(--font-display)')
+const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 // A design-pixel value as a container-query-width unit (scales the canvas with the viewport).
 const cq = (px: number) => `${(px / CANVAS_W) * 100}cqw`
 const cqm = (px: number) => `${(px / MOBILE_W) * 100}cqw`
@@ -120,6 +120,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
 
   return (
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
+      {canvas.fonts && canvas.fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(canvas.fonts) }} />}
       {/* Desktop / tablet: the full canvas */}
       <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
         {canvas.bgVideo && <video src={canvas.bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}

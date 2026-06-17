@@ -107,6 +107,20 @@ export const MOBILE_W = 440
 // swatch as `var(--brand-N)`; changing the swatch updates every element using it.
 export const MAX_PALETTE = 6
 export const brandVar = (i: number) => `var(--brand-${i})`
+
+// An uploaded brand font. `src` is a base64 font data URL; it is exposed to CSS as
+// the family `cvf-<id>` (id is alphanumeric, so the name can't inject CSS).
+export interface SiteFont {
+  id: string // [a-z0-9]+
+  name: string // shown in the picker
+  src: string // data:font/...;base64,...
+}
+export const MAX_FONTS = 4
+// @font-face rules for a page's uploaded fonts. Every part is validated upstream
+// (id alphanumeric, src a strict base64 font data URL), so this can't break out.
+export function fontFaceCss(fonts?: SiteFont[]): string {
+  return (fonts ?? []).map(f => `@font-face{font-family:'cvf-${f.id}';src:url('${f.src}');font-display:swap;}`).join('')
+}
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
@@ -214,7 +228,7 @@ export interface CanvasElement {
   align?: SiteAlign
   bold?: boolean
   italic?: boolean
-  fontFamily?: 'display' | 'body' | 'label'
+  fontFamily?: string // 'display' | 'body' | 'label', or 'custom:<fontId>' for an uploaded font
   letterSpacing?: number // design px (can be negative)
   lineHeight?: number // unitless multiplier (0.8-4)
   dropCap?: boolean // enlarge the first letter of a text block
@@ -258,6 +272,7 @@ export interface PageCanvas {
   mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)
   mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
   palette?: string[] // brand swatches (hex); referenced by colours as var(--brand-N)
+  fonts?: SiteFont[] // uploaded brand fonts, referenced by fontFamily 'custom:<id>'
 }
 
 export interface SitePage {

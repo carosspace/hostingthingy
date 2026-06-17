@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
 import { saveCanvasAction } from '../../actions'
-const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : 'var(--font-display)')
+const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
 
@@ -47,6 +47,7 @@ export default function CanvasEditor({
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
   const [bgVideo, setBgVideo] = useState(initial?.bgVideo ?? '')
   const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
+  const [fonts, setFonts] = useState<SiteFont[]>(initial?.fonts ?? [])
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
@@ -395,6 +396,33 @@ export default function CanvasEditor({
     }
     inp.click()
   }
+  // Upload a brand font: encode it as a base64 data URL with a known MIME (so it
+  // always passes the gate) and add it to the page's fonts.
+  function fontPick() {
+    const inp = document.createElement('input')
+    inp.type = 'file'
+    inp.accept = '.woff2,.woff,.ttf,.otf,font/*'
+    inp.onchange = () => {
+      const f = inp.files?.[0]
+      if (!f) return
+      const ext = (f.name.split('.').pop() || '').toLowerCase()
+      const mime = ext === 'woff2' ? 'font/woff2' : ext === 'woff' ? 'font/woff' : ext === 'ttf' ? 'font/ttf' : ext === 'otf' ? 'font/otf' : ''
+      if (!mime) { alert('Please choose a .woff2, .woff, .ttf or .otf font file.'); return }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const bytes = new Uint8Array(reader.result as ArrayBuffer)
+        let bin = ''
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+        const src = `data:${mime};base64,${btoa(bin)}`
+        const id = 'f' + Math.random().toString(36).slice(2, 9)
+        const name = (f.name.replace(/\.(woff2?|ttf|otf)$/i, '') || 'Font').slice(0, 30)
+        setFonts(p => (p.length >= MAX_FONTS ? p : [...p, { id, name, src }]))
+        touch()
+      }
+      reader.readAsArrayBuffer(f)
+    }
+    inp.click()
+  }
   async function pickBg() {
     const inp = document.createElement('input')
     inp.type = 'file'
@@ -600,6 +628,7 @@ export default function CanvasEditor({
       mobileCustom: mobileCustom || undefined,
       mobileH: mobileCustom ? mobileH : undefined,
       palette: palette.length ? palette : undefined,
+      fonts: fonts.length ? fonts : undefined,
     }
     const fd = new FormData()
     fd.set('id', siteId)
@@ -738,6 +767,7 @@ export default function CanvasEditor({
 
   return (
     <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
+      {fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(fonts) }} />}
       {/* LEFT PANEL */}
       <div className="lg:sticky lg:top-2 lg:w-[300px] lg:shrink-0 lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-sm border border-gold/15 px-4 py-4 mb-4 lg:mb-0 flex flex-col gap-4" style={{ background: 'rgba(246,240,230,0.97)' }}>
         <div className="flex items-center justify-between">
@@ -816,6 +846,19 @@ export default function CanvasEditor({
             ))}
             {palette.length < MAX_PALETTE && (
               <button type="button" onClick={() => { snapshot(true); setPalette(p => [...p, accent]); touch() }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Colour</button>
+            )}
+          </div>
+          <p style={{ ...labelCss, marginTop: 10 }}>Brand fonts</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Upload your own fonts (.woff2/.woff/.ttf/.otf), then pick them in any text or button.</p>
+          <div className="flex flex-col gap-1">
+            {fonts.map(f => (
+              <div key={f.id} className="flex items-center gap-2">
+                <span style={{ fontFamily: `'cvf-${f.id}', sans-serif`, fontSize: 14, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#3a2e20' }}>{f.name}</span>
+                <button type="button" title="Remove" onClick={() => { setFonts(p => p.filter(x => x.id !== f.id)); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>×</button>
+              </div>
+            ))}
+            {fonts.length < MAX_FONTS && (
+              <button type="button" onClick={fontPick} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">+ Upload font</button>
             )}
           </div>
         </div>
@@ -900,10 +943,11 @@ export default function CanvasEditor({
                 </div>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Font</span>
-                  <select value={sel.fontFamily || 'display'} onChange={e => update(sel.id, { fontFamily: e.target.value as 'display' | 'body' | 'label' })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                  <select value={sel.fontFamily || 'display'} onChange={e => update(sel.id, { fontFamily: e.target.value })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                     <option value="display">Title font</option>
                     <option value="body">Body font</option>
                     <option value="label">Label font</option>
+                    {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">

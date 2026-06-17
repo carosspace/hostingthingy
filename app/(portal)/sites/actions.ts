@@ -10,6 +10,7 @@ import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SH
 import type {
   SiteContent,
   SavedDesign,
+  SiteFont,
   Gradient,
   BlendMode,
   RevealKind,
@@ -709,8 +710,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const type = (['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
-    const ff = String(e?.fontFamily)
-    const fontFamily = (['display', 'body', 'label'].includes(ff) ? ff : undefined) as 'display' | 'body' | 'label' | undefined
+    const ff = String(e?.fontFamily ?? '').trim()
+    const fontFamily = ['display', 'body', 'label'].includes(ff) || /^custom:[a-z0-9]{1,12}$/i.test(ff) ? ff : undefined
     const ct = String(e?.ctaType)
     const ctaType = (['booking', 'email', 'link'].includes(ct) ? ct : undefined) as CtaType | undefined
     return {
@@ -775,6 +776,19 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
     palette: Array.isArray(c.palette) ? (c.palette.map(hex).filter(Boolean) as string[]).slice(0, 6) : undefined,
     bgVideo: httpUrl(c.bgVideo),
+    fonts: Array.isArray(c.fonts)
+      ? (c.fonts as Record<string, unknown>[])
+          .map(f => {
+            const id = String(f?.id ?? '').trim()
+            const src = String(f?.src ?? '').trim()
+            if (!/^[a-z0-9]{1,12}$/i.test(id)) return null
+            // A strict base64 font data URL — no quote/paren/space so it can't break out of @font-face url('').
+            if (!/^data:(font\/(woff2|woff|ttf|otf)|application\/(x-font-ttf|x-font-woff|font-woff2?|octet-stream));base64,[a-z0-9+/=]+$/i.test(src)) return null
+            return { id, name: String(f?.name ?? 'Font').slice(0, 30), src }
+          })
+          .filter(Boolean)
+          .slice(0, 4) as SiteFont[]
+      : undefined,
   }
 }
 
