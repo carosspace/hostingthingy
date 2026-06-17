@@ -1348,11 +1348,22 @@ export default function LiveEditor({
               s.kind === 'cards' || s.kind === 'faq' || s.kind === 'gallery' ? (
                 <div className={itemsWrap} style={{ textAlign: 'left' }}>
                   {s.items.map(it => (
-                    <div key={it.id} className="relative rounded-sm" style={{ border: `1px solid ${accent}33`, background: 'rgba(255,255,255,0.55)', padding: 12 }}>
-                      <button type="button" onClick={() => removeItem(s.id, it.id)} className="absolute z-10" style={{ top: 4, right: 6, fontSize: 12, color: '#b3402f' }} aria-label="Remove item">✕</button>
+                    <div key={it.id} className="group/it relative rounded-sm" style={s.kind === 'gallery' ? undefined : { border: `1px solid ${accent}33`, background: 'rgba(255,255,255,0.55)', padding: 12 }}>
+                      <button type="button" onClick={() => removeItem(s.id, it.id)} className="absolute z-20 opacity-0 group-hover/it:opacity-100 transition-opacity" style={{ top: 4, right: 4, width: 18, height: 18, lineHeight: '16px', textAlign: 'center', fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 9 }} aria-label="Remove item">✕</button>
                       {(s.kind === 'cards' || s.kind === 'gallery') && (
                         <div className={s.kind === 'gallery' ? '' : 'mb-2'}>
-                          <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
+                          {it.image ? (
+                            <div className="relative group/img rounded-sm overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={it.image} alt="" className="w-full" style={s.kind === 'gallery' ? { aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' } : { borderRadius: 4, display: 'block' }} />
+                              <div className="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover/img:opacity-100 transition-opacity" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                                <label style={{ cursor: 'pointer', fontSize: 12, color: '#fff', textDecoration: 'underline' }}>replace<input type="file" accept="image/*" hidden onChange={async e => { const f = e.target.files?.[0]; if (f && f.type.startsWith('image/')) updateItem(s.id, it.id, { image: await resizeToDataUrl(f) }) }} /></label>
+                                <button type="button" onClick={() => updateItem(s.id, it.id, { image: '' })} style={{ fontSize: 12, color: '#fff' }}>remove</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <ImageField value={it.image} onChange={v => updateItem(s.id, it.id, { image: v })} />
+                          )}
                         </div>
                       )}
                       {s.kind !== 'gallery' && (
@@ -1377,7 +1388,7 @@ export default function LiveEditor({
                     </div>
                   ))}
                   {s.items.length < 12 && (
-                    <button type="button" onClick={() => addItem(s.id)} className="rounded-sm" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13 }}>
+                    <button type="button" onClick={() => addItem(s.id)} className="rounded-sm flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, color: accent, padding: 16, fontSize: 13, ...(s.kind === 'gallery' ? { aspectRatio: '1 / 1' } : {}) }}>
                       + Add {s.kind === 'faq' ? 'question' : s.kind === 'gallery' ? 'photo' : 'card'}
                     </button>
                   )}
