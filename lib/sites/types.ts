@@ -124,7 +124,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'component'
 
 // Decorative SVG section dividers (filled with the element's colour; rotate to flip).
 export type ShapeKind = 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
@@ -266,6 +266,20 @@ export interface CanvasElement {
   revealDelay?: number // ms delay before the reveal (for staggering)
   hover?: HoverKind // how it reacts to the pointer hovering over it
   parallax?: number // drift speed as the visitor scrolls (-5..5; 0 = none)
+  // component instance ('component' type): which reusable component this renders
+  componentId?: string
+}
+
+// A reusable component (symbol): a named mini-canvas with its own design size.
+// Placed on a page as a 'component' element; every instance renders the master,
+// so editing the master updates them all. Its elements never contain another
+// 'component' (no nesting).
+export interface SiteComponent {
+  id: string
+  name: string
+  w: number
+  h: number
+  elements: CanvasElement[]
 }
 
 export interface PageCanvas {
@@ -280,6 +294,7 @@ export interface PageCanvas {
   mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
   palette?: string[] // brand swatches (hex); referenced by colours as var(--brand-N)
   fonts?: SiteFont[] // uploaded brand fonts, referenced by fontFamily 'custom:<id>'
+  components?: SiteComponent[] // reusable components placed via 'component' elements
 }
 
 export interface SitePage {

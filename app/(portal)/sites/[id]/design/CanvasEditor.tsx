@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
-import { MobileStack } from '@/lib/sites/CanvasView'
+import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
 import { saveCanvasAction } from '../../actions'
@@ -49,6 +49,7 @@ export default function CanvasEditor({
   const [bgVideo, setBgVideo] = useState(initial?.bgVideo ?? '')
   const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
   const [fonts, setFonts] = useState<SiteFont[]>(initial?.fonts ?? [])
+  const [components, setComponents] = useState<SiteComponent[]>(initial?.components ?? [])
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
@@ -74,9 +75,12 @@ export default function CanvasEditor({
   elsRef.current = els
   const paletteRef = useRef(palette)
   paletteRef.current = palette
-  // History captures elements AND palette together so a single action (e.g. removing
-  // a brand swatch, which touches both) undoes atomically and never strands a token.
-  type Snap = { els: CanvasElement[]; palette: string[] }
+  const componentsRef = useRef(components)
+  componentsRef.current = components
+  // History captures elements, palette AND components together so a single action
+  // (removing a brand swatch, or deleting a component + its instances) undoes
+  // atomically and never strands a token or an orphaned instance.
+  type Snap = { els: CanvasElement[]; palette: string[]; components: SiteComponent[] }
   const history = useRef<Snap[]>([])
   const future = useRef<Snap[]>([])
   const clip = useRef<CanvasElement[]>([])
@@ -102,6 +106,8 @@ export default function CanvasEditor({
   const cqv = (px: number) => `${(px / CW) * 100}cqw`
   const brandVars: CSSProperties = {}
   palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
+  // Read-only context for rendering component instances inside the editor.
+  const renderCtx: RenderCtx = { accent, navPages, pageHref: () => '#', ctaHref: () => '', components }
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
@@ -115,16 +121,17 @@ export default function CanvasEditor({
     const now = Date.now()
     if (!force && now - lastSnap.current < 500) return
     lastSnap.current = now
-    history.current.push({ els: elsRef.current, palette: paletteRef.current })
+    history.current.push({ els: elsRef.current, palette: paletteRef.current, components: componentsRef.current })
     if (history.current.length > 60) history.current.shift()
     future.current = []
   }
   const undo = () => {
     const prev = history.current.pop()
     if (prev === undefined) return
-    future.current.push({ els: elsRef.current, palette: paletteRef.current })
+    future.current.push({ els: elsRef.current, palette: paletteRef.current, components: componentsRef.current })
     setEls(prev.els)
     setPalette(prev.palette)
+    setComponents(prev.components)
     setSelectedIds([])
     dirty.current = true
     setSaved(false)
@@ -132,9 +139,10 @@ export default function CanvasEditor({
   const redo = () => {
     const next = future.current.pop()
     if (next === undefined) return
-    history.current.push({ els: elsRef.current, palette: paletteRef.current })
+    history.current.push({ els: elsRef.current, palette: paletteRef.current, components: componentsRef.current })
     setEls(next.els)
     setPalette(next.palette)
+    setComponents(next.components)
     dirty.current = true
     setSaved(false)
   }
@@ -266,6 +274,65 @@ export default function CanvasEditor({
     touch()
   }
   const useAutoMobile = () => { setMobileCustom(false); setSelectedIds([]); touch() }
+
+  // --- Reusable components ---
+  // Turn the current selection into a reusable component + replace it with one instance.
+  const makeComponent = (ids: string[]) => {
+    const set = new Set(ids)
+    const sel = elsRef.current.filter(e => set.has(e.id) && e.type !== 'component')
+    if (!sel.length) return
+    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => e.y))
+    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => e.y + e.h))
+    const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
+    const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci
+      return { ...rest, x: e.x - minX, y: e.y - minY }
+    })
+    const id = 'c' + Math.random().toString(36).slice(2, 9)
+    snapshot(true)
+    setComponents(p => [...p, { id, name: `Component ${p.length + 1}`, w, h, elements: cels }])
+    const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const inst: CanvasElement = { id: 'e' + idc.current++, type: 'component', componentId: id, x: minX, y: minY, w, h, z: maxZ + 1, opacity: 100 }
+    setEls(p => [...p.filter(e => !set.has(e.id)), inst])
+    setSelectedIds([inst.id])
+    touch()
+  }
+  // Drop another instance of an existing component onto the page.
+  const placeComponent = (compId: string) => {
+    const comp = components.find(c => c.id === compId)
+    if (!comp) return
+    snapshot(true)
+    const maxZ = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const n = els.length
+    const w = Math.min(comp.w, 480)
+    const h = Math.max(8, Math.round((w * comp.h) / Math.max(1, comp.w)))
+    const inst: CanvasElement = { id: 'e' + idc.current++, type: 'component', componentId: compId, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w, h, z: maxZ + 1, opacity: 100 }
+    setEls(p => [...p, inst])
+    setSelectedIds([inst.id])
+    touch()
+  }
+  // Unlink an instance back into its constituent elements (positioned/scaled in place).
+  const detachComponent = (id: string) => {
+    const inst = elsRef.current.find(e => e.id === id)
+    if (!inst || inst.type !== 'component') return
+    const comp = components.find(c => c.id === inst.componentId)
+    if (!comp) return
+    snapshot(true)
+    const scale = inst.w / Math.max(1, comp.w)
+    let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const newEls: CanvasElement[] = comp.elements.map(ce => ({ ...ce, id: 'e' + idc.current++, x: Math.round(inst.x + ce.x * scale), y: Math.round(inst.y + ce.y * scale), w: Math.max(8, Math.round(ce.w * scale)), h: Math.max(8, Math.round(ce.h * scale)), z: ++z }))
+    setEls(p => [...p.filter(e => e.id !== id), ...newEls])
+    setSelectedIds(newEls.map(e => e.id))
+    touch()
+  }
+  const deleteComponent = (compId: string) => {
+    if (!confirm('Delete this component? Any instances of it on this page will disappear.')) return
+    snapshot(true)
+    setComponents(p => p.filter(c => c.id !== compId))
+    setEls(p => p.filter(e => !(e.type === 'component' && e.componentId === compId)))
+    touch()
+  }
   // Remove a brand swatch without breaking references: elements on the removed slot
   // freeze to its current colour, and higher slots shift down to match the new indices.
   const removePaletteColor = (i: number) => {
@@ -639,6 +706,7 @@ export default function CanvasEditor({
       mobileH: mobileCustom ? mobileH : undefined,
       palette: palette.length ? palette : undefined,
       fonts: fonts.length ? fonts : undefined,
+      components: components.length ? components : undefined,
     }
     const fd = new FormData()
     fd.set('id', siteId)
@@ -680,6 +748,11 @@ export default function CanvasEditor({
           <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
         </svg>
       )
+    if (el.type === 'component') {
+      const comp = components.find(c => c.id === el.componentId)
+      if (!comp) return <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, color: accent, fontSize: cqv(14) }}>missing component</div>
+      return <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>{renderInner(el, cqv, renderCtx)}</div>
+    }
     if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
     if (el.type === 'menu')
       return (
@@ -728,13 +801,14 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
     if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'shape') return 'Shape divider'
+    if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
@@ -883,6 +957,24 @@ export default function CanvasEditor({
         </div>
 
         <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Components</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Select things, then “Make component”. Place it again to reuse the same design.</p>
+          {components.length === 0 ? (
+            <p className="font-body text-ash/40 text-[11px]">None yet.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {components.map(c => (
+                <div key={c.id} className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => placeComponent(c.id)} title="Place another instance" className="flex-1 text-left" style={{ fontSize: 12, color: '#5a513f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>＋ {c.name}</button>
+                  <button type="button" onClick={() => deleteComponent(c.id)} title="Delete component" style={{ fontSize: 11, color: '#b3402f' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="h-px bg-gold/15" />
         {/* LAYERS */}
         <div>
           <div className="flex items-center justify-between">
@@ -922,7 +1014,7 @@ export default function CanvasEditor({
         {sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -1157,6 +1249,15 @@ export default function CanvasEditor({
                 {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
+            {sel.type === 'component' ? (
+              <>
+                <p className="font-body text-[12px]" style={{ color: '#5a513f' }}>❖ {components.find(c => c.id === sel.componentId)?.name || 'Component'}</p>
+                <button type="button" onClick={() => detachComponent(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">Detach (unlink)</button>
+                <p className="font-body text-ash/50 text-[11px] leading-relaxed">An instance of a reusable component. Detach to edit it as plain elements.</p>
+              </>
+            ) : (
+              <button type="button" onClick={() => makeComponent([sel.id])} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>
+            )}
             <div className="flex items-center gap-2">
               <span style={labelCss}>Opacity</span>
               <input type="range" min={10} max={100} value={sel.opacity ?? 100} onChange={e => update(sel.id, { opacity: Number(e.target.value) })} style={{ flex: 1 }} />
@@ -1245,6 +1346,7 @@ export default function CanvasEditor({
                 </div>
               </div>
             )}
+            <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>
             <p className="font-body text-ash/50 text-[11px] leading-relaxed">Drag any selected element to move them all together. Shift-click an element to add or remove it.</p>
           </div>
         ) : (
@@ -1284,7 +1386,7 @@ export default function CanvasEditor({
           // The automatic phone layout, shown read-only in a phone frame.
           <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSystem) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
-              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els, palette: palette.length ? palette : undefined }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
             </div>
           </div>
         ) : (

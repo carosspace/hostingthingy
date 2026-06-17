@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement } from './types'
+import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -33,6 +33,94 @@ type ViewProps = {
   navPages: { slug: string; label: string }[]
 }
 
+export type RenderCtx = {
+  accent: string
+  navPages: { slug: string; label: string }[]
+  pageHref: (slug: string) => string
+  ctaHref: (el: CanvasElement) => string
+  components?: SiteComponent[]
+}
+
+// The absolute renderer for one element (shared by the page canvas + component
+// instances + the auto-stack). A 'component' renders its master's elements in a
+// nested container; the master's elements are never themselves components, so the
+// recursion is bounded to one level.
+export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx: RenderCtx, mobile = false): ReactNode {
+  const fontSize = (mobile && el.mFontSize) || el.fontSize || 24
+  if (el.type === 'image')
+    return el.src ? (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
+    ) : null
+  if (el.type === 'carousel')
+    return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
+  if (el.type === 'shape')
+    return (
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+        <path d={shapePath(el.shape)} style={{ fill: el.fill || ctx.accent }} />
+      </svg>
+    )
+  if (el.type === 'component') {
+    const comp = (ctx.components ?? []).find(c => c.id === el.componentId)
+    if (!comp || !comp.elements.length) return null
+    const ccqf = (px: number) => `${(px / Math.max(1, comp.w)) * 100}cqw`
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', containerType: 'inline-size' } as CSSProperties}>
+        {[...comp.elements].filter(ce => !ce.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(ce => (
+          <div key={ce.id} style={{ position: 'absolute', left: ccqf(ce.x), top: ccqf(ce.y), width: ccqf(ce.w), height: ccqf(ce.h), opacity: (ce.opacity ?? 100) / 100, transform: ce.rotate ? `rotate(${ce.rotate}deg)` : undefined, mixBlendMode: ce.blend }}>
+            {renderInner(ce, ccqf, ctx)}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (el.type === 'box')
+    return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
+  if (el.type === 'menu')
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cqf(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden' }}>
+        {ctx.navPages.map(p => (
+          <a key={p.slug} href={ctx.pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqf(el.fontSize || 18), color: el.color || ctx.accent, textTransform: 'uppercase', letterSpacing: cqf(2) }}>{p.label}</a>
+        ))}
+      </div>
+    )
+  const isBtn = el.type === 'button'
+  const content = (
+    <div
+      className={el.dropCap && !isBtn ? 'dbp-dropcap' : undefined}
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
+        fontFamily: fontVar(el.fontFamily),
+        fontSize: cqf(fontSize),
+        color: isBtn ? '#ffffff' : el.color || '#1a1612',
+        background: isBtn ? gradientCss(el.gradient) || el.fill || ctx.accent : undefined,
+        borderRadius: isBtn ? cqf(el.radius ?? 6) : undefined,
+        boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
+        fontWeight: el.bold ? 700 : 400,
+        fontStyle: el.italic ? 'italic' : undefined,
+        letterSpacing: el.letterSpacing ? cqf(el.letterSpacing) : undefined,
+        textAlign: el.align || (isBtn ? 'center' : 'left'),
+        whiteSpace: 'pre-wrap',
+        overflow: 'hidden',
+        padding: isBtn ? `0 ${cqf(18)}` : undefined,
+        lineHeight: el.lineHeight ?? 1.25,
+      }}
+    >
+      {el.text}
+    </div>
+  )
+  const h = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
+  return h ? (
+    <a href={h} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>
+      {content}
+    </a>
+  ) : content
+}
+
 // Read-only renderer for a free-canvas page. Desktop: a faithful absolutely-positioned
 // canvas that scales with the viewport. Phones: a hand-arranged phone artboard when the
 // page opted into a custom mobile layout, otherwise the elements stack top-to-bottom.
@@ -53,69 +141,8 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     backgroundPosition: 'center',
   }
 
-  // The absolute renderer for one element, parameterised by the cq scale (desktop vs
-  // phone artboard) and whether it's the phone (which may use a per-phone font size).
-  const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => {
-    const fontSize = (mobile && el.mFontSize) || el.fontSize || 24
-    if (el.type === 'image')
-      return el.src ? (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
-      ) : null
-    if (el.type === 'carousel')
-      return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
-    if (el.type === 'shape')
-      return (
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
-          <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
-        </svg>
-      )
-    if (el.type === 'box')
-      return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
-    if (el.type === 'menu')
-      return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cqf(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden' }}>
-          {navPages.map(p => (
-            <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqf(el.fontSize || 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: cqf(2) }}>{p.label}</a>
-          ))}
-        </div>
-      )
-    const isBtn = el.type === 'button'
-    const content = (
-      <div
-        className={el.dropCap && !isBtn ? 'dbp-dropcap' : undefined}
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
-          fontFamily: fontVar(el.fontFamily),
-          fontSize: cqf(fontSize),
-          color: isBtn ? '#ffffff' : el.color || '#1a1612',
-          background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
-          borderRadius: isBtn ? cqf(el.radius ?? 6) : undefined,
-          boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
-          fontWeight: el.bold ? 700 : 400,
-          fontStyle: el.italic ? 'italic' : undefined,
-          letterSpacing: el.letterSpacing ? cqf(el.letterSpacing) : undefined,
-          textAlign: el.align || (isBtn ? 'center' : 'left'),
-          whiteSpace: 'pre-wrap',
-          overflow: 'hidden',
-          padding: isBtn ? `0 ${cqf(18)}` : undefined,
-          lineHeight: el.lineHeight ?? 1.25,
-        }}
-      >
-        {el.text}
-      </div>
-    )
-    const h = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
-    return h ? (
-      <a href={h} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>
-        {content}
-      </a>
-    ) : content
-  }
+  const ctx: RenderCtx = { accent, navPages, pageHref, ctaHref, components: canvas.components }
+  const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => renderInner(el, cqf, ctx, mobile)
 
   const desktopEls = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   const phoneEls = canvas.elements.filter(e => !e.hidden && !e.mHidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
@@ -173,6 +200,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   }
+  const ctx: RenderCtx = { accent, navPages, pageHref, ctaHref, components: canvas.components }
   const els = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
 
   return (
@@ -189,6 +217,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
         } else if (el.type === 'shape') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
+        } else if (el.type === 'component') {
+          node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{renderInner(el, p => `${p}px`, ctx)}</div>
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o, boxShadow: shadowCss(el.shadow) }} /> : null
         } else if (el.type === 'button') {

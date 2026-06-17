@@ -11,6 +11,7 @@ import type {
   SiteContent,
   SavedDesign,
   SiteFont,
+  SiteComponent,
   StockPhoto,
   Gradient,
   BlendMode,
@@ -709,9 +710,12 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     }
     return undefined
   }
-  const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
-  const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
-    const type = (['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
+  // Component elements (allowComponent=false) can never themselves be a component
+  // instance, so a component can never nest another — render recursion is bounded.
+  const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape']
+    if (allowComponent) types.push('component')
+    const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
     const ff = String(e?.fontFamily ?? '').trim()
@@ -768,8 +772,22 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       revealDelay: e?.reveal && e?.revealDelay ? num(e?.revealDelay, 0, 2000, 0) || undefined : undefined,
       hover: hover(e?.hover),
       parallax: num(e?.parallax, -5, 5, 0) || undefined,
+      componentId: type === 'component' && /^[a-z0-9]{1,20}$/i.test(String(e?.componentId ?? '')) ? String(e?.componentId).trim() : undefined,
     }
-  })
+  }
+  const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
+  const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => sanitizeElement(e, i, true))
+  const components: SiteComponent[] | undefined = Array.isArray(c.components)
+    ? ((c.components as Record<string, unknown>[])
+        .map(comp => {
+          const id = String(comp?.id ?? '').trim()
+          if (!/^[a-z0-9]{1,20}$/i.test(id)) return null
+          const cels = Array.isArray(comp?.elements) ? (comp.elements as Record<string, unknown>[]).slice(0, 60).map((e, i) => sanitizeElement(e, i, false)) : []
+          return { id, name: String(comp?.name ?? 'Component').slice(0, 40), w: num(comp?.w, 8, 4000, 200), h: num(comp?.h, 8, 8000, 200), elements: cels } as SiteComponent
+        })
+        .filter(Boolean) as SiteComponent[])
+        .slice(0, 30)
+    : undefined
   return {
     h: num(c.h, 200, 40000, 1000),
     width: c.width === 'contained' ? 'contained' : undefined,
@@ -781,6 +799,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
     palette: Array.isArray(c.palette) ? (c.palette.map(hex).filter(Boolean) as string[]).slice(0, 6) : undefined,
     bgVideo: httpUrl(c.bgVideo),
+    components: components && components.length ? components : undefined,
     fonts: Array.isArray(c.fonts)
       ? (c.fonts as Record<string, unknown>[])
           .map(f => {
