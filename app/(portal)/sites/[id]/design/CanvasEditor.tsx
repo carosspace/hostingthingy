@@ -11,7 +11,11 @@ const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'labe
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
 
-type Drag = { mode: 'move' | 'resize'; id: string; px: number; py: number; x: number; y: number; w: number; h: number; scale: number } | null
+type Drag =
+  | { kind: 'move'; px: number; py: number; scale: number; starts: { id: string; x: number; y: number }[] }
+  | { kind: 'resize'; id: string; px: number; py: number; scale: number; w: number; h: number }
+  | { kind: 'marquee'; px: number; py: number; scale: number; ox: number; oy: number }
+  | null
 
 export default function CanvasEditor({
   siteId,
@@ -41,8 +45,9 @@ export default function CanvasEditor({
   const [bg, setBg] = useState(initial?.bg ?? '')
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
-  const [selectedId, setSelectedId] = useState('')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
+  const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -58,11 +63,12 @@ export default function CanvasEditor({
   elsRef.current = els
   const history = useRef<CanvasElement[][]>([])
   const future = useRef<CanvasElement[][]>([])
-  const clip = useRef<CanvasElement | null>(null)
+  const clip = useRef<CanvasElement[]>([])
   const lastSnap = useRef(0)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
-  const sel = els.find(e => e.id === selectedId) || null
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
+  const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
   const canvasH = Math.max(900, ...els.map(e => e.y + e.h + 80), 0)
 
   const touch = () => { dirty.current = true; setSaved(false) }
@@ -79,7 +85,7 @@ export default function CanvasEditor({
     const prev = history.current.pop()
     if (prev === undefined) return
     setEls(cur => { future.current.push(cur); return prev })
-    setSelectedId('')
+    setSelectedIds([])
     dirty.current = true
     setSaved(false)
   }
@@ -91,7 +97,7 @@ export default function CanvasEditor({
     setSaved(false)
   }
   const update = (id: string, patch: Partial<CanvasElement>) => { snapshot(); setEls(p => p.map(e => (e.id === id ? { ...e, ...patch } : e))); touch() }
-  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id)); setSelectedId(''); touch() }
+  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id)); setSelectedIds([]); touch() }
   const layer = (id: string, dir: 1 | -1) => {
     snapshot(true)
     setEls(p => {
@@ -107,7 +113,60 @@ export default function CanvasEditor({
     const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const copy: CanvasElement = { ...el, id: 'e' + idc.current++, x: el.x + 16, y: el.y + 16, z: maxZ + 1 }
     setEls(p => [...p, copy])
-    setSelectedId(copy.id)
+    setSelectedIds([copy.id])
+    touch()
+  }
+  // --- Multi-selection group operations ---
+  const removeMany = (ids: string[]) => {
+    if (!ids.length) return
+    snapshot(true)
+    const set = new Set(ids)
+    setEls(p => p.filter(e => !set.has(e.id)))
+    setSelectedIds([])
+    touch()
+  }
+  const duplicateMany = (ids: string[]) => {
+    const set = new Set(ids)
+    const src = elsRef.current.filter(e => set.has(e.id))
+    if (!src.length) return
+    snapshot(true)
+    let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const copies = src.map(e => ({ ...e, id: 'e' + idc.current++, x: e.x + 16, y: e.y + 16, z: ++z }))
+    setEls(p => [...p, ...copies])
+    setSelectedIds(copies.map(c => c.id))
+    touch()
+  }
+  const alignSelected = (how: 'left' | 'hcenter' | 'right' | 'top' | 'vmiddle' | 'bottom') => {
+    const set = new Set(selectedIds)
+    const sels = elsRef.current.filter(e => set.has(e.id))
+    if (sels.length < 2) return
+    snapshot(true)
+    const minX = Math.min(...sels.map(e => e.x)), maxX = Math.max(...sels.map(e => e.x + e.w))
+    const minY = Math.min(...sels.map(e => e.y)), maxY = Math.max(...sels.map(e => e.y + e.h))
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+    setEls(p => p.map(e => {
+      if (!set.has(e.id)) return e
+      if (how === 'left') return { ...e, x: Math.round(minX) }
+      if (how === 'right') return { ...e, x: Math.round(maxX - e.w) }
+      if (how === 'hcenter') return { ...e, x: Math.round(cx - e.w / 2) }
+      if (how === 'top') return { ...e, y: Math.round(minY) }
+      if (how === 'bottom') return { ...e, y: Math.round(maxY - e.h) }
+      return { ...e, y: Math.round(cy - e.h / 2) }
+    }))
+    touch()
+  }
+  const distributeSelected = (axis: 'h' | 'v') => {
+    const set = new Set(selectedIds)
+    const sels = elsRef.current.filter(e => set.has(e.id))
+    if (sels.length < 3) return
+    snapshot(true)
+    const sorted = [...sels].sort((a, b) => (axis === 'h' ? a.x - b.x : a.y - b.y))
+    const first = sorted[0], last = sorted[sorted.length - 1]
+    const start = axis === 'h' ? first.x : first.y
+    const end = axis === 'h' ? last.x : last.y
+    const gap = (end - start) / (sorted.length - 1)
+    const pos = new Map(sorted.map((e, i) => [e.id, Math.round(start + gap * i)]))
+    setEls(p => p.map(e => (pos.has(e.id) ? (axis === 'h' ? { ...e, x: pos.get(e.id)! } : { ...e, y: pos.get(e.id)! }) : e)))
     touch()
   }
 
@@ -117,7 +176,7 @@ export default function CanvasEditor({
     const n = els.length
     const el: CanvasElement = { id: 'e' + idc.current++, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
     setEls(p => [...p, el])
-    setSelectedId(el.id)
+    setSelectedIds([el.id])
     touch()
     if (el.type === 'image' && !el.src) setTimeout(() => imgPick(el.id), 50)
     return el
@@ -149,7 +208,7 @@ export default function CanvasEditor({
         mk({ type: 'menu', x: CANVAS_W - 500, y: 38, w: 460, h: 30, fontSize: 15, fontFamily: 'label', color: accent, align: 'right' }),
       ]
       setEls(p => [...p, ...group])
-      setSelectedId(group[0].id)
+      setSelectedIds([group[0].id])
       touch()
       return
     }
@@ -161,7 +220,7 @@ export default function CanvasEditor({
         mk({ type: 'menu', x: CANVAS_W - 500, y: fy + 42, w: 460, h: 28, fontSize: 13, fontFamily: 'label', color: '#ffffff', align: 'right' }),
       ]
       setEls(p => [...p, ...group])
-      setSelectedId(group[0].id)
+      setSelectedIds([group[0].id])
       touch()
       return
     }
@@ -173,7 +232,7 @@ export default function CanvasEditor({
         mk({ type: 'text', x: bx + 18, y: by + 248, w: 284, h: 116, text: 'A short description goes here.', fontSize: 15, fontFamily: 'body', color: t.text }),
       ]
       setEls(p => [...p, ...group])
-      setSelectedId(group[1].id)
+      setSelectedIds([group[1].id])
       touch()
       setTimeout(() => imgPick(group[1].id), 60)
     } else {
@@ -182,7 +241,7 @@ export default function CanvasEditor({
         mk({ type: 'text', x: bx, y: by + 48, w: 500, h: 96, text: 'The answer goes here.', fontSize: 16, fontFamily: 'body', color: t.text }),
       ]
       setEls(p => [...p, ...group])
-      setSelectedId(group[1].id)
+      setSelectedIds([group[1].id])
       touch()
     }
   }
@@ -216,33 +275,53 @@ export default function CanvasEditor({
       if (!d) return
       const dx = (e.clientX - d.px) / d.scale
       const dy = (e.clientY - d.py) / d.scale
-      if (d.mode === 'resize') {
+      if (d.kind === 'resize') {
         setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, w: Math.max(24, Math.round(d.w + dx)), h: Math.max(20, Math.round(d.h + dy)) })))
         return
       }
-      // Move with snapping to the canvas centre and other elements' edges/centres.
-      let nx = Math.round(d.x + dx)
-      let ny = Math.max(0, Math.round(d.y + dy))
-      const others = elsRef.current.filter(el => el.id !== d.id)
-      const T = 8
+      if (d.kind === 'marquee') {
+        // Rubber-band selection: any element overlapping the box gets selected.
+        const cx = d.ox + dx, cy = d.oy + dy
+        const x = Math.min(d.ox, cx), y = Math.min(d.oy, cy), w = Math.abs(dx), h = Math.abs(dy)
+        setMarquee({ x, y, w, h })
+        const hits = elsRef.current.filter(el => el.x < x + w && el.x + el.w > x && el.y < y + h && el.y + el.h > y).map(el => el.id)
+        setSelectedIds(hits)
+        return
+      }
+      // Move. With a single element selected we snap to the canvas centre and
+      // other elements' edges/centres; a multi-selection moves as a rigid group.
+      let sdx = dx, sdy = dy
       let gx: number | null = null
       let gy: number | null = null
-      const vlines = [CANVAS_W / 2, ...others.flatMap(el => [el.x, el.x + el.w / 2, el.x + el.w])]
-      const mx = [nx, nx + d.w / 2, nx + d.w]
-      for (const line of vlines) {
-        const hit = mx.findIndex(m => Math.abs(m - line) <= T)
-        if (hit >= 0) { nx += line - mx[hit]; gx = line; break }
-      }
-      const hlines = others.flatMap(el => [el.y, el.y + el.h / 2, el.y + el.h])
-      const my = [ny, ny + d.h / 2, ny + d.h]
-      for (const line of hlines) {
-        const hit = my.findIndex(m => Math.abs(m - line) <= T)
-        if (hit >= 0) { ny = Math.max(0, ny + line - my[hit]); gy = line; break }
+      if (d.starts.length === 1) {
+        const s0 = d.starts[0]
+        const me = elsRef.current.find(el => el.id === s0.id)
+        if (me) {
+          let nx = Math.round(s0.x + dx)
+          let ny = Math.max(0, Math.round(s0.y + dy))
+          const others = elsRef.current.filter(el => el.id !== s0.id)
+          const T = 8
+          const vlines = [CANVAS_W / 2, ...others.flatMap(el => [el.x, el.x + el.w / 2, el.x + el.w])]
+          const mx = [nx, nx + me.w / 2, nx + me.w]
+          for (const line of vlines) {
+            const hit = mx.findIndex(m => Math.abs(m - line) <= T)
+            if (hit >= 0) { nx += line - mx[hit]; gx = line; break }
+          }
+          const hlines = others.flatMap(el => [el.y, el.y + el.h / 2, el.y + el.h])
+          const my = [ny, ny + me.h / 2, ny + me.h]
+          for (const line of hlines) {
+            const hit = my.findIndex(m => Math.abs(m - line) <= T)
+            if (hit >= 0) { ny = Math.max(0, ny + line - my[hit]); gy = line; break }
+          }
+          sdx = nx - s0.x
+          sdy = ny - s0.y
+        }
       }
       setGuides({ x: gx, y: gy })
-      setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, x: nx, y: ny })))
+      const startMap = new Map(d.starts.map(s => [s.id, s]))
+      setEls(p => p.map(el => { const s = startMap.get(el.id); return s ? { ...el, x: Math.round(s.x + sdx), y: Math.max(0, Math.round(s.y + sdy)) } : el }))
     }
-    const up = () => { if (dragRef.current) { dragRef.current = null; setGuides({ x: null, y: null }); touch() } }
+    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setGuides({ x: null, y: null }); setMarquee(null); if (d.kind !== 'marquee') touch() }
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -265,33 +344,34 @@ export default function CanvasEditor({
       const k = e.key.toLowerCase()
       if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return }
       if (mod && k === 'y') { e.preventDefault(); redo(); return }
-      if (mod && k === 'd' && selectedId) { e.preventDefault(); duplicate(selectedId); return }
-      if (mod && k === 'c' && selectedId) { e.preventDefault(); clip.current = elsRef.current.find(x => x.id === selectedId) ?? null; return }
-      if (mod && k === 'v' && clip.current) {
+      if (mod && k === 'a') { e.preventDefault(); setSelectedIds(elsRef.current.map(x => x.id)); return }
+      if (mod && k === 'd' && selectedIds.length) { e.preventDefault(); duplicateMany(selectedIds); return }
+      if (mod && k === 'c' && selectedIds.length) { e.preventDefault(); const set = new Set(selectedIds); clip.current = elsRef.current.filter(x => set.has(x.id)); return }
+      if (mod && k === 'v' && clip.current.length) {
         e.preventDefault()
-        const src = clip.current
         snapshot(true)
-        const maxZ = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
-        const copy: CanvasElement = { ...src, id: 'e' + idc.current++, x: src.x + 20, y: src.y + 20, z: maxZ + 1 }
-        setEls(p => [...p, copy])
-        setSelectedId(copy.id)
+        let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+        const copies = clip.current.map(s => ({ ...s, id: 'e' + idc.current++, x: s.x + 20, y: s.y + 20, z: ++z }))
+        setEls(p => [...p, ...copies])
+        setSelectedIds(copies.map(c => c.id))
         touch()
         return
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { e.preventDefault(); remove(selectedId); return }
-      if (selectedId && e.key.startsWith('Arrow')) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length) { e.preventDefault(); removeMany(selectedIds); return }
+      if (selectedIds.length && e.key.startsWith('Arrow')) {
         e.preventDefault()
         const s = e.shiftKey ? 10 : 1
         const dx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0
         const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0
         snapshot()
-        setEls(p => p.map(el => (el.id === selectedId ? { ...el, x: el.x + dx, y: Math.max(0, el.y + dy) } : el)))
+        const set = new Set(selectedIds)
+        setEls(p => p.map(el => (set.has(el.id) ? { ...el, x: el.x + dx, y: Math.max(0, el.y + dy) } : el)))
         touch()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedId])
+  }, [selectedIds])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -310,11 +390,42 @@ export default function CanvasEditor({
   const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize') => {
     e.stopPropagation()
     e.preventDefault()
-    setSelectedId(el.id)
-    snapshot(true)
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
-    dragRef.current = { mode, id: el.id, px: e.clientX, py: e.clientY, x: el.x, y: el.y, w: el.w, h: el.h, scale: rect.width / CANVAS_W }
+    const scale = rect.width / CANVAS_W
+    if (mode === 'resize') {
+      setSelectedIds([el.id])
+      snapshot(true)
+      dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, w: el.w, h: el.h }
+      return
+    }
+    // Shift-click toggles an element in/out of the selection — no drag.
+    if (e.shiftKey) {
+      setSelectedIds(prev => (prev.includes(el.id) ? prev.filter(x => x !== el.id) : [...prev, el.id]))
+      return
+    }
+    // Drag the whole current selection if this element is part of it; otherwise select just it.
+    const ids = selectedIds.includes(el.id) ? selectedIds : [el.id]
+    if (!selectedIds.includes(el.id)) setSelectedIds([el.id])
+    snapshot(true)
+    const cur = elsRef.current
+    const starts = ids
+      .map(id => cur.find(x => x.id === id))
+      .filter((m): m is CanvasElement => !!m)
+      .map(m => ({ id: m.id, x: m.x, y: m.y }))
+    dragRef.current = { kind: 'move', px: e.clientX, py: e.clientY, scale, starts }
+  }
+  // Pointer-down on the empty canvas starts a rubber-band (marquee) selection.
+  const bgPointerDown = (e: RPointerEvent) => {
+    if (e.target !== e.currentTarget) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const scale = rect.width / CANVAS_W
+    const ox = (e.clientX - rect.left) / scale
+    const oy = (e.clientY - rect.top) / scale
+    dragRef.current = { kind: 'marquee', px: e.clientX, py: e.clientY, scale, ox, oy }
+    setSelectedIds([])
+    setMarquee({ x: ox, y: oy, w: 0, h: 0 })
   }
 
   async function save() {
@@ -587,18 +698,46 @@ export default function CanvasEditor({
               <span style={{ fontSize: 11, color: '#666', width: 32 }}>{sel.rotate ?? 0}°</span>
             </div>
           </div>
+        ) : selectedIds.length > 1 ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span style={labelCss}>{selectedIds.length} selected</span>
+              <div className="flex items-center gap-2">
+                <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicateMany(selectedIds)} style={{ fontSize: 13, color: accent }}>⧉</button>
+                <button type="button" title="Delete (Del)" onClick={() => removeMany(selectedIds)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
+              </div>
+            </div>
+            <div>
+              <p style={labelCss}>Align</p>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {([['left', 'Left'], ['hcenter', 'Centre'], ['right', 'Right'], ['top', 'Top'], ['vmiddle', 'Middle'], ['bottom', 'Bottom']] as const).map(([how, lbl]) => (
+                  <button key={how} type="button" onClick={() => alignSelected(how)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{lbl}</button>
+                ))}
+              </div>
+            </div>
+            {selectedIds.length > 2 && (
+              <div>
+                <p style={labelCss}>Distribute evenly</p>
+                <div className="flex gap-1.5 mt-1.5">
+                  <button type="button" onClick={() => distributeSelected('h')} className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">Across</button>
+                  <button type="button" onClick={() => distributeSelected('v')} className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">Down</button>
+                </div>
+              </div>
+            )}
+            <p className="font-body text-ash/50 text-[11px] leading-relaxed">Drag any selected element to move them all together. Shift-click an element to add or remove it.</p>
+          </div>
         ) : (
-          <p className="font-body text-ash/50 text-[11px] leading-relaxed">Add something above, or click any element on the canvas to edit it here. Drag to move, drag the corner to resize.</p>
+          <p className="font-body text-ash/50 text-[11px] leading-relaxed">Add something above, or click any element on the canvas to edit it here. Drag a box around several to select them at once.</p>
         )}
       </div>
 
       {/* CANVAS */}
       <div className="flex-1 min-w-0">
-        <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (it snaps to line things up) · corner ◢ to resize · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes. On phones everything stacks automatically.</p>
+        <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (snaps to align) · drag a box around several to select them at once · corner ◢ resizes · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes. On phones everything stacks automatically.</p>
         <div className={`rounded-sm overflow-hidden border border-gold/15 ${pageWidth === 'contained' ? 'max-w-3xl mx-auto' : ''}`} style={{ ...fontVars(fontSystem) } as CSSProperties}>
           <div
             ref={canvasRef}
-            onPointerDown={() => setSelectedId('')}
+            onPointerDown={bgPointerDown}
             style={{
               position: 'relative',
               width: '100%',
@@ -614,8 +753,8 @@ export default function CanvasEditor({
               <div
                 key={el.id}
                 onPointerDown={e => { if (editingId === el.id) return; startDrag(e, el, 'move') }}
-                onDoubleClick={() => { if (el.type === 'text' || el.type === 'button') { setSelectedId(el.id); setEditingId(el.id) } }}
-                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedId === el.id ? `2px solid ${accent}` : undefined, outlineOffset: 1 }}
+                onDoubleClick={() => { if (el.type === 'text' || el.type === 'button') { setSelectedIds([el.id]); setEditingId(el.id) } }}
+                style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, cursor: editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : undefined, outlineOffset: 1 }}
               >
                 {elInner(el)}
                 {selectedId === el.id && (
@@ -628,6 +767,7 @@ export default function CanvasEditor({
             ))}
             {guides.x !== null && <div style={{ position: 'absolute', left: cq(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
             {guides.y !== null && <div style={{ position: 'absolute', top: cq(guides.y), left: 0, height: 1, width: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
+            {marquee && <div style={{ position: 'absolute', left: cq(marquee.x), top: cq(marquee.y), width: cq(marquee.w), height: cq(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
           </div>
         </div>
       </div>
