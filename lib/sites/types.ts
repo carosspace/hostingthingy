@@ -187,6 +187,7 @@ export interface CanvasElement {
   dropCap?: boolean // enlarge the first letter of a text block
   href?: string
   ctaType?: CtaType
+  anchorTo?: string // id of another element on the page to smooth-scroll to (a "jump link")
   // image
   src?: string
   fit?: ImageFit

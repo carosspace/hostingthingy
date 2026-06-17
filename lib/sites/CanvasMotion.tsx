@@ -35,5 +35,26 @@ export default function CanvasMotion() {
     return () => io.disconnect()
   }, [])
 
+  // Jump links: clicking an element with data-jump scrolls to the matching
+  // [data-cv] target. Because desktop + phone are both in the DOM (one hidden by
+  // CSS), we scroll to whichever copy is actually visible.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as HTMLElement | null)?.closest?.('[data-jump]') as HTMLElement | null
+      if (!a) return
+      const id = a.getAttribute('data-jump')
+      if (!id) return
+      const targets = Array.from(document.querySelectorAll<HTMLElement>(`[data-cv="${CSS.escape(id)}"]`))
+      const target = targets.find(t => t.offsetParent !== null) || targets[0]
+      if (!target) return
+      e.preventDefault()
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [])
+
   return null
 }

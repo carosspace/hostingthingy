@@ -95,9 +95,9 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
         {el.text}
       </div>
     )
-    const h = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
+    const h = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
     return h ? (
-      <a href={h} style={{ display: 'block', width: '100%', height: '100%' }}>
+      <a href={h} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>
         {content}
       </a>
     ) : content
@@ -111,7 +111,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       {/* Desktop / tablet: the full canvas */}
       <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
         {desktopEls.map(el => (
-          <div key={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
+          <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
             {withMotion(el, inner(el, cq))}
           </div>
         ))}
@@ -122,7 +122,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
         {canvas.mobileCustom ? (
           <div style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${MOBILE_W} / ${Math.max(200, canvas.mobileH || canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
             {phoneEls.map(el => (
-              <div key={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round(el.y * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
+              <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round(el.y * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
                 {withMotion(el, inner(el, cqm))}
               </div>
             ))}
@@ -170,11 +170,11 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o }} /> : null
         } else if (el.type === 'button') {
-          const h = ctaHref(el)
+          const h = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
           const btn = (
             <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 18, 20), opacity: o }}>{el.text}</span>
           )
-          node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h}>{btn}</a> : btn}</div>
+          node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined}>{btn}</a> : btn}</div>
         } else if (el.type === 'menu') {
           node = (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', opacity: o }}>
@@ -189,10 +189,10 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
               {el.text}
             </div>
           )
-          const th = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
-          node = <div>{th ? <a href={th}>{txt}</a> : txt}</div>
+          const th = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
+          node = <div>{th ? <a href={th} data-jump={el.anchorTo || undefined}>{txt}</a> : txt}</div>
         }
-        return node == null ? null : <div key={el.id}>{withMotion(el, node)}</div>
+        return node == null ? null : <div key={el.id} data-cv={el.id}>{withMotion(el, node)}</div>
       })}
     </div>
   )

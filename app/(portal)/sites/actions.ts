@@ -737,6 +737,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       dropCap: type === 'text' && e?.dropCap ? true : undefined,
       href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
       ctaType,
+      anchorTo: /^[a-z0-9]{1,24}$/i.test(String(e?.anchorTo ?? '')) ? String(e?.anchorTo).trim() : undefined,
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
       adjust: type === 'image' ? adjust(e?.adjust) : undefined,

@@ -135,7 +135,7 @@ export default function CanvasEditor({
     setSaved(false)
   }
   const update = (id: string, patch: Partial<CanvasElement>) => { snapshot(); setEls(p => p.map(e => (e.id === id ? { ...e, ...patch } : e))); touch() }
-  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id)); setSelectedIds([]); touch() }
+  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id).map(e => (e.anchorTo === id ? { ...e, anchorTo: undefined } : e))); setSelectedIds([]); touch() }
   const layer = (id: string, dir: 1 | -1) => {
     snapshot(true)
     setEls(p => {
@@ -191,7 +191,7 @@ export default function CanvasEditor({
     const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
     if (!set.size) return
     snapshot(true)
-    setEls(p => p.filter(e => !set.has(e.id)))
+    setEls(p => p.filter(e => !set.has(e.id)).map(e => (e.anchorTo && set.has(e.anchorTo) ? { ...e, anchorTo: undefined } : e)))
     setSelectedIds([])
     touch()
   }
@@ -861,6 +861,13 @@ export default function CanvasEditor({
                     <option value="display">Title font</option>
                     <option value="body">Body font</option>
                     <option value="label">Label font</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Jump to</span>
+                  <select value={sel.anchorTo || ''} onChange={e => update(sel.id, { anchorTo: e.target.value || undefined })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto', maxWidth: 150 }} title="On the live site, clicking scrolls to this element">
+                    <option value="">— no jump —</option>
+                    {els.filter(x => x.id !== sel.id && !x.hidden).map(x => <option key={x.id} value={x.id}>{elName(x).slice(0, 22)}</option>)}
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
