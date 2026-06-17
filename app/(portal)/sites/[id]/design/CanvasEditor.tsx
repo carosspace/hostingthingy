@@ -297,6 +297,7 @@ export default function CanvasEditor({
     setSelectedIds([el.id])
     touch()
     if (el.type === 'image' && !el.src) setTimeout(() => imgPick(el.id), 50)
+    if (el.type === 'carousel' && !(el.slides && el.slides.length)) setTimeout(() => slidesPick(el.id), 50)
     return el
   }
   // Preset "Add" buttons.
@@ -308,6 +309,7 @@ export default function CanvasEditor({
     button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: accent, ctaType: 'none', radius: 6, fontFamily: 'label' },
     contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: accent, ctaType: 'email', radius: 6, fontFamily: 'label' },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
+    carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: accent, align: 'left' },
     box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
     line: { type: 'box', w: 440, h: 4, fill: accent, radius: 0 },
@@ -372,6 +374,22 @@ export default function CanvasEditor({
     inp.onchange = async () => {
       const f = inp.files?.[0]
       if (f && f.type.startsWith('image/')) update(id, { src: await resizeToDataUrl(f) })
+    }
+    inp.click()
+  }
+  // Add one or more images to a carousel (up to 10 total).
+  function slidesPick(id: string) {
+    const inp = document.createElement('input')
+    inp.type = 'file'
+    inp.accept = 'image/*'
+    inp.multiple = true
+    inp.onchange = async () => {
+      const files = Array.from(inp.files || []).filter(f => f.type.startsWith('image/'))
+      if (!files.length) return
+      const urls = await Promise.all(files.map(f => resizeToDataUrl(f)))
+      snapshot(true)
+      setEls(p => p.map(e => (e.id === id ? { ...e, slides: [...(e.slides || []), ...urls].slice(0, 10) } : e)))
+      touch()
     }
     inp.click()
   }
@@ -602,6 +620,18 @@ export default function CanvasEditor({
       ) : (
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>+ photo</div>
       )
+    if (el.type === 'carousel') {
+      const first = el.slides && el.slides[0]
+      return first ? (
+        <div style={{ width: '100%', height: '100%', position: 'relative', borderRadius: cqv(el.radius || 0), overflow: 'hidden' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={first} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', display: 'block', pointerEvents: 'none', boxShadow: shadowCss(el.shadow) }} />
+          <span style={{ position: 'absolute', bottom: cqv(8), right: cqv(8), background: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: cqv(13), padding: `${cqv(2)} ${cqv(8)}`, borderRadius: cqv(20) }}>▷ {el.slides!.length}</span>
+        </div>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>▷ slideshow</div>
+      )
+    }
     if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
     if (el.type === 'menu')
       return (
@@ -650,11 +680,12 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
+    if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'menu') return 'Page menu'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
@@ -717,7 +748,7 @@ export default function CanvasEditor({
         <div className="space-y-2">
           {([
             ['Text', [['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']]],
-            ['Media & buttons', [['image', 'Picture'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
+            ['Media & buttons', [['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
             ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section']]],
           ] as [string, [string, string][]][]).map(([group, items]) => (
             <div key={group}>
@@ -818,7 +849,7 @@ export default function CanvasEditor({
         {sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -957,6 +988,38 @@ export default function CanvasEditor({
                     </>
                   )
                 })()}
+              </>
+            )}
+            {sel.type === 'carousel' && (
+              <>
+                <button type="button" onClick={() => slidesPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">+ Add images</button>
+                {(sel.slides || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(sel.slides || []).map((s, i) => (
+                      <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={s} alt="" style={{ width: 40, height: 30, objectFit: 'cover', borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', display: 'block' }} />
+                        <button type="button" title="Remove" onClick={() => update(sel.id, { slides: (sel.slides || []).filter((_, j) => j !== i) })} style={{ position: 'absolute', top: -6, right: -6, fontSize: 10, color: '#fff', background: '#b3402f', borderRadius: '50%', width: 15, height: 15, lineHeight: '14px', textAlign: 'center' }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Fit</span>
+                  <select value={sel.fit || 'cover'} onChange={e => update(sel.id, { fit: e.target.value as ImageFit })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                    <option value="cover">Fill (crop)</option>
+                    <option value="contain">Whole image</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Round</span>
+                  <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Auto-play</span>
+                  <input type="range" min={0} max={12} value={sel.interval ?? 4} onChange={e => update(sel.id, { interval: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 34 }}>{sel.interval ? `${sel.interval}s` : 'off'}</span>
+                </div>
               </>
             )}
             {sel.type === 'menu' && (

@@ -110,7 +110,7 @@ export const brandVar = (i: number) => `var(--brand-${i})`
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel'
 
 // A two-stop linear gradient (used for box/button fills and the page background).
 export interface Gradient {
@@ -206,6 +206,9 @@ export interface CanvasElement {
   src?: string
   fit?: ImageFit
   adjust?: ImageAdjust // non-destructive photo adjustments (CSS filter)
+  // carousel
+  slides?: string[] // image data URLs for a 'carousel' element
+  interval?: number // auto-advance seconds (0 = manual only)
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)

@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode } from 'react'
 import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, type PageCanvas, type CanvasElement } from './types'
 import CanvasMotion from './CanvasMotion'
+import Carousel from './Carousel'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -57,6 +58,8 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
         /* eslint-disable-next-line @next/next/no-img-element */
         <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow) }} />
       ) : null
+    if (el.type === 'carousel')
+      return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
     if (el.type === 'box')
       return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
     if (el.type === 'menu')
@@ -168,6 +171,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow) }} />
           ) : null
+        } else if (el.type === 'carousel') {
+          node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o, boxShadow: shadowCss(el.shadow) }} /> : null
         } else if (el.type === 'button') {

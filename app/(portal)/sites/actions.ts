@@ -703,7 +703,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
-    const type = (['text', 'image', 'button', 'box', 'menu'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
+    const type = (['text', 'image', 'button', 'box', 'menu', 'carousel'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
     const ff = String(e?.fontFamily)
@@ -743,6 +743,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
       adjust: type === 'image' ? adjust(e?.adjust) : undefined,
+      slides: type === 'carousel' && Array.isArray(e?.slides) ? (e.slides.map(dataOrHttp).filter(Boolean) as string[]).slice(0, 10) : undefined,
+      interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,
