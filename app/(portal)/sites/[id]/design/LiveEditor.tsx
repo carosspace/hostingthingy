@@ -464,6 +464,28 @@ export default function LiveEditor({
         ? 'Menu sits as a column down the left side.'
         : ''
 
+  // Render one header/footer block for the live preview, mirroring the published bar.
+  const renderBarPreview = (it: EdItem, key: number) => {
+    if (it.block === 'image')
+      return it.image ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img key={key} src={it.image} alt="" style={{ height: it.imgH || 42, maxWidth: 200, objectFit: 'contain', display: 'block' }} />
+      ) : null
+    if (it.block === 'heading' || it.block === 'subheading')
+      return it.title ? (
+        <span key={key} style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: it.block === 'subheading' ? 14 : 18, color: it.block === 'subheading' ? t.text : accent }}>{it.title}</span>
+      ) : null
+    if (it.block === 'button')
+      return it.title ? (
+        <span key={key} style={{ background: accent, color: t.bg, padding: '7px 15px', borderRadius: 3, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', display: 'inline-block' }}>{it.title}</span>
+      ) : null
+    if (it.block === 'divider') return <span key={key} aria-hidden style={{ display: 'inline-block', width: 1, height: 16, background: accent, opacity: 0.4 }} />
+    const txt = it.body || it.title
+    return txt ? <span key={key} style={{ fontSize: 13, color: t.muted, whiteSpace: 'pre-wrap' }}>{txt}</span> : null
+  }
+  const barZonesPreview = (items: EdItem[]) =>
+    [0, 1, 2].map(z => items.filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z).map((it, i) => renderBarPreview(it, i)))
+
   const ctaPreview =
     ctaType !== 'none' ? (
       <div className="mt-6">
@@ -1131,7 +1153,18 @@ export default function LiveEditor({
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: pageBg || t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
        <div className={previewWrapCls}>
         <div className={`${previewHeaderCls} ${previewHeaderColCls}`} style={previewHeaderStyle}>
-          {logoImage ? (
+          {headerItems.length > 0 ? (
+            (() => {
+              const zones = barZonesPreview(headerItems)
+              return (
+                <div className="flex items-center w-full gap-3">
+                  <div className="flex-1 flex flex-wrap items-center gap-3 justify-start">{zones[0]}</div>
+                  <div className="flex-1 flex flex-wrap items-center gap-3 justify-center">{zones[1]}</div>
+                  <div className="flex-1 flex flex-wrap items-center gap-3 justify-end">{zones[2]}</div>
+                </div>
+              )
+            })()
+          ) : logoImage ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} />
           ) : (
@@ -1759,9 +1792,21 @@ export default function LiveEditor({
         </div>
 
         <div className="py-8 text-center" style={{ borderTop: `1px solid ${accent}22` }}>
-          <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="footer" style={{ ...edStyle, fontSize: 13, color: t.muted }}>
-            {initial?.footer || siteName}
-          </div>
+          {footerItems.length > 0 && (() => {
+            const zones = barZonesPreview(footerItems)
+            return (
+              <div className="flex items-center w-full gap-3 px-6 mb-3">
+                <div className="flex-1 flex flex-wrap items-center gap-3 justify-start">{zones[0]}</div>
+                <div className="flex-1 flex flex-wrap items-center gap-3 justify-center">{zones[1]}</div>
+                <div className="flex-1 flex flex-wrap items-center gap-3 justify-end">{zones[2]}</div>
+              </div>
+            )
+          })()}
+          {footerItems.length === 0 && (
+            <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="footer" style={{ ...edStyle, fontSize: 13, color: t.muted }}>
+              {initial?.footer || siteName}
+            </div>
+          )}
         </div>
 
         </div>
