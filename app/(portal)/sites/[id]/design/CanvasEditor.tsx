@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
@@ -92,6 +92,9 @@ export default function CanvasEditor({
   const lastSnap = useRef(0)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
 
+  // The body grows continuously; footer-pinned elements then sit below it (see
+  // canvasLayout). bodyBottom is where the footer band starts on the desktop canvas.
+  const { bodyBottom, totalH: desktopH } = canvasLayout(els)
   // When editing the custom phone artboard, coordinates live in the m* fields on a
   // narrower canvas. These accessors/writers swap which set is active by device.
   const editingMobile = device === 'mobile' && mobileCustom
@@ -99,14 +102,19 @@ export default function CanvasEditor({
   // When an element has no explicit phone coords yet, fall back to its desktop
   // position/size uniformly scaled to phone width (a coherent shrunk-desktop layout)
   // rather than collapsing to the corner. MR must match CanvasView's custom branch.
+  // Footer-pinned elements fall back to their DISPLAYED desktop y (bodyBottom + y),
+  // so on the phone they land at the bottom, not the top.
   const MR = MOBILE_W / CANVAS_W
   const gx = (e: CanvasElement) => (editingMobile ? e.mx ?? Math.round(e.x * MR) : e.x)
-  const gy = (e: CanvasElement) => (editingMobile ? e.my ?? Math.round(e.y * MR) : e.y)
+  const gy = (e: CanvasElement) => (editingMobile ? e.my ?? Math.round((e.pin === 'footer' ? bodyBottom + e.y : e.y) * MR) : e.y)
   const gw = (e: CanvasElement) => (editingMobile ? e.mw ?? Math.round(e.w * MR) : e.w)
   const gh = (e: CanvasElement) => (editingMobile ? e.mh ?? Math.round(e.h * MR) : e.h)
   const patchXY = (x: number, y: number): Partial<CanvasElement> => (editingMobile ? { mx: x, my: y } : { x, y })
   const patchX = (x: number): Partial<CanvasElement> => (editingMobile ? { mx: x } : { x })
   const patchY = (y: number): Partial<CanvasElement> => (editingMobile ? { my: y } : { y })
+  // Write a DISPLAYED y back into the element's own frame (footer y is band-local on
+  // the desktop artboard). Pairs with topOf() so align/distribute work across frames.
+  const patchYDisp = (e: CanvasElement, dispY: number): Partial<CanvasElement> => (editingMobile ? { my: Math.round(dispY) } : e.pin === 'footer' ? { y: Math.max(0, Math.round(dispY - bodyBottom)) } : { y: Math.max(0, Math.round(dispY)) })
   const cqv = (px: number) => `${(px / CW) * 100}cqw`
   const brandVars: CSSProperties = {}
   palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
@@ -115,8 +123,10 @@ export default function CanvasEditor({
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
-  const desktopH = Math.max(900, ...els.map(e => e.y + e.h + 80), 0)
-  const mobileH = Math.max(700, ...els.filter(e => !(e.hidden || e.mHidden)).map(e => (e.my ?? Math.round(e.y * MR)) + (e.mh ?? Math.round(e.h * MR)) + 60), 0)
+  // A footer element's stored y is an offset down from bodyBottom on the desktop
+  // artboard; everything else uses its own y. (gy already handles the phone fallback.)
+  const topOf = (e: CanvasElement) => (!editingMobile && e.pin === 'footer' ? bodyBottom + e.y : gy(e))
+  const mobileH = Math.max(700, ...els.filter(e => !(e.hidden || e.mHidden)).map(e => (e.my ?? Math.round((e.pin === 'footer' ? bodyBottom + e.y : e.y) * MR)) + (e.mh ?? Math.round(e.h * MR)) + 60), 0)
   const CH = editingMobile ? mobileH : desktopH
 
   const touch = () => { dirty.current = true; setSaved(false) }
@@ -204,6 +214,23 @@ export default function CanvasEditor({
     })
     touch()
   }
+  // Pin an element to the bottom (footer) or release it. We convert its y between
+  // absolute (body) and band-local (offset down from bodyBottom) so it stays put on
+  // screen at the moment of toggling. Footer pinning is a desktop concept.
+  const togglePin = (id: string) => {
+    const el = elsRef.current.find(e => e.id === id)
+    if (!el) return
+    // Measure the body WITHOUT this element so converting its y keeps it visually put
+    // (otherwise the element being pinned inflates bodyBottom and it jumps upward).
+    const bb = canvasLayout(elsRef.current.filter(e => e.id !== id)).bodyBottom
+    snapshot(true)
+    setEls(p => p.map(e => e.id === id
+      ? (e.pin === 'footer'
+          ? { ...e, pin: undefined, y: Math.max(0, Math.round(bb + e.y)) }
+          : { ...e, pin: 'footer', y: Math.max(0, Math.round(e.y - bb)) })
+      : e))
+    touch()
+  }
   // --- Multi-selection group operations ---
   const removeMany = (ids: string[]) => {
     const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
@@ -229,17 +256,19 @@ export default function CanvasEditor({
     const sels = elsRef.current.filter(e => set.has(e.id) && !e.locked)
     if (sels.length < 2) return
     snapshot(true)
+    // Read each element's DISPLAYED y (topOf) so a mixed body + footer selection
+    // aligns by what's on screen, then write back into each element's own frame.
     const minX = Math.min(...sels.map(e => gx(e))), maxX = Math.max(...sels.map(e => gx(e) + gw(e)))
-    const minY = Math.min(...sels.map(e => gy(e))), maxY = Math.max(...sels.map(e => gy(e) + gh(e)))
+    const minY = Math.min(...sels.map(e => topOf(e))), maxY = Math.max(...sels.map(e => topOf(e) + gh(e)))
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
     setEls(p => p.map(e => {
       if (!set.has(e.id) || e.locked) return e
       if (how === 'left') return { ...e, ...patchX(Math.round(minX)) }
       if (how === 'right') return { ...e, ...patchX(Math.round(maxX - gw(e))) }
       if (how === 'hcenter') return { ...e, ...patchX(Math.round(cx - gw(e) / 2)) }
-      if (how === 'top') return { ...e, ...patchY(Math.round(minY)) }
-      if (how === 'bottom') return { ...e, ...patchY(Math.round(maxY - gh(e))) }
-      return { ...e, ...patchY(Math.round(cy - gh(e) / 2)) }
+      if (how === 'top') return { ...e, ...patchYDisp(e, minY) }
+      if (how === 'bottom') return { ...e, ...patchYDisp(e, maxY - gh(e)) }
+      return { ...e, ...patchYDisp(e, cy - gh(e) / 2) }
     }))
     touch()
   }
@@ -248,13 +277,14 @@ export default function CanvasEditor({
     const sels = elsRef.current.filter(e => set.has(e.id) && !e.locked)
     if (sels.length < 3) return
     snapshot(true)
-    const sorted = [...sels].sort((a, b) => (axis === 'h' ? gx(a) - gx(b) : gy(a) - gy(b)))
+    const ry = (e: CanvasElement) => topOf(e) // displayed y, so footers distribute with body correctly
+    const sorted = [...sels].sort((a, b) => (axis === 'h' ? gx(a) - gx(b) : ry(a) - ry(b)))
     const first = sorted[0], last = sorted[sorted.length - 1]
-    const start = axis === 'h' ? gx(first) : gy(first)
-    const end = axis === 'h' ? gx(last) : gy(last)
+    const start = axis === 'h' ? gx(first) : ry(first)
+    const end = axis === 'h' ? gx(last) : ry(last)
     const gap = (end - start) / (sorted.length - 1)
     const pos = new Map(sorted.map((e, i) => [e.id, Math.round(start + gap * i)]))
-    setEls(p => p.map(e => (pos.has(e.id) ? { ...e, ...(axis === 'h' ? patchX(pos.get(e.id)!) : patchY(pos.get(e.id)!)) } : e)))
+    setEls(p => p.map(e => (pos.has(e.id) ? { ...e, ...(axis === 'h' ? patchX(pos.get(e.id)!) : patchYDisp(e, pos.get(e.id)!)) } : e)))
     touch()
   }
 
@@ -264,7 +294,9 @@ export default function CanvasEditor({
     snapshot(true)
     setEls(p => {
       const margin = 20, gap = 18
-      const ordered = [...p].filter(e => !e.hidden).sort((a, b) => a.y - b.y || a.x - b.x)
+      // Body first (top-to-bottom), then footer-pinned elements last so the footer
+      // seeds at the bottom of the phone stack (its y is a band-local offset).
+      const ordered = [...p].filter(e => !e.hidden).sort((a, b) => ((a.pin === 'footer' ? 1 : 0) - (b.pin === 'footer' ? 1 : 0)) || a.y - b.y || a.x - b.x)
       let y = 40
       const m = new Map<string, Partial<CanvasElement>>()
       for (const e of ordered) {
@@ -288,13 +320,17 @@ export default function CanvasEditor({
     const set = new Set(ids)
     const sel = elsRef.current.filter(e => set.has(e.id) && e.type !== 'component')
     if (!sel.length) return
-    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => e.y))
-    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => e.y + e.h))
+    // Use each element's DISPLAYED y so a selection mixing body + footer-pinned
+    // elements is captured in one coordinate frame (footer y is band-local otherwise).
+    const bb = canvasLayout(elsRef.current).bodyBottom
+    const ey = (e: CanvasElement) => (e.pin === 'footer' ? bb + e.y : e.y)
+    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => ey(e)))
+    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => ey(e) + e.h))
     const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
     const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
-      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, ...rest } = e
-      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci
-      return { ...rest, x: e.x - minX, y: e.y - minY }
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin
+      return { ...rest, x: e.x - minX, y: ey(e) - minY }
     })
     const id = 'c' + Math.random().toString(36).slice(2, 9)
     snapshot(true)
@@ -377,13 +413,15 @@ export default function CanvasEditor({
     const outside = new Set(editingComp.outsideIds)
     const sel = elsRef.current.filter(e => !outside.has(e.id) && e.type !== 'component')
     if (!sel.length) { setEditingComp(null); return }
-    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => e.y))
-    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => e.y + e.h))
+    const bb = canvasLayout(elsRef.current).bodyBottom
+    const ey = (e: CanvasElement) => (e.pin === 'footer' ? bb + e.y : e.y)
+    const minX = Math.min(...sel.map(e => e.x)), minY = Math.min(...sel.map(e => ey(e)))
+    const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => ey(e) + e.h))
     const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
     const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
-      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, ...rest } = e
-      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci
-      return { ...rest, x: e.x - minX, y: e.y - minY }
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin
+      return { ...rest, x: e.x - minX, y: ey(e) - minY }
     })
     const compId = editingComp.id
     const selIds = new Set(sel.map(e => e.id))
@@ -467,20 +505,23 @@ export default function CanvasEditor({
     if (kind === 'header') {
       const group = [
         mk({ type: 'box', x: 0, y: 0, w: CANVAS_W, h: 96, fill: '#ffffff' }),
-        mk({ type: 'text', x: 40, y: 30, w: 320, h: 40, text: 'Your brand', fontSize: 24, fontFamily: 'display', italic: true, color: t.text }),
+        mk({ type: 'image', x: 40, y: 26, w: 44, h: 44, fit: 'contain', radius: 0 }), // logo slot — click to upload or drag one in
+        mk({ type: 'text', x: 98, y: 30, w: 280, h: 40, text: 'Your brand', fontSize: 24, fontFamily: 'display', italic: true, color: t.text }),
         mk({ type: 'menu', x: CANVAS_W - 500, y: 38, w: 460, h: 30, fontSize: 15, fontFamily: 'label', color: accent, align: 'right' }),
       ]
       setEls(p => [...p, ...group])
-      setSelectedIds([group[0].id])
+      setSelectedIds([group[1].id])
       touch()
       return
     }
     if (kind === 'footer') {
-      const fy = els.reduce((m, e) => Math.max(m, e.y + e.h), 200) + 60
+      // Pinned to the bottom: y is an offset within the footer band, so the footer
+      // always sits at the very end of the page as content grows above it.
       const group = [
-        mk({ type: 'box', x: 0, y: fy, w: CANVAS_W, h: 110, fill: t.text }),
-        mk({ type: 'text', x: 40, y: fy + 40, w: 360, h: 30, text: '© Your name', fontSize: 14, fontFamily: 'body', color: '#ffffff' }),
-        mk({ type: 'menu', x: CANVAS_W - 500, y: fy + 42, w: 460, h: 28, fontSize: 13, fontFamily: 'label', color: '#ffffff', align: 'right' }),
+        mk({ type: 'box', pin: 'footer', x: 0, y: 0, w: CANVAS_W, h: 120, fill: t.text }),
+        mk({ type: 'image', pin: 'footer', x: 40, y: 40, w: 40, h: 40, fit: 'contain', radius: 0 }), // footer logo slot
+        mk({ type: 'text', pin: 'footer', x: 96, y: 48, w: 360, h: 30, text: '© Your name', fontSize: 14, fontFamily: 'body', color: '#ffffff' }),
+        mk({ type: 'menu', pin: 'footer', x: CANVAS_W - 500, y: 50, w: 460, h: 28, fontSize: 13, fontFamily: 'label', color: '#ffffff', align: 'right' }),
       ]
       setEls(p => [...p, ...group])
       setSelectedIds([group[0].id])
@@ -659,7 +700,11 @@ export default function CanvasEditor({
         const cx = d.ox + dx, cy = d.oy + dy
         const x = Math.min(d.ox, cx), y = Math.min(d.oy, cy), w = Math.abs(dx), h = Math.abs(dy)
         setMarquee({ x, y, w, h })
-        const hits = elsRef.current.filter(el => !el.locked && ax(el) < x + w && ax(el) + aw(el) > x && ay(el) < y + h && ay(el) + ah(el) > y).map(el => el.id)
+        // Footer-pinned elements are drawn below the body, so hit-test them at their
+        // displayed top (bodyBottom + y), not their stored band-local y.
+        const bb = d.m ? 0 : canvasLayout(elsRef.current).bodyBottom
+        const ey = (el: CanvasElement) => (el.pin === 'footer' && !d.m ? bb + ay(el) : ay(el))
+        const hits = elsRef.current.filter(el => !el.locked && ax(el) < x + w && ax(el) + aw(el) > x && ey(el) < y + h && ey(el) + ah(el) > y).map(el => el.id)
         setSelectedIds(hits)
         return
       }
@@ -674,19 +719,26 @@ export default function CanvasEditor({
         if (me) {
           let nx = Math.round(s0.x + dx)
           let ny = Math.max(0, Math.round(s0.y + dy))
-          const others = elsRef.current.filter(el => el.id !== s0.id)
+          const allOthers = elsRef.current.filter(el => el.id !== s0.id)
           const T = 8
-          const vlines = [W / 2, ...others.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
+          // X-snap is universal — x is one shared frame for body and footer elements.
+          const vlines = [W / 2, ...allOthers.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
           const mxs = [nx, nx + aw(me) / 2, nx + aw(me)]
           for (const line of vlines) {
             const hit = mxs.findIndex(m => Math.abs(m - line) <= T)
             if (hit >= 0) { nx += line - mxs[hit]; gxLine = line; break }
           }
-          const hlines = others.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])
-          const mys = [ny, ny + ah(me) / 2, ny + ah(me)]
-          for (const line of hlines) {
-            const hit = mys.findIndex(m => Math.abs(m - line) <= T)
-            if (hit >= 0) { ny = Math.max(0, ny + line - mys[hit]); gyLine = line; break }
+          // Y-snap: on the phone artboard everything shares the my frame; on the desktop
+          // artboard a footer element's y is band-local, so only same-frame targets snap
+          // and footer-y-snap is skipped (its guide would render in the wrong place).
+          const yOthers = d.m ? allOthers : allOthers.filter(el => (el.pin ?? '') === (me.pin ?? ''))
+          if (d.m || me.pin !== 'footer') {
+            const hlines = yOthers.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])
+            const mys = [ny, ny + ah(me) / 2, ny + ah(me)]
+            for (const line of hlines) {
+              const hit = mys.findIndex(m => Math.abs(m - line) <= T)
+              if (hit >= 0) { ny = Math.max(0, ny + line - mys[hit]); gyLine = line; break }
+            }
           }
           sdx = nx - s0.x
           sdy = ny - s0.y
@@ -1191,10 +1243,12 @@ export default function CanvasEditor({
                   <button type="button" title={editingMobile ? (dh ? 'Show on phone' : 'Hide on phone') : (dh ? 'Show on the page' : 'Hide from the page')} onClick={() => update(sel.id, editingMobile ? { mHidden: !sel.mHidden } : { hidden: !sel.hidden })} style={{ fontSize: 12, color: accent, opacity: dh ? 1 : 0.45 }}>{dh ? '🚫' : '👁'}</button>
                 ) })()}
                 <button type="button" title={sel.locked ? 'Unlock' : 'Lock in place'} onClick={() => update(sel.id, { locked: !sel.locked })} style={{ fontSize: 12, color: accent, opacity: sel.locked ? 1 : 0.45 }}>{sel.locked ? '🔒' : '🔓'}</button>
+                {!editingMobile && <button type="button" title={sel.pin === 'footer' ? 'Unpin from the bottom' : 'Pin to the bottom (footer)'} onClick={() => togglePin(sel.id)} style={{ fontSize: 12, color: accent, opacity: sel.pin === 'footer' ? 1 : 0.45 }}>📌</button>}
                 <button type="button" title="Delete (Del)" onClick={() => remove(sel.id)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
             </div>
             {sel.locked && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>🔒 Locked — it won&rsquo;t move or resize on the canvas. Unlock above to change it.</p>}
+            {sel.pin === 'footer' && !editingMobile && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>📌 Pinned to the bottom — it stays at the very end of the page as you add content above.</p>}
             {editingMobile && sel.mHidden && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>🚫 Hidden on phones — it still shows on desktop.</p>}
 
             {(sel.type === 'text' || sel.type === 'button') && (
@@ -1597,7 +1651,7 @@ export default function CanvasEditor({
                     key={el.id}
                     onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
                     onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
-                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(gy(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
+                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
                   >
                     {elInner(el)}
                     {selectedId === el.id && !el.locked && (
@@ -1609,6 +1663,11 @@ export default function CanvasEditor({
                   </div>
                 )
               })}
+              {!editingMobile && els.some(e => e.pin === 'footer') && (
+                <div style={{ position: 'absolute', left: 0, top: cqv(bodyBottom), width: '100%', height: 0, borderTop: '1px dashed rgba(154,125,46,0.5)', pointerEvents: 'none', zIndex: 4 }}>
+                  <span style={{ position: 'absolute', left: 6, top: 3, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(154,125,46,0.8)' }}>Footer — pinned to the bottom</span>
+                </div>
+              )}
               {guides.x !== null && <div style={{ position: 'absolute', left: cqv(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
               {guides.y !== null && <div style={{ position: 'absolute', top: cqv(guides.y), left: 0, height: 1, width: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}

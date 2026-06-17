@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
+import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -146,15 +146,20 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
 
   const desktopEls = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   const phoneEls = canvas.elements.filter(e => !e.hidden && !e.mHidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  // Footer-pinned elements anchor below the body content, so the footer always sits
+  // at the very bottom however much the body grows (identical maths to the editor).
+  const layout = canvasLayout(canvas.elements)
+  const desktopTop = (el: CanvasElement) => (el.pin === 'footer' ? layout.bodyBottom + el.y : el.y)
+  const desktopH = Math.max(200, layout.totalH, canvas.h)
 
   return (
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       {canvas.fonts && canvas.fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(canvas.fonts) }} />}
       {/* Desktop / tablet: the full canvas */}
-      <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
+      <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${desktopH}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
         {canvas.bgVideo && <video src={canvas.bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
         {desktopEls.map(el => (
-          <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
+          <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(desktopTop(el)), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
             {withMotion(el, inner(el, cq))}
           </div>
         ))}
@@ -166,7 +171,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
           <div style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${MOBILE_W} / ${Math.max(200, canvas.mobileH || canvas.h)}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
             {canvas.bgVideo && <video src={canvas.bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
             {phoneEls.map(el => (
-              <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round(el.y * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
+              <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cqm(el.mx ?? Math.round(el.x * MR)), top: cqm(el.my ?? Math.round((el.pin === 'footer' ? layout.bodyBottom + el.y : el.y) * MR)), width: cqm(el.mw ?? Math.round(el.w * MR)), height: cqm(el.mh ?? Math.round(el.h * MR)), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
                 {withMotion(el, inner(el, cqm, true))}
               </div>
             ))}
@@ -201,7 +206,9 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
     backgroundPosition: 'center',
   }
   const ctx: RenderCtx = { accent, navPages, pageHref, ctaHref, components: canvas.components }
-  const els = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  const ordered = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  // Footer-pinned elements always stack at the very bottom on phones.
+  const els = [...ordered.filter(e => e.pin !== 'footer'), ...ordered.filter(e => e.pin === 'footer')]
 
   return (
     <div style={{ ...bg, padding: '28px 18px', display: 'flex', flexDirection: 'column', gap: 18, overflowX: 'hidden' }}>

@@ -221,6 +221,8 @@ export interface CanvasElement {
   opacity?: number // 0-100
   locked?: boolean // can't be moved/resized/deleted on the canvas (only via the Layers panel)
   hidden?: boolean // kept in the design but not shown on the published page (any device)
+  pin?: 'footer' // anchored to the bottom: y is measured down from the end of the body content, so it always sits at the very bottom as the page grows
+  // (header needs no pin — the top never moves; just place elements at the top)
   // --- per-phone overrides (used only when the page's mobile layout is 'custom') ---
   mx?: number // mobile left, design px on MOBILE_W
   my?: number // mobile top
@@ -300,6 +302,18 @@ export interface PageCanvas {
 
 // The most images a page's upload library can hold.
 export const MAX_UPLOADS = 24
+
+// Where the body content ends and where footer-pinned elements anchor. The body
+// height grows continuously with the content; footer-pinned elements (pin:'footer')
+// are then laid out below it (their y is an offset down from bodyBottom), so a
+// footer always sits at the very end of the page no matter how much content grows.
+// Used identically by the editor and the public renderer so they never disagree.
+export function canvasLayout(elements: CanvasElement[], minBody = 900) {
+  const bodyBottom = Math.max(minBody, ...elements.filter(e => e.pin !== 'footer').map(e => e.y + e.h + 80), 0)
+  const footerEls = elements.filter(e => e.pin === 'footer')
+  const footerExtent = footerEls.length ? Math.max(0, ...footerEls.map(e => e.y + e.h)) + 40 : 0
+  return { bodyBottom, totalH: bodyBottom + footerExtent, hasFooter: footerEls.length > 0 }
+}
 
 export interface SitePage {
   id: string

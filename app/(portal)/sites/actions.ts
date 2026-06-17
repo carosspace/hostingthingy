@@ -734,6 +734,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       opacity: num(e?.opacity, 0, 100, 100),
       locked: e?.locked ? true : undefined,
       hidden: e?.hidden ? true : undefined,
+      pin: e?.pin === 'footer' ? 'footer' : undefined,
       mx: e?.mx === undefined || e?.mx === null ? undefined : num(e?.mx, -2000, 8000, 0),
       my: e?.my === undefined || e?.my === null ? undefined : num(e?.my, 0, 40000, 0),
       mw: e?.mw === undefined || e?.mw === null ? undefined : num(e?.mw, 8, 4000, 100),
