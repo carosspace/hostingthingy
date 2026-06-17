@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ImageAdjust } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type ImageAdjust } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -314,6 +314,7 @@ export default function CanvasEditor({
     box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
     line: { type: 'box', w: 440, h: 4, fill: accent, radius: 0 },
     section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f1ece3', radius: 0 },
+    shape: { type: 'shape', shape: 'wave', x: 0, w: CANVAS_W, h: 130, fill: accent },
   }
   // Drop a small group of pre-arranged elements.
   const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer') => {
@@ -632,6 +633,12 @@ export default function CanvasEditor({
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>▷ slideshow</div>
       )
     }
+    if (el.type === 'shape')
+      return (
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}>
+          <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
+        </svg>
+      )
     if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
     if (el.type === 'menu')
       return (
@@ -680,12 +687,13 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
     if (el.type === 'carousel') return 'Slideshow'
+    if (el.type === 'shape') return 'Shape divider'
     if (el.type === 'menu') return 'Page menu'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
@@ -749,7 +757,7 @@ export default function CanvasEditor({
           {([
             ['Text', [['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']]],
             ['Media & buttons', [['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
-            ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section']]],
+            ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']]],
           ] as [string, [string, string][]][]).map(([group, items]) => (
             <div key={group}>
               <p style={labelCss}>{group}</p>
@@ -849,7 +857,7 @@ export default function CanvasEditor({
         {sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -1036,6 +1044,22 @@ export default function CanvasEditor({
                   ))}
                 </div>
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows links to all your pages. Manage pages in the Pages bar above the editor.</p>
+              </>
+            )}
+            {sel.type === 'shape' && (
+              <>
+                <div className="flex flex-wrap gap-1.5">
+                  {SHAPE_KINDS.map(k => (
+                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { shape: k })} style={{ width: 42, height: 28, padding: 2, borderRadius: 3, border: sel.shape === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.2)', background: '#fff' }}>
+                      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(k)} style={{ fill: accent }} /></svg>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Colour</span>
+                  {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Rotate 180° (above) to flip it the other way.</p>
               </>
             )}
             {sel.type === 'box' && (

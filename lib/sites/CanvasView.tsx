@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, type PageCanvas, type CanvasElement } from './types'
+import { CANVAS_W, MOBILE_W, gradientCss, filterCss, shadowCss, shapePath, type PageCanvas, type CanvasElement } from './types'
 import CanvasMotion from './CanvasMotion'
 import Carousel from './Carousel'
 
@@ -60,6 +60,12 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       ) : null
     if (el.type === 'carousel')
       return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
+    if (el.type === 'shape')
+      return (
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+          <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
+        </svg>
+      )
     if (el.type === 'box')
       return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
     if (el.type === 'menu')
@@ -173,6 +179,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           ) : null
         } else if (el.type === 'carousel') {
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
+        } else if (el.type === 'shape') {
+          node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o, boxShadow: shadowCss(el.shadow) }} /> : null
         } else if (el.type === 'button') {

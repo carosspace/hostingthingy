@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS } from '@/lib/sites/types'
 import type {
   SiteContent,
   SavedDesign,
@@ -15,6 +15,7 @@ import type {
   RevealKind,
   HoverKind,
   ShadowKind,
+  ShapeKind,
   ImageAdjust,
   SiteTheme,
   SitePage,
@@ -703,7 +704,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
-    const type = (['text', 'image', 'button', 'box', 'menu', 'carousel'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
+    const type = (['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
     const ff = String(e?.fontFamily)
@@ -745,6 +746,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       adjust: type === 'image' ? adjust(e?.adjust) : undefined,
       slides: type === 'carousel' && Array.isArray(e?.slides) ? (e.slides.map(dataOrHttp).filter(Boolean) as string[]).slice(0, 10) : undefined,
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
+      shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,

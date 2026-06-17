@@ -110,7 +110,22 @@ export const brandVar = (i: number) => `var(--brand-${i})`
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape'
+
+// Decorative SVG section dividers (filled with the element's colour; rotate to flip).
+export type ShapeKind = 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
+export const SHAPE_KINDS: ShapeKind[] = ['wave', 'curve', 'tilt', 'triangle', 'hill', 'zigzag']
+export function shapePath(k?: ShapeKind): string {
+  switch (k) {
+    case 'curve': return 'M0,100 C30,30 70,30 100,100 Z'
+    case 'tilt': return 'M0,100 L100,0 L100,100 Z'
+    case 'triangle': return 'M0,100 L50,0 L100,100 Z'
+    case 'hill': return 'M0,100 C40,0 60,0 100,100 Z'
+    case 'zigzag': return 'M0,100 L20,45 L40,100 L60,45 L80,100 L100,45 L100,100 Z'
+    case 'wave':
+    default: return 'M0,60 C25,95 75,25 100,60 L100,100 L0,100 Z'
+  }
+}
 
 // A two-stop linear gradient (used for box/button fills and the page background).
 export interface Gradient {
@@ -209,6 +224,8 @@ export interface CanvasElement {
   // carousel
   slides?: string[] // image data URLs for a 'carousel' element
   interval?: number // auto-advance seconds (0 = manual only)
+  // shape divider
+  shape?: ShapeKind
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)
