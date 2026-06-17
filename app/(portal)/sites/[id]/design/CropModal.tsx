@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react'
+import { encodeImage } from '@/lib/sites/image'
 
 type Rect = { x: number; y: number; w: number; h: number }
 type Handle = 'nw' | 'ne' | 'sw' | 'se'
@@ -110,7 +111,7 @@ export default function CropModal({ src, onApply, onClose }: { src: string; onAp
       const ctx = canvas.getContext('2d')
       if (!ctx) { setBusy(false); return }
       ctx.drawImage(im, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
-      onApply(canvas.toDataURL('image/jpeg', 0.9))
+      onApply(encodeImage(canvas, 0.9))
     } catch {
       // e.g. a cross-origin image would taint the canvas and make toDataURL throw —
       // fail safe by just closing rather than crashing the editor.

@@ -55,7 +55,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     if (el.type === 'image')
       return el.src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={el.src} alt="" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust) }} />
+        <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust) }} />
       ) : null
     if (el.type === 'box')
       return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
@@ -165,7 +165,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         if (el.type === 'image') {
           node = el.src ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={el.src} alt="" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust) }} />
+            <img src={el.src} alt="" loading="lazy" decoding="async" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust) }} />
           ) : null
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o }} /> : null
