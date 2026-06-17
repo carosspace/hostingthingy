@@ -755,12 +755,21 @@ export default function CanvasEditor({
         <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? accent : 'rgba(0,0,0,0.15)'}`, background: g ? accent : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
       </div>
       {g && (
-        <div className="flex items-center gap-2">
-          <input type="color" value={g.from} onChange={e => onChange({ ...g, from: e.target.value })} style={swatch} title="From" />
-          <input type="color" value={g.to} onChange={e => onChange({ ...g, to: e.target.value })} style={swatch} title="To" />
-          <span style={labelCss}>Angle</span>
-          <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
-        </div>
+        <>
+          <div className="flex items-center gap-2">
+            <input type="color" value={g.from} onChange={e => onChange({ ...g, from: e.target.value })} style={swatch} title="From" />
+            <input type="color" value={g.to} onChange={e => onChange({ ...g, to: e.target.value })} style={swatch} title="To" />
+            {(['linear', 'radial', 'conic'] as const).map(k => (
+              <button key={k} type="button" title={k} onClick={() => onChange({ ...g, kind: k === 'linear' ? undefined : k })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 6px', borderRadius: 3, border: `1px solid ${(g.kind || 'linear') === k ? accent : 'rgba(0,0,0,0.15)'}`, background: (g.kind || 'linear') === k ? accent : 'transparent', color: (g.kind || 'linear') === k ? '#fff' : '#666' }}>{k[0]}</button>
+            ))}
+          </div>
+          {g.kind !== 'radial' && (
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Angle</span>
+              <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -141,11 +141,14 @@ export function shapePath(k?: ShapeKind): string {
   }
 }
 
-// A two-stop linear gradient (used for box/button fills and the page background).
+// A two-stop gradient (used for box/button fills and the page background).
+export type GradientKind = 'linear' | 'radial' | 'conic'
+export const GRADIENT_KINDS: GradientKind[] = ['linear', 'radial', 'conic']
 export interface Gradient {
   from: string // hex
   to: string // hex
-  angle: number // degrees 0-360
+  angle: number // degrees 0-360 (the angle for linear/conic)
+  kind?: GradientKind // linear (default), radial, or conic
 }
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
 export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
@@ -200,7 +203,10 @@ export function shadowCss(s?: ShadowKind): string | undefined {
 // CSS for a gradient, or undefined when it isn't a valid two-stop gradient.
 export function gradientCss(g?: Gradient | null): string | undefined {
   if (!g || !g.from || !g.to) return undefined
-  return `linear-gradient(${g.angle ?? 90}deg, ${g.from}, ${g.to})`
+  const a = g.angle ?? 90
+  if (g.kind === 'radial') return `radial-gradient(circle, ${g.from}, ${g.to})`
+  if (g.kind === 'conic') return `conic-gradient(from ${a}deg, ${g.from}, ${g.to})`
+  return `linear-gradient(${a}deg, ${g.from}, ${g.to})`
 }
 
 export interface CanvasElement {

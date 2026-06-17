@@ -661,7 +661,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const from = hex(g?.from)
     const to = hex(g?.to)
     if (!from || !to) return undefined
-    return { from, to, angle: num(g?.angle, 0, 360, 90) }
+    const kind = (['linear', 'radial', 'conic'].includes(String(g?.kind)) ? String(g?.kind) : undefined) as Gradient['kind']
+    return { from, to, angle: num(g?.angle, 0, 360, 90), kind: kind && kind !== 'linear' ? kind : undefined }
   }
   const blend = (v: unknown) => {
     const s = String(v ?? '')
