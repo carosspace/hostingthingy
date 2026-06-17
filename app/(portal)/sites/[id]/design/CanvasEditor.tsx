@@ -11,6 +11,54 @@ import { saveCanvasAction } from '../../actions'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
+const swatchCss: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
+
+// Resolve a typed colour — a hex (#abc / #aabbcc) or a CSS colour name like "tomato"
+// or "rebeccapurple" — to a stored opaque hex. Names are resolved by the browser via
+// a throwaway canvas (two sentinels: an invalid value leaves fillStyle unchanged, so
+// the two reads differ). Returns null for anything that isn't a plain opaque colour,
+// so only safe hex is ever stored (the save gate also only accepts hex / brand tokens).
+function normalizeColor(input: string): string | null {
+  const s = input.trim().toLowerCase()
+  if (!s) return null
+  // Expand a 3-digit hex to 6 digits so the stored value always passes the save gate.
+  if (/^#[0-9a-f]{3}$/.test(s)) return '#' + s.slice(1).split('').map(c => c + c).join('')
+  if (/^#[0-9a-f]{6}$/.test(s)) return s
+  if (typeof document === 'undefined') return null
+  const ctx = document.createElement('canvas').getContext('2d')
+  if (!ctx) return null
+  ctx.fillStyle = '#000000'; ctx.fillStyle = s; const a = ctx.fillStyle
+  ctx.fillStyle = '#ffffff'; ctx.fillStyle = s; const b = ctx.fillStyle
+  if (a !== b) return null // invalid: fillStyle kept the (differing) sentinels
+  return /^#[0-9a-f]{6}$/.test(b) ? b : null // canvas returns rgba() for translucent — store opaque hex only
+}
+
+// A colour control: native picker + brand-swatch chips + a text box that accepts a
+// CSS name or hex (Canva-style). Stores a hex, or a var(--brand-N) token via a chip.
+function ColorField({ value, onChange, fallback, palette }: { value?: string; onChange: (v: string) => void; fallback: string; palette: string[] }) {
+  const resolved = value && isBrandToken(value) ? (palette[Number(value.slice(-2, -1))] || '#888888') : (value || '')
+  const [text, setText] = useState(resolved)
+  useEffect(() => { setText(resolved) }, [resolved])
+  const commit = () => { const c = normalizeColor(text); if (c) onChange(c); else setText(resolved) }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input type="color" value={(resolved && /^#[0-9a-f]{6}$/i.test(resolved) ? resolved : fallback)} onChange={e => onChange(e.target.value)} style={swatchCss} />
+      <input
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') { commit(); (e.currentTarget as HTMLInputElement).blur() } }}
+        placeholder="name / #hex"
+        spellCheck={false}
+        style={{ width: 74, background: 'rgba(255,255,255,0.8)', color: '#222', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 4, fontSize: 11, padding: '4px 5px', fontFamily: 'monospace' }}
+        title="Type a colour name (e.g. tomato) or hex (#ff6347)"
+      />
+      {palette.map((c, i) => (
+        <button key={i} type="button" title={`Brand ${i + 1}`} onClick={() => onChange(brandVar(i))} style={{ width: 15, height: 15, borderRadius: 3, background: c, cursor: 'pointer', border: value === brandVar(i) ? '2px solid #222' : '1px solid rgba(0,0,0,0.25)', padding: 0 }} />
+      ))}
+    </span>
+  )
+}
 
 type Drag =
   | { kind: 'move'; px: number; py: number; scale: number; m: boolean; starts: { id: string; x: number; y: number }[] }
@@ -743,6 +791,28 @@ export default function CanvasEditor({
           sdx = nx - s0.x
           sdy = ny - s0.y
         }
+      } else if (d.starts.length > 1) {
+        // Multi-selection: snap the GROUP's bounding box (left/centre/right and
+        // top/middle/bottom) to the canvas centre and to other elements' edges, then
+        // move the whole group by that adjusted delta. Worked out in displayed coords
+        // so it's correct even if the selection mixes body and footer-pinned elements.
+        const T = 8
+        const bb = d.m ? 0 : canvasLayout(elsRef.current).bodyBottom
+        const selSet = new Set(d.starts.map(s => s.id))
+        const elMap = new Map(elsRef.current.map(e => [e.id, e]))
+        const wOf = (id: string) => { const e = elMap.get(id); return e ? aw(e) : 0 }
+        const hOf = (id: string) => { const e = elMap.get(id); return e ? ah(e) : 0 }
+        const sy = (s: { id: string; y: number }) => { const e = elMap.get(s.id); return e && e.pin === 'footer' && !d.m ? bb + s.y : s.y }
+        const gMinX = Math.min(...d.starts.map(s => s.x)), gMaxX = Math.max(...d.starts.map(s => s.x + wOf(s.id)))
+        const gMinY = Math.min(...d.starts.map(s => sy(s))), gMaxY = Math.max(...d.starts.map(s => sy(s) + hOf(s.id)))
+        const others = elsRef.current.filter(e => !selSet.has(e.id))
+        const oy = (e: CanvasElement) => (e.pin === 'footer' && !d.m ? bb + ay(e) : ay(e))
+        const vlines = [W / 2, ...others.flatMap(e => [ax(e), ax(e) + aw(e) / 2, ax(e) + aw(e)])]
+        const gxs = [gMinX + dx, (gMinX + gMaxX) / 2 + dx, gMaxX + dx]
+        for (const line of vlines) { const hit = gxs.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdx = dx + (line - gxs[hit]); gxLine = line; break } }
+        const hlines = others.flatMap(e => [oy(e), oy(e) + ah(e) / 2, oy(e) + ah(e)])
+        const gys = [gMinY + dy, (gMinY + gMaxY) / 2 + dy, gMaxY + dy]
+        for (const line of hlines) { const hit = gys.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdy = dy + (line - gys[hit]); gyLine = line; break } }
       }
       setGuides({ x: gxLine, y: gyLine })
       const startMap = new Map(d.starts.map(s => [s.id, s]))
@@ -1005,17 +1075,12 @@ export default function CanvasEditor({
     else setSelectedIds([id])
   }
   const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
-  const swatch: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
+  const swatch: CSSProperties = swatchCss
   // A colour value resolved for display: a brand token shows its current swatch colour.
   const resolveCol = (v?: string) => { if (v && isBrandToken(v)) { return palette[Number(v.slice(-2, -1))] || '#888888' } return v || '' }
-  // A colour input plus one chip per brand swatch; clicking a chip stores a var(--brand-N) token.
+  // A colour control (native picker + name/hex text box + brand-swatch chips).
   const colorField = (value: string | undefined, onChange: (v: string) => void, fallback: string) => (
-    <span className="inline-flex items-center gap-1">
-      <input type="color" value={resolveCol(value) || fallback} onChange={e => onChange(e.target.value)} style={swatch} />
-      {palette.map((c, i) => (
-        <button key={i} type="button" title={`Brand ${i + 1}`} onClick={() => onChange(brandVar(i))} style={{ width: 15, height: 15, borderRadius: 3, background: c, cursor: 'pointer', border: value === brandVar(i) ? '2px solid #222' : '1px solid rgba(0,0,0,0.25)', padding: 0 }} />
-      ))}
-    </span>
+    <ColorField value={value} onChange={onChange} fallback={fallback} palette={palette} />
   )
   // A compact on/off two-stop gradient editor, reused for boxes, buttons and the page background.
   const gradientControls = (g: Gradient | null | undefined, onChange: (g: Gradient | null) => void) => (
@@ -1135,7 +1200,7 @@ export default function CanvasEditor({
         <div className="space-y-1.5">
           <p style={labelCss}>Page background</p>
           <div className="flex items-center gap-2 mt-1.5">
-            <input type="color" value={bg || '#faf7f2'} onChange={e => { setBg(e.target.value); touch() }} style={{ width: 30, height: 26, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0, cursor: 'pointer' }} title="Background colour" />
+            <ColorField value={bg || ''} onChange={v => { setBg(v); touch() }} fallback="#faf7f2" palette={palette} />
             {bg && <button type="button" onClick={() => { setBg(''); touch() }} style={{ fontSize: 11, color: '#999' }}>×</button>}
             <button type="button" onClick={pickBg} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{bgImage ? 'Change photo' : '+ Photo'}</button>
             {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}

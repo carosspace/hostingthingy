@@ -792,7 +792,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   return {
     h: num(c.h, 200, 40000, 1000),
     width: c.width === 'contained' ? 'contained' : undefined,
-    bg: hex(c.bg),
+    bg: color(c.bg),
     bgGradient: grad(c.bgGradient),
     bgImage: dataOrHttp(c.bgImage),
     elements,
