@@ -432,6 +432,8 @@ export default function LiveEditor({
   const [dragId, setDragId] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
   const [inspectorNode, setInspectorNode] = useState<HTMLDivElement | null>(null)
+  const [dragBlockId, setDragBlockId] = useState('')
+  const [dropTarget, setDropTarget] = useState('') // `${blockId}` (drop before) or `col:${sectionId}:${col}` (drop at end)
   // Which optional slots the user has chosen to add (sections by id; hero by flag).
   const [heroImgOpen, setHeroImgOpen] = useState(false)
   const [heroBtnOpen, setHeroBtnOpen] = useState(false)
@@ -485,6 +487,8 @@ export default function LiveEditor({
   }
   const barZonesPreview = (items: EdItem[]) =>
     [0, 1, 2].map(z => items.filter(it => (it.col === 1 || it.col === 2 ? it.col : 0) === z).map((it, i) => renderBarPreview(it, i)))
+  // Mirror the published content width so the Middle/Full toggle is visible while editing.
+  const editBodyMax = layout === 'full' ? 'max-w-5xl' : 'max-w-2xl'
 
   const ctaPreview =
     ctaType !== 'none' ? (
@@ -606,6 +610,24 @@ export default function LiveEditor({
   function updateItem(sectionId: string, itemId: string, patch: Partial<EdItem>) {
     setUndoStack([])
     setSections(p => p.map(s => (s.id === sectionId ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)) } : s)))
+    touched()
+  }
+  // Drag a block: move it to targetCol, inserting before beforeId (or at the column's end).
+  function moveBlock(sectionId: string, blockId: string, targetCol: 0 | 1 | 2, beforeId?: string) {
+    if (blockId === beforeId) return
+    setUndoStack([])
+    setSections(p =>
+      p.map(s => {
+        if (s.id !== sectionId) return s
+        const moving = s.items.find(it => it.id === blockId)
+        if (!moving) return s
+        const without = s.items.filter(it => it.id !== blockId)
+        const moved = { ...moving, col: targetCol }
+        const idx = beforeId ? without.findIndex(it => it.id === beforeId) : -1
+        const items = idx >= 0 ? [...without.slice(0, idx), moved, ...without.slice(idx)] : [...without, moved]
+        return { ...s, items }
+      }),
+    )
     touched()
   }
   // Add a typed block to a column of a 'layout' section.
@@ -921,7 +943,7 @@ export default function LiveEditor({
   }
 
   return (
-    <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm">
+    <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
       <style>{`.ht-ed[contenteditable]:hover{background:rgba(128,128,128,0.14);border-radius:4px}.ht-ed[contenteditable]:empty:before{content:'Click to edit';opacity:.4}`}</style>
 
       <div
@@ -1355,10 +1377,24 @@ export default function LiveEditor({
               s.kind === 'layout' ? (
                 <div className={`flex flex-col gap-4 mt-2 ${(s.columns || 1) >= 2 ? 'md:flex-row md:items-start' : ''}`} style={{ textAlign: 'left' }}>
                   {Array.from({ length: s.columns || 1 }).map((_, col) => (
-                    <div key={col} className="flex-1 min-w-0 space-y-3">
+                    <div
+                      key={col}
+                      className="flex-1 min-w-0 space-y-3 rounded-sm"
+                      style={dropTarget === `col:${s.id}:${col}` ? { outline: `2px dashed ${accent}`, outlineOffset: 2 } : undefined}
+                      onDragOver={e => { if (dragBlockId) { e.preventDefault(); setDropTarget(`col:${s.id}:${col}`) } }}
+                      onDragLeave={() => { if (dropTarget === `col:${s.id}:${col}`) setDropTarget('') }}
+                      onDrop={e => { if (dragBlockId) { e.preventDefault(); e.stopPropagation(); moveBlock(s.id, dragBlockId, col as 0 | 1 | 2); setDragBlockId(''); setDropTarget('') } }}
+                    >
                       {s.items.filter(it => Math.min(it.col ?? 0, (s.columns || 1) - 1) === col).map(it => (
-                        <div key={it.id} className="group/blk relative rounded-sm" style={(it.boxColor || it.outline) ? { border: it.outline ? `1px solid ${accent}55` : undefined, background: it.outline ? 'transparent' : it.boxColor || undefined, borderRadius: 6, padding: 14 } : undefined}>
+                        <div
+                          key={it.id}
+                          className="group/blk relative rounded-sm"
+                          style={{ ...((it.boxColor || it.outline) ? { border: it.outline ? `1px solid ${accent}55` : undefined, background: it.outline ? 'transparent' : it.boxColor || undefined, borderRadius: 6, padding: 14 } : {}), opacity: dragBlockId === it.id ? 0.4 : 1, boxShadow: dropTarget === it.id ? `0 -3px 0 ${accent}` : undefined }}
+                          onDragOver={e => { if (dragBlockId && dragBlockId !== it.id) { e.preventDefault(); e.stopPropagation(); setDropTarget(it.id) } }}
+                          onDrop={e => { if (dragBlockId && dragBlockId !== it.id) { e.preventDefault(); e.stopPropagation(); moveBlock(s.id, dragBlockId, (it.col ?? 0) as 0 | 1 | 2, it.id); setDragBlockId(''); setDropTarget('') } }}
+                        >
                           <div className="absolute -right-1 -top-2.5 z-10 flex items-center gap-1.5 opacity-0 group-hover/blk:opacity-100 transition-opacity rounded px-1.5 py-0.5" style={{ background: 'rgba(255,255,255,0.94)', boxShadow: '0 1px 4px rgba(0,0,0,0.18)' }}>
+                              <button type="button" title="Drag to move this block" draggable onDragStart={e => { e.stopPropagation(); setDragBlockId(it.id) }} onDragEnd={() => { setDragBlockId(''); setDropTarget('') }} style={{ fontSize: 13, color: accent, cursor: 'grab' }}>⠿</button>
                               {(s.columns || 1) >= 2 && (
                                 <button type="button" title="Move to next column" onClick={() => updateItem(s.id, it.id, { col: (((it.col ?? 0) + 1) % (s.columns || 1)) as 0 | 1 | 2 })} style={{ fontSize: 13, color: accent }}>⇄</button>
                               )}
@@ -1474,7 +1510,7 @@ export default function LiveEditor({
                     </div>
                   </div>
                 ) : (
-                  <div style={{ background: s.bgColor || undefined, border: s.borderColor && s.borderWidth ? `${s.borderWidth}px solid ${s.borderColor}` : undefined, borderRadius: s.bgColor || (s.borderColor && s.borderWidth) ? 8 : undefined, padding: s.bgColor || (s.borderColor && s.borderWidth) ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
+                  <div className={`${editBodyMax} mx-auto w-full`} style={{ background: s.bgColor || undefined, border: s.borderColor && s.borderWidth ? `${s.borderWidth}px solid ${s.borderColor}` : undefined, borderRadius: s.bgColor || (s.borderColor && s.borderWidth) ? 8 : undefined, padding: s.bgColor || (s.borderColor && s.borderWidth) ? '24px 22px' : undefined, textAlign: s.align || 'left' }}>
                     {s.kind === 'layout' ? (
                       <>
                         {layoutEditor}
