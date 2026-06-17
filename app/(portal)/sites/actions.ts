@@ -641,7 +641,18 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   const hex = (v: unknown) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : undefined)
   const dataOrHttp = (v: unknown) => {
     const s = String(v ?? '').trim()
-    return s.startsWith('data:image/') || /^https?:\/\//i.test(s) ? s : undefined
+    // Strict allowlist so a stored value can never break out of a CSS url(...) or an
+    // attribute: a base64 raster data URL, or an http(s) URL with no quote/paren/semicolon/space.
+    if (/^data:image\/(png|jpe?g|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(s)) return s
+    if (/^https?:\/\/[^\s()'"\\;]+$/i.test(s)) {
+      try {
+        const u = new URL(s)
+        if (u.protocol === 'http:' || u.protocol === 'https:') return s
+      } catch {
+        // not a valid URL
+      }
+    }
+    return undefined
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
@@ -687,14 +698,13 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
 }
 
 async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {
-  const existing = (await getSite(id))?.content ?? null
-  if (!existing) return
+  const base: SiteContent = (await getSite(id))?.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
   // Keep the page's blocks so switching back to the block editor restores them; the
   // public page renders the canvas only when it has elements, otherwise the blocks.
-  const updatedPages: SitePage[] = getPages(existing).map(p => (p.slug === pageSlug ? { ...p, canvas } : p))
+  const updatedPages: SitePage[] = getPages(base).map(p => (p.slug === pageSlug ? { ...p, canvas } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
   await saveSiteContent(id, {
-    ...existing,
+    ...base,
     headline: home.headline,
     subheadline: home.subheadline,
     sections: home.sections,

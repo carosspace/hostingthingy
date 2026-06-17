@@ -28,7 +28,7 @@ export function CanvasView({
   }
   const bg: CSSProperties = {
     background: canvas.bg || undefined,
-    backgroundImage: canvas.bgImage ? `url(${canvas.bgImage})` : undefined,
+    backgroundImage: canvas.bgImage ? `url('${canvas.bgImage}')` : undefined,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   }

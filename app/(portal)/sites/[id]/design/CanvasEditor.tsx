@@ -43,7 +43,12 @@ export default function CanvasEditor({
   const [saved, setSaved] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<Drag>(null)
-  const idc = useRef(1)
+  const idc = useRef(
+    (initial?.elements ?? []).reduce((m, e) => {
+      const n = parseInt(String(e.id).replace(/\D/g, ''), 10)
+      return Number.isFinite(n) ? Math.max(m, n + 1) : m
+    }, 1),
+  )
   const dirty = useRef(false)
 
   const sel = els.find(e => e.id === selectedId) || null
@@ -115,9 +120,15 @@ export default function CanvasEditor({
       )
     }
     const up = () => { if (dragRef.current) { dragRef.current = null; touch() } }
+    const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
-    return () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+    window.addEventListener('beforeunload', warn)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('beforeunload', warn)
+    }
   }, [])
 
   const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize') => {
@@ -338,7 +349,7 @@ export default function CanvasEditor({
               aspectRatio: `${CANVAS_W} / ${canvasH}`,
               containerType: 'inline-size',
               background: bg || t.bg,
-              backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+              backgroundImage: bgImage ? `url('${bgImage}')` : undefined,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             } as CSSProperties}
