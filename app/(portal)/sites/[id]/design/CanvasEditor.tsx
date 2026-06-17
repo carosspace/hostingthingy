@@ -90,12 +90,36 @@ export default function CanvasEditor({
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: accent, align: 'left' },
     box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
     line: { type: 'box', w: 440, h: 4, fill: accent, radius: 0 },
+    section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f1ece3', radius: 0 },
   }
-  // Card / FAQ drop a small group of pre-arranged elements.
-  const addTemplate = (kind: 'card' | 'faq') => {
+  // Drop a small group of pre-arranged elements.
+  const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer') => {
     let z = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const mk = (p: Partial<CanvasElement> & { type: CanvasElementType }): CanvasElement => ({ id: 'e' + idc.current++, x: 0, y: 0, w: 100, h: 60, opacity: 100, z: ++z, ...p })
     const bx = 150, by = 150
+    if (kind === 'header') {
+      const group = [
+        mk({ type: 'box', x: 0, y: 0, w: CANVAS_W, h: 96, fill: '#ffffff' }),
+        mk({ type: 'text', x: 40, y: 30, w: 320, h: 40, text: 'Your brand', fontSize: 24, fontFamily: 'display', italic: true, color: t.text }),
+        mk({ type: 'menu', x: CANVAS_W - 500, y: 38, w: 460, h: 30, fontSize: 15, fontFamily: 'label', color: accent, align: 'right' }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedId(group[0].id)
+      touch()
+      return
+    }
+    if (kind === 'footer') {
+      const fy = els.reduce((m, e) => Math.max(m, e.y + e.h), 200) + 60
+      const group = [
+        mk({ type: 'box', x: 0, y: fy, w: CANVAS_W, h: 110, fill: t.text }),
+        mk({ type: 'text', x: 40, y: fy + 40, w: 360, h: 30, text: '© Your name', fontSize: 14, fontFamily: 'body', color: '#ffffff' }),
+        mk({ type: 'menu', x: CANVAS_W - 500, y: fy + 42, w: 460, h: 28, fontSize: 13, fontFamily: 'label', color: '#ffffff', align: 'right' }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedId(group[0].id)
+      touch()
+      return
+    }
     if (kind === 'card') {
       const group = [
         mk({ type: 'box', x: bx, y: by, w: 320, h: 384, fill: '#ffffff', radius: 12, borderColor: '#e8dcc0', borderWidth: 2 }),
@@ -273,7 +297,7 @@ export default function CanvasEditor({
           {([
             ['Text', [['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']]],
             ['Media & buttons', [['image', 'Picture'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
-            ['Shapes', [['box', 'Box'], ['line', 'Line']]],
+            ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section']]],
           ] as [string, [string, string][]][]).map(([group, items]) => (
             <div key={group}>
               <p style={labelCss}>{group}</p>
@@ -287,8 +311,9 @@ export default function CanvasEditor({
           <div>
             <p style={labelCss}>Starters</p>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              <button type="button" onClick={() => addTemplate('card')} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Card</button>
-              <button type="button" onClick={() => addTemplate('faq')} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ FAQ</button>
+              {([['header', 'Header'], ['footer', 'Footer'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
+                <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+              ))}
             </div>
           </div>
         </div>
