@@ -103,6 +103,13 @@ export const CANVAS_W = 1000
 // elements carry their own mx/my/mw/mh on this narrower canvas.
 export const MOBILE_W = 440
 
+// The most brand-palette swatches a page can hold. A colour can reference a
+// swatch as `var(--brand-N)`; changing the swatch updates every element using it.
+export const MAX_PALETTE = 6
+export const brandVar = (i: number) => `var(--brand-${i})`
+// Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
+export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
+
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu'
 
 // A two-stop linear gradient (used for box/button fills and the page background).
@@ -206,6 +213,7 @@ export interface PageCanvas {
   elements: CanvasElement[]
   mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)
   mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
+  palette?: string[] // brand swatches (hex); referenced by colours as var(--brand-N)
 }
 
 export interface SitePage {

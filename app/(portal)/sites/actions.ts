@@ -647,6 +647,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : dflt
   }
   const hex = (v: unknown) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : undefined)
+  // A colour is either a hex or a strict brand-palette token; the anchored regex
+  // (only var(--brand-0..5)) means a stored value can never inject CSS.
+  const color = (v: unknown) => { const s = String(v ?? '').trim(); return /^var\(--brand-[0-5]\)$/.test(s) ? s : hex(v) }
   // A two-stop gradient is only kept if both stops are valid hex (so the stored
   // value can never inject arbitrary CSS); the angle is clamped to 0-360.
   const grad = (v: unknown): Gradient | undefined => {
@@ -724,7 +727,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       mHidden: e?.mHidden ? true : undefined,
       text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
       fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,
-      color: hex(e?.color),
+      color: color(e?.color),
       align,
       bold: e?.bold ? true : undefined,
       italic: e?.italic ? true : undefined,
@@ -737,10 +740,10 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
       adjust: type === 'image' ? adjust(e?.adjust) : undefined,
-      fill: hex(e?.fill),
+      fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,
-      borderColor: hex(e?.borderColor),
+      borderColor: color(e?.borderColor),
       borderWidth: num(e?.borderWidth, 0, 40, 0) || undefined,
       blend: blend(e?.blend),
       reveal: reveal(e?.reveal),
@@ -757,6 +760,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     elements,
     mobileCustom: c.mobileCustom ? true : undefined,
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
+    palette: Array.isArray(c.palette) ? (c.palette.map(hex).filter(Boolean) as string[]).slice(0, 6) : undefined,
   }
 }
 

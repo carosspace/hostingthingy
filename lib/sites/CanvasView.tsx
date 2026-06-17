@@ -40,7 +40,10 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     if (el.ctaType === 'email') return contactEmail ? `mailto:${contactEmail}` : ''
     return safeHref((el.href ?? '').trim()) ?? ''
   }
+  const paletteVars: CSSProperties = {}
+  ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
   const bg: CSSProperties = {
+    ...paletteVars,
     background: canvas.bgImage ? undefined : gradientCss(canvas.bgGradient) || canvas.bg || undefined,
     backgroundImage: canvas.bgImage ? `url('${canvas.bgImage}')` : undefined,
     backgroundSize: 'cover',
@@ -143,7 +146,10 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
     if (el.ctaType === 'email') return contactEmail ? `mailto:${contactEmail}` : ''
     return safeHref((el.href ?? '').trim()) ?? ''
   }
+  const paletteVars: CSSProperties = {}
+  ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
   const bg: CSSProperties = {
+    ...paletteVars,
     background: canvas.bgImage ? undefined : gradientCss(canvas.bgGradient) || canvas.bg || undefined,
     backgroundImage: canvas.bgImage ? `url('${canvas.bgImage}')` : undefined,
     backgroundSize: 'cover',

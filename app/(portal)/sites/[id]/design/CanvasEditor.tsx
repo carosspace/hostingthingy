@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, gradientCss, filterCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ImageAdjust } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, MAX_PALETTE, brandVar, isBrandToken, gradientCss, filterCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ImageAdjust } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -44,6 +44,7 @@ export default function CanvasEditor({
   const [bg, setBg] = useState(initial?.bg ?? '')
   const [bgGrad, setBgGrad] = useState<Gradient | null>(initial?.bgGradient ?? null)
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
+  const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
@@ -64,8 +65,13 @@ export default function CanvasEditor({
   const dirty = useRef(false)
   const elsRef = useRef(els)
   elsRef.current = els
-  const history = useRef<CanvasElement[][]>([])
-  const future = useRef<CanvasElement[][]>([])
+  const paletteRef = useRef(palette)
+  paletteRef.current = palette
+  // History captures elements AND palette together so a single action (e.g. removing
+  // a brand swatch, which touches both) undoes atomically and never strands a token.
+  type Snap = { els: CanvasElement[]; palette: string[] }
+  const history = useRef<Snap[]>([])
+  const future = useRef<Snap[]>([])
   const clip = useRef<CanvasElement[]>([])
   const styleClip = useRef<Partial<CanvasElement> | null>(null) // format painter: copied style
   const lastSnap = useRef(0)
@@ -87,6 +93,8 @@ export default function CanvasEditor({
   const patchX = (x: number): Partial<CanvasElement> => (editingMobile ? { mx: x } : { x })
   const patchY = (y: number): Partial<CanvasElement> => (editingMobile ? { my: y } : { y })
   const cqv = (px: number) => `${(px / CW) * 100}cqw`
+  const brandVars: CSSProperties = {}
+  palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
@@ -100,14 +108,16 @@ export default function CanvasEditor({
     const now = Date.now()
     if (!force && now - lastSnap.current < 500) return
     lastSnap.current = now
-    history.current.push(elsRef.current)
+    history.current.push({ els: elsRef.current, palette: paletteRef.current })
     if (history.current.length > 60) history.current.shift()
     future.current = []
   }
   const undo = () => {
     const prev = history.current.pop()
     if (prev === undefined) return
-    setEls(cur => { future.current.push(cur); return prev })
+    future.current.push({ els: elsRef.current, palette: paletteRef.current })
+    setEls(prev.els)
+    setPalette(prev.palette)
     setSelectedIds([])
     dirty.current = true
     setSaved(false)
@@ -115,7 +125,9 @@ export default function CanvasEditor({
   const redo = () => {
     const next = future.current.pop()
     if (next === undefined) return
-    setEls(cur => { history.current.push(cur); return next })
+    history.current.push({ els: elsRef.current, palette: paletteRef.current })
+    setEls(next.els)
+    setPalette(next.palette)
     dirty.current = true
     setSaved(false)
   }
@@ -247,6 +259,22 @@ export default function CanvasEditor({
     touch()
   }
   const useAutoMobile = () => { setMobileCustom(false); setSelectedIds([]); touch() }
+  // Remove a brand swatch without breaking references: elements on the removed slot
+  // freeze to its current colour, and higher slots shift down to match the new indices.
+  const removePaletteColor = (i: number) => {
+    const removedHex = palette[i] || '#888888'
+    snapshot(true)
+    const fix = (v?: string): string | undefined => {
+      if (!v || !isBrandToken(v)) return v
+      const j = Number(v.slice(-2, -1))
+      if (j === i) return removedHex
+      if (j > i) return brandVar(j - 1)
+      return v
+    }
+    setEls(p => p.map(e => ({ ...e, color: fix(e.color), fill: fix(e.fill), borderColor: fix(e.borderColor) })))
+    setPalette(p => p.filter((_, j) => j !== i))
+    touch()
+  }
 
   const place = (partial: Partial<CanvasElement> & { type: CanvasElementType }) => {
     snapshot(true)
@@ -544,6 +572,7 @@ export default function CanvasEditor({
       elements: els,
       mobileCustom: mobileCustom || undefined,
       mobileH: mobileCustom ? mobileH : undefined,
+      palette: palette.length ? palette : undefined,
     }
     const fd = new FormData()
     fd.set('id', siteId)
@@ -630,6 +659,17 @@ export default function CanvasEditor({
   }
   const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
   const swatch: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
+  // A colour value resolved for display: a brand token shows its current swatch colour.
+  const resolveCol = (v?: string) => { if (v && isBrandToken(v)) { return palette[Number(v.slice(-2, -1))] || '#888888' } return v || '' }
+  // A colour input plus one chip per brand swatch; clicking a chip stores a var(--brand-N) token.
+  const colorField = (value: string | undefined, onChange: (v: string) => void, fallback: string) => (
+    <span className="inline-flex items-center gap-1">
+      <input type="color" value={resolveCol(value) || fallback} onChange={e => onChange(e.target.value)} style={swatch} />
+      {palette.map((c, i) => (
+        <button key={i} type="button" title={`Brand ${i + 1}`} onClick={() => onChange(brandVar(i))} style={{ width: 15, height: 15, borderRadius: 3, background: c, cursor: 'pointer', border: value === brandVar(i) ? '2px solid #222' : '1px solid rgba(0,0,0,0.25)', padding: 0 }} />
+      ))}
+    </span>
+  )
   // A compact on/off two-stop gradient editor, reused for boxes, buttons and the page background.
   const gradientControls = (g: Gradient | null | undefined, onChange: (g: Gradient | null) => void) => (
     <div className="space-y-1.5">
@@ -714,6 +754,23 @@ export default function CanvasEditor({
         </div>
 
         <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Brand palette</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Save your colours here, then click a swatch beside any colour. Change a swatch and everything using it updates.</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {palette.map((c, i) => (
+              <span key={i} className="inline-flex items-center">
+                <input type="color" value={c} onChange={e => { snapshot(); setPalette(p => p.map((x, j) => (j === i ? e.target.value : x))); touch() }} style={{ ...swatch, width: 26, height: 26 }} title={`Brand ${i + 1}`} />
+                <button type="button" onClick={() => removePaletteColor(i)} title="Remove" style={{ fontSize: 11, color: '#b3402f', marginLeft: 1 }}>×</button>
+              </span>
+            ))}
+            {palette.length < MAX_PALETTE && (
+              <button type="button" onClick={() => { snapshot(true); setPalette(p => [...p, accent]); touch() }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Colour</button>
+            )}
+          </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
         {/* LAYERS */}
         <div>
           <div className="flex items-center justify-between">
@@ -782,7 +839,7 @@ export default function CanvasEditor({
                   {sel.type === 'text' && (
                     <>
                       <span style={labelCss}>Colour</span>
-                      <input type="color" value={sel.color || '#1a1612'} onChange={e => update(sel.id, { color: e.target.value })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                      {colorField(sel.color, v => update(sel.id, { color: v }), '#1a1612')}
                     </>
                   )}
                   <button type="button" onClick={() => update(sel.id, { bold: !sel.bold })} style={{ fontWeight: 700, fontSize: 13, color: sel.bold ? accent : '#888', width: 24 }}>B</button>
@@ -832,7 +889,7 @@ export default function CanvasEditor({
               <>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Fill</span>
-                  <input type="color" value={sel.fill || accent} onChange={e => update(sel.id, { fill: e.target.value })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                  {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
                   <span style={labelCss}>Link</span>
                   <select value={sel.ctaType || 'none'} onChange={e => update(sel.id, { ctaType: e.target.value as CtaType })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                     <option value="none">No link</option>
@@ -892,7 +949,7 @@ export default function CanvasEditor({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span style={labelCss}>Colour</span>
-                  <input type="color" value={sel.color || accent} onChange={e => update(sel.id, { color: e.target.value })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                  {colorField(sel.color, v => update(sel.id, { color: v }), accent)}
                   {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
                     <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
@@ -904,14 +961,14 @@ export default function CanvasEditor({
               <>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Fill</span>
-                  <input type="color" value={sel.fill || '#e8dcc0'} onChange={e => update(sel.id, { fill: e.target.value })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                  {colorField(sel.fill, v => update(sel.id, { fill: v }), '#e8dcc0')}
                   {sel.fill && <button type="button" onClick={() => update(sel.id, { fill: '' })} style={{ fontSize: 11, color: '#999' }}>×</button>}
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Border</span>
-                  <input type="color" value={sel.borderColor || '#a85c36'} onChange={e => update(sel.id, { borderColor: e.target.value, borderWidth: sel.borderWidth || 2 })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                  {colorField(sel.borderColor, v => update(sel.id, { borderColor: v, borderWidth: sel.borderWidth || 2 }), '#a85c36')}
                   <select value={sel.borderWidth || 0} onChange={e => update(sel.id, { borderWidth: Number(e.target.value) })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                     <option value={0}>none</option>
                     <option value={2}>thin</option>
@@ -1028,7 +1085,7 @@ export default function CanvasEditor({
           // The automatic phone layout, shown read-only in a phone frame.
           <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSystem) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
-              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els, palette: palette.length ? palette : undefined }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
             </div>
           </div>
         ) : (
@@ -1045,6 +1102,7 @@ export default function CanvasEditor({
                 backgroundImage: bgImage ? `url('${bgImage}')` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
+                ...brandVars,
               } as CSSProperties}
             >
               {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
