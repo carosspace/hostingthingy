@@ -22,6 +22,7 @@ export default function CanvasEditor({
   accent,
   fontSystem,
   contactEmail,
+  navPages,
   initial,
 }: {
   siteId: string
@@ -32,12 +33,14 @@ export default function CanvasEditor({
   accent: string
   fontSystem: string
   contactEmail: string
+  navPages: { slug: string; label: string }[]
   initial: PageCanvas | null
 }) {
   const t = THEMES[theme] ?? THEMES.sand
   const [els, setEls] = useState<CanvasElement[]>(initial?.elements ?? [])
   const [bg, setBg] = useState(initial?.bg ?? '')
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
+  const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedId, setSelectedId] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -65,19 +68,54 @@ export default function CanvasEditor({
     touch()
   }
 
-  const addEl = (type: CanvasElementType) => {
+  const place = (partial: Partial<CanvasElement> & { type: CanvasElementType }) => {
     const maxZ = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const n = els.length
-    const base: CanvasElement = { id: 'e' + idc.current++, type, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w: 400, h: 80, z: maxZ + 1, opacity: 100 }
-    let el: CanvasElement = base
-    if (type === 'text') el = { ...base, w: 460, h: 70, text: 'Your text', fontSize: 40, color: t.text, align: 'left', fontFamily: 'display', italic: true }
-    if (type === 'button') el = { ...base, w: 210, h: 56, text: 'Click me', fontSize: 18, fill: accent, ctaType: 'none', radius: 6, fontFamily: 'label' }
-    if (type === 'box') el = { ...base, w: 340, h: 220, fill: '#e8dcc0', radius: 10 }
-    if (type === 'image') el = { ...base, w: 380, h: 260, fit: 'cover', radius: 0 }
+    const el: CanvasElement = { id: 'e' + idc.current++, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
     setEls(p => [...p, el])
     setSelectedId(el.id)
     touch()
-    if (type === 'image') setTimeout(() => imgPick(el.id), 50)
+    if (el.type === 'image' && !el.src) setTimeout(() => imgPick(el.id), 50)
+    return el
+  }
+  // Preset "Add" buttons.
+  const PRESETS: Record<string, Partial<CanvasElement> & { type: CanvasElementType }> = {
+    title: { type: 'text', w: 580, h: 92, text: 'Your title', fontSize: 56, fontFamily: 'display', italic: true, color: t.text },
+    subtitle: { type: 'text', w: 480, h: 54, text: 'A subtitle', fontSize: 26, fontFamily: 'display', color: t.text },
+    body: { type: 'text', w: 460, h: 120, text: 'Your text goes here…', fontSize: 18, fontFamily: 'body', color: t.text },
+    link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: accent, ctaType: 'link' },
+    button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: accent, ctaType: 'none', radius: 6, fontFamily: 'label' },
+    contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: accent, ctaType: 'email', radius: 6, fontFamily: 'label' },
+    image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
+    menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: accent, align: 'left' },
+    box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
+    line: { type: 'box', w: 440, h: 4, fill: accent, radius: 0 },
+  }
+  // Card / FAQ drop a small group of pre-arranged elements.
+  const addTemplate = (kind: 'card' | 'faq') => {
+    let z = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const mk = (p: Partial<CanvasElement> & { type: CanvasElementType }): CanvasElement => ({ id: 'e' + idc.current++, x: 0, y: 0, w: 100, h: 60, opacity: 100, z: ++z, ...p })
+    const bx = 150, by = 150
+    if (kind === 'card') {
+      const group = [
+        mk({ type: 'box', x: bx, y: by, w: 320, h: 384, fill: '#ffffff', radius: 12, borderColor: '#e8dcc0', borderWidth: 2 }),
+        mk({ type: 'image', x: bx + 18, y: by + 18, w: 284, h: 172, fit: 'cover', radius: 6 }),
+        mk({ type: 'text', x: bx + 18, y: by + 204, w: 284, h: 40, text: 'Card title', fontSize: 24, fontFamily: 'display', italic: true, color: t.text }),
+        mk({ type: 'text', x: bx + 18, y: by + 248, w: 284, h: 116, text: 'A short description goes here.', fontSize: 15, fontFamily: 'body', color: t.text }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedId(group[1].id)
+      touch()
+      setTimeout(() => imgPick(group[1].id), 60)
+    } else {
+      const group = [
+        mk({ type: 'text', x: bx, y: by, w: 500, h: 42, text: 'Your question?', fontSize: 22, fontFamily: 'display', italic: true, color: t.text }),
+        mk({ type: 'text', x: bx, y: by + 48, w: 500, h: 96, text: 'The answer goes here.', fontSize: 16, fontFamily: 'body', color: t.text }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedId(group[1].id)
+      touch()
+    }
   }
 
   // shared hidden file input per element image upload
@@ -131,6 +169,21 @@ export default function CanvasEditor({
     }
   }, [])
 
+  // Delete / Backspace removes the selected element (unless typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (!selectedId) return
+      const el = e.target as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      e.preventDefault()
+      remove(selectedId)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedId])
+
   const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize') => {
     e.stopPropagation()
     e.preventDefault()
@@ -142,7 +195,7 @@ export default function CanvasEditor({
 
   async function save() {
     setSaving(true)
-    const canvas: PageCanvas = { h: canvasH, bg: bg.trim() || undefined, bgImage: bgImage.trim() || undefined, elements: els }
+    const canvas: PageCanvas = { h: canvasH, width: pageWidth === 'contained' ? 'contained' : undefined, bg: bg.trim() || undefined, bgImage: bgImage.trim() || undefined, elements: els }
     const fd = new FormData()
     fd.set('id', siteId)
     fd.set('pageSlug', pageSlug)
@@ -166,6 +219,14 @@ export default function CanvasEditor({
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cq(el.radius || 0), color: accent, fontSize: cq(16) }}>+ photo</div>
       )
     if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: el.fill || 'transparent', borderRadius: cq(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cq(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
+    if (el.type === 'menu')
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cq(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden', pointerEvents: 'none' }}>
+          {(navPages.length ? navPages : [{ slug: '', label: 'Home' }, { slug: 'x', label: 'About' }]).map(p => (
+            <span key={p.slug} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cq(el.fontSize || 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: cq(2) }}>{p.label}</span>
+          ))}
+        </div>
+      )
     const isBtn = el.type === 'button'
     return (
       <div
@@ -208,11 +269,36 @@ export default function CanvasEditor({
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
 
+        <div className="space-y-2">
+          {([
+            ['Text', [['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']]],
+            ['Media & buttons', [['image', 'Picture'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
+            ['Shapes', [['box', 'Box'], ['line', 'Line']]],
+          ] as [string, [string, string][]][]).map(([group, items]) => (
+            <div key={group}>
+              <p style={labelCss}>{group}</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {items.map(([key, lbl]) => (
+                  <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div>
+            <p style={labelCss}>Starters</p>
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              <button type="button" onClick={() => addTemplate('card')} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Card</button>
+              <button type="button" onClick={() => addTemplate('faq')} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ FAQ</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
         <div>
-          <p style={labelCss}>Add</p>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {([['text', 'Text'], ['image', 'Picture'], ['button', 'Button'], ['box', 'Box']] as const).map(([type, lbl]) => (
-              <button key={type} type="button" onClick={() => addEl(type)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">+ {lbl}</button>
+          <p style={labelCss}>Page width</p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            {(['full', 'contained'] as const).map(w => (
+              <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? accent : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? accent : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
             ))}
           </div>
         </div>
@@ -233,7 +319,7 @@ export default function CanvasEditor({
         {sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'button' ? 'Button' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Bring forward" onClick={() => layer(sel.id, 1)} style={{ fontSize: 13, color: accent }}>▲</button>
                 <button type="button" title="Send back" onClick={() => layer(sel.id, -1)} style={{ fontSize: 13, color: accent }}>▼</button>
@@ -270,6 +356,18 @@ export default function CanvasEditor({
                     <option value="label">Label font</option>
                   </select>
                 </div>
+                {sel.type === 'text' && (
+                  <div className="flex items-center gap-2">
+                    <span style={labelCss}>Link</span>
+                    <select value={sel.ctaType || 'none'} onChange={e => update(sel.id, { ctaType: e.target.value as CtaType })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                      <option value="none">No link</option>
+                      <option value="booking">Booking page</option>
+                      <option value="email">Email me</option>
+                      <option value="link">Custom link</option>
+                    </select>
+                    {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={{ ...inputCss, width: 130 }} />}
+                  </div>
+                )}
               </>
             )}
             {sel.type === 'button' && (
@@ -302,6 +400,22 @@ export default function CanvasEditor({
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
+              </>
+            )}
+            {sel.type === 'menu' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Size</span>
+                  <input type="range" min={10} max={48} value={sel.fontSize || 18} onChange={e => update(sel.id, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span style={labelCss}>Colour</span>
+                  <input type="color" value={sel.color || accent} onChange={e => update(sel.id, { color: e.target.value })} style={{ width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }} />
+                  {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
+                    <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
+                  ))}
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows links to all your pages. Manage pages in the Pages bar above the editor.</p>
               </>
             )}
             {sel.type === 'box' && (
@@ -339,7 +453,7 @@ export default function CanvasEditor({
       {/* CANVAS */}
       <div className="flex-1 min-w-0">
         <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move · drag the corner ◢ to resize · click an element to edit it on the left. On phones everything stacks automatically.</p>
-        <div className="rounded-sm overflow-hidden border border-gold/15" style={{ ...fontVars(fontSystem) } as CSSProperties}>
+        <div className={`rounded-sm overflow-hidden border border-gold/15 ${pageWidth === 'contained' ? 'max-w-3xl mx-auto' : ''}`} style={{ ...fontVars(fontSystem) } as CSSProperties}>
           <div
             ref={canvasRef}
             onPointerDown={() => setSelectedId('')}

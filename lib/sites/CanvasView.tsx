@@ -13,13 +13,16 @@ export function CanvasView({
   siteSlug,
   contactEmail,
   safeHref,
+  navPages,
 }: {
   canvas: PageCanvas
   accent: string
   siteSlug: string
   contactEmail: string
   safeHref: (h: string) => string | null
+  navPages: { slug: string; label: string }[]
 }) {
+  const pageHref = (slug: string) => (slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${slug}`)
   const els = [...canvas.elements].sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   const ctaHref = (el: CanvasElement): string => {
     if (el.ctaType === 'booking') return `/book/${siteSlug}`
@@ -41,6 +44,14 @@ export function CanvasView({
       ) : null
     if (el.type === 'box')
       return <div style={{ width: '100%', height: '100%', background: el.fill || 'transparent', borderRadius: cq(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cq(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
+    if (el.type === 'menu')
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cq(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden' }}>
+          {navPages.map(p => (
+            <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cq(el.fontSize || 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: cq(2) }}>{p.label}</a>
+          ))}
+        </div>
+      )
     const isBtn = el.type === 'button'
     const content = (
       <div
@@ -67,19 +78,16 @@ export function CanvasView({
         {el.text}
       </div>
     )
-    if (isBtn) {
-      const h = ctaHref(el)
-      return h ? (
-        <a href={h} style={{ display: 'block', width: '100%', height: '100%' }}>
-          {content}
-        </a>
-      ) : content
-    }
-    return content
+    const h = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
+    return h ? (
+      <a href={h} style={{ display: 'block', width: '100%', height: '100%' }}>
+        {content}
+      </a>
+    ) : content
   }
 
   return (
-    <>
+    <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${Math.max(200, canvas.h)}`, containerType: 'inline-size' } as CSSProperties}>
         {els.map(el => (
           <div key={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(el.y), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100 }}>
@@ -109,13 +117,25 @@ export function CanvasView({
               </div>
             )
           }
-          return (
-            <div key={el.id} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 24, 44), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: 1.3, opacity: o }}>
+          if (el.type === 'menu')
+            return (
+              <div key={el.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', opacity: o }}>
+                {navPages.map(p => (
+                  <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: Math.min(el.fontSize || 16, 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: 1.5 }}>{p.label}</a>
+                ))}
+              </div>
+            )
+          const txt = (
+            <div style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.fontSize || 24, 44), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: 1.3, opacity: o }}>
               {el.text}
             </div>
           )
+          const th = el.ctaType && el.ctaType !== 'none' ? ctaHref(el) : ''
+          return (
+            <div key={el.id}>{th ? <a href={th}>{txt}</a> : txt}</div>
+          )
         })}
       </div>
-    </>
+    </div>
   )
 }

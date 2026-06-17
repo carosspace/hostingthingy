@@ -244,7 +244,7 @@ export default function PublicPage({
 
       {page.canvas && page.canvas.elements.length > 0 ? (
         <main className={`flex-1 ${contentPad}`}>
-          <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} />
+          <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={visiblePages.map(p => ({ slug: p.slug, label: p.navLabel || p.title }))} />
         </main>
       ) : hasContent ? (
         <main className={`flex-1 ${contentPad}`}>

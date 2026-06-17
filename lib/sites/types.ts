@@ -100,7 +100,7 @@ export const DEFAULT_THEME: SiteTheme = 'sand'
 // stays pixel-faithful on desktop; on phones the elements stack top-to-bottom.
 export const CANVAS_W = 1000
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu'
 
 export interface CanvasElement {
   id: string
@@ -133,6 +133,7 @@ export interface CanvasElement {
 
 export interface PageCanvas {
   h: number // canvas height in design px (width is always CANVAS_W)
+  width?: 'full' | 'contained' // full = the canvas spans the screen; contained = a centred column
   bg?: string // background colour
   bgImage?: string // full background photo
   elements: CanvasElement[]

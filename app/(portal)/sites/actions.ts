@@ -656,7 +656,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => {
-    const type = (['text', 'image', 'button', 'box'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
+    const type = (['text', 'image', 'button', 'box', 'menu'].includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
     const ff = String(e?.fontFamily)
@@ -691,6 +691,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   })
   return {
     h: num(c.h, 200, 40000, 1000),
+    width: c.width === 'contained' ? 'contained' : undefined,
     bg: hex(c.bg),
     bgImage: dataOrHttp(c.bgImage),
     elements,

@@ -203,6 +203,7 @@ export default async function DesignPage({
             accent={c?.accentColor || THEMES[(c?.theme as SiteTheme) ?? 'sand'].accent}
             fontSystem={c?.fontSystem ?? 'serif'}
             contactEmail={c?.contactEmail ?? ''}
+            navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
             initial={current.canvas}
           />
           <form action={clearCanvasAction}>
