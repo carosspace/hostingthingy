@@ -694,8 +694,10 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   const dataOrHttp = (v: unknown) => {
     const s = String(v ?? '').trim()
     // Strict allowlist so a stored value can never break out of a CSS url(...) or an
-    // attribute: a base64 raster data URL, or an http(s) URL with no quote/paren/semicolon/space.
-    if (/^data:image\/(png|jpe?g|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(s)) return s
+    // attribute: a base64 image data URL, or an http(s) URL with no quote/paren/semicolon/space.
+    // SVG is allowed only base64-encoded and is always rendered via <img>/CSS, where
+    // scripts never execute — and base64 contains no quote/paren so it can't break out.
+    if (/^data:image\/(png|jpe?g|gif|webp|avif|svg\+xml);base64,[a-z0-9+/=]+$/i.test(s)) return s
     if (/^https?:\/\/[^\s()'"\\;]+$/i.test(s)) {
       try {
         const u = new URL(s)

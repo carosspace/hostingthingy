@@ -376,7 +376,15 @@ export default function CanvasEditor({
     inp.accept = 'image/*'
     inp.onchange = async () => {
       const f = inp.files?.[0]
-      if (f && f.type.startsWith('image/')) update(id, { src: await resizeToDataUrl(f) })
+      if (!f || !f.type.startsWith('image/')) return
+      if (f.type === 'image/svg+xml') {
+        // Keep SVG vector-sharp (don't rasterise); it renders via <img>, so no scripts run.
+        const reader = new FileReader()
+        reader.onload = () => update(id, { src: String(reader.result) })
+        reader.readAsDataURL(f)
+      } else {
+        update(id, { src: await resizeToDataUrl(f) })
+      }
     }
     inp.click()
   }
