@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { THEMES } from '@/lib/sites/types'
 import type { SiteContent, SiteTheme, CtaType, SiteLayout, NavLink, SiteAlign, SectionKind, SectionImageLayout, ImageSize, ImageFit, Social, SocialKind, BlockType, MenuPosition, SitePage } from '@/lib/sites/types'
 import { FONT_SYSTEMS, fontVars } from '@/lib/sites/fonts'
+import { socialIcon, SOCIAL_ICON_KINDS, SOCIAL_ICON_LABEL } from '@/lib/sites/socialIcons'
 import { SECTION_BLOCKS } from '@/lib/sites/blocks'
 import { saveSiteContentJsonAction, aiSectionAction, aiPageAction } from '../../actions'
 import PublicPage from '@/app/s/[slug]/PublicPage'
@@ -224,9 +225,10 @@ const BAR_CHIPS: { type: BlockType; label: string }[] = [
   { type: 'text', label: 'Text' },
   { type: 'heading', label: 'Title' },
   { type: 'button', label: 'Link / button' },
+  { type: 'social', label: 'Social icon' },
   { type: 'divider', label: 'Line' },
 ]
-const BAR_LABEL: Record<string, string> = { image: 'Logo / picture', heading: 'Title', button: 'Link / button', divider: 'Line', text: 'Text' }
+const BAR_LABEL: Record<string, string> = { image: 'Logo / picture', heading: 'Title', button: 'Link / button', divider: 'Line', text: 'Text', social: 'Social icon' }
 
 // A small block-list editor for a hand-composed header or footer bar.
 function BarBlocksEditor({
@@ -262,7 +264,7 @@ function BarBlocksEditor({
     onTouch()
   }
   const add = (type: BlockType) => {
-    setItems(p => [...p, { id: newId(), title: '', body: '', image: '', block: type }])
+    setItems(p => [...p, { id: newId(), title: type === 'social' ? 'instagram' : '', body: '', image: '', block: type }])
     setMenuOpen(false)
     onTouch()
   }
@@ -321,6 +323,14 @@ function BarBlocksEditor({
                 {it.ctaType === 'link' && <input value={it.href || ''} onChange={e => update(it.id, { href: e.target.value })} placeholder="https://…  or  /about" className="w-full" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />}
               </div>
             )}
+            {it.block === 'social' && (
+              <div className="space-y-1">
+                <select value={it.title || 'instagram'} onChange={e => update(it.id, { title: e.target.value })} style={{ ...urlInput, fontSize: 12, padding: '4px 6px', borderRadius: 3 }}>
+                  {SOCIAL_ICON_KINDS.map(k => <option key={k} value={k}>{SOCIAL_ICON_LABEL[k]}</option>)}
+                </select>
+                <input value={it.href || ''} onChange={e => update(it.id, { href: e.target.value })} placeholder={(it.title || 'instagram') === 'email' ? 'you@email.com' : 'instagram.com/you  or  https://…'} className="w-full" style={{ ...urlInput, fontSize: 12, padding: '6px 8px', borderRadius: 3 }} />
+              </div>
+            )}
             {it.block === 'divider' && <div style={{ height: 1, background: accent, opacity: 0.4 }} />}
           </div>
         ))}
@@ -369,6 +379,7 @@ export default function LiveEditor({
   const [accentColor, setAccentColor] = useState(initial?.accentColor ?? '')
   const [pageBg, setPageBg] = useState(initial?.pageBg ?? '')
   const [logoImage, setLogoImage] = useState(initial?.logoImage ?? '')
+  const [headerLogoPos, setHeaderLogoPos] = useState<0 | 1 | 2>((initial?.headerLogoPos ?? 0) as 0 | 1 | 2)
   const [logoOpen, setLogoOpen] = useState(false)
   const [faviconImage, setFaviconImage] = useState(initial?.faviconImage ?? '')
   const [faviconOpen, setFaviconOpen] = useState(false)
@@ -479,6 +490,8 @@ export default function LiveEditor({
       return it.title ? (
         <span key={key} style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: it.block === 'subheading' ? 14 : 18, color: it.block === 'subheading' ? t.text : accent }}>{it.title}</span>
       ) : null
+    if (it.block === 'social')
+      return <span key={key} style={{ color: accent, display: 'inline-flex' }}>{socialIcon(it.title || 'website', it.imgH || 22)}</span>
     if (it.block === 'button')
       return it.title ? (
         <span key={key} style={{ background: accent, color: t.bg, padding: '7px 15px', borderRadius: 3, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', display: 'inline-block' }}>{it.title}</span>
@@ -909,6 +922,7 @@ export default function LiveEditor({
       fontSystem,
       brand: read('brand') || initial?.brand || undefined,
       logoImage: logoImage.trim() || undefined,
+      headerLogoPos: headerLogoPos || undefined,
       faviconImage: faviconImage.trim() || undefined,
       menuPosition: menuPosition !== 'top' ? menuPosition : undefined,
       navLinks: navLinks.length ? navLinks : undefined,
@@ -1092,10 +1106,21 @@ export default function LiveEditor({
             {(logoImage || logoOpen) && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <span style={ctlLabel}>Logo (shown instead of the name)</span>
+                  <span style={ctlLabel}>Logo</span>
                   {!logoImage && <button type="button" onClick={() => setLogoOpen(false)} style={cancelStyle}>× cancel</button>}
                 </div>
                 <ImageField value={logoImage} onChange={v => { setLogoImage(v); touched() }} />
+                {logoImage && (
+                  <div className="flex items-center gap-1 mt-1.5">
+                    <span style={{ fontSize: 9, color: '#999', marginRight: 2 }}>Logo place</span>
+                    {([[0, 'Left'], [1, 'Center'], [2, 'Right']] as const).map(([z, lbl]) => {
+                      const on = headerLogoPos === z
+                      return (
+                        <button key={z} type="button" onClick={() => { setHeaderLogoPos(z); touched() }} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 3, border: `1px solid ${on ? accent : 'rgba(0,0,0,0.15)'}`, background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {(faviconImage || faviconOpen) && (
@@ -1176,9 +1201,12 @@ export default function LiveEditor({
       <div ref={rootRef} className="rounded-sm overflow-hidden border border-gold/15" style={{ background: pageBg || t.bg, color: t.text, ...fontVars(fontSystem) } as unknown as CSSProperties}>
        <div className={previewWrapCls}>
         <div className={`${previewHeaderCls} ${previewHeaderColCls}`} style={previewHeaderStyle}>
-          {headerItems.length > 0 ? (
-            (() => {
-              const zones = barZonesPreview(headerItems)
+          {(() => {
+            /* eslint-disable-next-line @next/next/no-img-element */
+            const logoEl = logoImage ? <img key="logo" src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} /> : null
+            if (headerItems.length > 0) {
+              const zones = barZonesPreview(headerItems).map(z => [...z])
+              if (logoEl) zones[headerLogoPos].unshift(logoEl)
               return (
                 <div className="flex items-center w-full gap-3">
                   <div className="flex-1 flex flex-wrap items-center gap-3 justify-start">{zones[0]}</div>
@@ -1186,15 +1214,13 @@ export default function LiveEditor({
                   <div className="flex-1 flex flex-wrap items-center gap-3 justify-end">{zones[2]}</div>
                 </div>
               )
-            })()
-          ) : logoImage ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={logoImage} alt="" style={{ height: 44, maxWidth: 200, objectFit: 'contain', display: 'inline-block' }} />
-          ) : (
-            <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-              {initial?.brand || siteName}
-            </div>
-          )}
+            }
+            return logoEl ?? (
+              <div className="ht-ed inline-block" contentEditable suppressContentEditableWarning data-field="brand" style={{ ...edStyle, fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
+                {initial?.brand || siteName}
+              </div>
+            )
+          })()}
           {(navPages.length > 1 || navLinks.length > 0) && (
             <div className={previewNavCls}>
               {navPages.map(p => (

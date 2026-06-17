@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social, type SectionItem } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
+import { socialIcon } from '@/lib/sites/socialIcons'
 import Reveal from './Reveal'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
@@ -119,6 +120,13 @@ export default function PublicPage({
       ) : null
     } else if (it.block === 'button') {
       el = makeCta(it.title, it.ctaType, it.href)
+    } else if (it.block === 'social') {
+      const href = safeHref(it.href ?? '')
+      el = href ? (
+        <a href={href} target="_blank" rel="noreferrer" aria-label={it.title || 'social link'} style={{ color: accent, display: 'inline-flex' }}>
+          {socialIcon(it.title || 'website', it.imgH && it.imgH > 0 ? it.imgH : 22)}
+        </a>
+      ) : null
     } else if (it.block === 'divider') {
       el = <span aria-hidden style={{ display: 'inline-block', width: 1, height: 18, background: accent, opacity: 0.4 }} />
     } else {
@@ -171,30 +179,36 @@ export default function PublicPage({
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       <header className={headerCls} style={headerStyle}>
-        {headerBar.has ? (
-          menuPos === 'side' ? (
-            <div className="flex flex-col gap-3 items-center md:items-start">{headerBar.zones.flat()}</div>
-          ) : headerBar.zones[1].length > 0 || headerBar.zones[2].length > 0 ? (
-            <div className="flex items-center w-full gap-3">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{headerBar.zones[0]}</div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{headerBar.zones[1]}</div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{headerBar.zones[2]}</div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">{headerBar.zones.flat()}</div>
-          )
-        ) : (
-          <a href={`/s/${siteSlug}`} className="inline-block">
-            {logo ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
+        {(() => {
+          const logoEl = logo ? (
+            <a key="logo" href={`/s/${siteSlug}`} className="inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={logo} alt={brand} style={{ height: 46, maxWidth: 220, objectFit: 'contain' }} />
-            ) : (
-              <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>
-                {brand}
-              </span>
-            )}
-          </a>
-        )}
+            </a>
+          ) : null
+          if (headerBar.has) {
+            // The logo lives in the header bar alongside the blocks, in its chosen zone.
+            const zones = headerBar.zones.map(z => [...z])
+            if (logoEl) zones[Math.min(2, Math.max(0, content?.headerLogoPos ?? 0))].unshift(logoEl)
+            if (menuPos === 'side') return <div className="flex flex-col gap-3 items-center md:items-start">{zones.flat()}</div>
+            if (zones[1].length > 0 || zones[2].length > 0)
+              return (
+                <div className="flex items-center w-full gap-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-start">{zones[0]}</div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-center">{zones[1]}</div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 justify-end">{zones[2]}</div>
+                </div>
+              )
+            return <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">{zones.flat()}</div>
+          }
+          return (
+            logoEl ?? (
+              <a href={`/s/${siteSlug}`} className="inline-block">
+                <span className="font-label" style={{ fontSize: 12, letterSpacing: 4, textTransform: 'uppercase', color: accent }}>{brand}</span>
+              </a>
+            )
+          )
+        })()}
         {showNav && (
           <nav className={navCls}>
             {visiblePages.map(p => (

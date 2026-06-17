@@ -405,14 +405,17 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
         const bc = String(it?.boxColor ?? '').trim()
         const zone = Number(it?.col)
         const ih = Number(it?.imgH)
+        const rawHref = String(it?.href ?? '').trim()
+        // A bare social URL like "instagram.com/you" gets an https:// prefix so it stays a link.
+        const normHref = String(it?.block) === 'social' && rawHref && !/^[a-z][a-z0-9+.-]*:/i.test(rawHref) && !rawHref.startsWith('/') ? 'https://' + rawHref : rawHref
         return {
           title: String(it?.title ?? '').trim() || undefined,
           body: String(it?.body ?? '').trim() || undefined,
           image: String(it?.image ?? '').trim() || undefined,
-          block: (['text', 'heading', 'subheading', 'image', 'button', 'divider'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
+          block: (['text', 'heading', 'subheading', 'image', 'button', 'divider', 'social'].includes(String(it?.block)) ? String(it?.block) : undefined) as BlockType | undefined,
           col: zone === 1 || zone === 2 ? (zone as 1 | 2) : undefined,
           imgH: ih >= 16 && ih <= 200 ? Math.round(ih) : undefined,
-          href: safeStoredHref(String(it?.href ?? '')),
+          href: safeStoredHref(normHref),
           ctaType: (['booking', 'email', 'link'].includes(itCtRaw) ? itCtRaw : undefined) as CtaType | undefined,
           boxColor: /^#[0-9a-f]{6}$/i.test(bc) ? bc : undefined,
           outline: it?.outline ? true : undefined,
@@ -431,6 +434,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,
     logoImage: String(parsed.logoImage ?? '').trim() || undefined,
+    headerLogoPos: ([0, 1, 2].includes(Number(parsed.headerLogoPos)) ? Number(parsed.headerLogoPos) : undefined) as 0 | 1 | 2 | undefined,
     faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,
     menuPosition: (['top', 'scroll', 'side'].includes(String(parsed.menuPosition)) ? String(parsed.menuPosition) : undefined) as MenuPosition | undefined,
     navLinks: navLinks.length ? navLinks : undefined,

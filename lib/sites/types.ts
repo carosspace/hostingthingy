@@ -7,7 +7,7 @@ export type SiteAlign = 'left' | 'center' | 'right'
 export type SectionKind = 'prose' | 'cards' | 'faq' | 'gallery' | 'embed' | 'layout'
 
 // In a 'layout' section, each SectionItem becomes a typed block placed in a column.
-export type BlockType = 'text' | 'heading' | 'subheading' | 'image' | 'button' | 'banner' | 'divider' | 'spacer'
+export type BlockType = 'text' | 'heading' | 'subheading' | 'image' | 'button' | 'banner' | 'divider' | 'spacer' | 'social'
 
 export type ImageSize = 'sm' | 'md' | 'full'
 export type ImageFit = 'cover' | 'contain'
@@ -117,6 +117,7 @@ export interface SiteContent {
   fontSystem?: string
   brand?: string
   logoImage?: string // a logo shown in the header instead of the brand text
+  headerLogoPos?: 0 | 1 | 2 // which header zone the logo sits in (0 left, 1 centre, 2 right) when a custom header bar is used
   faviconImage?: string // the little icon shown in the browser tab
   menuPosition?: MenuPosition // where the navigation menu sits
   navLinks?: NavLink[] // extra header links added by hand (in addition to the page menu)
