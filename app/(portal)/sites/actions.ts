@@ -14,6 +14,7 @@ import type {
   BlendMode,
   RevealKind,
   HoverKind,
+  ImageAdjust,
   SiteTheme,
   SitePage,
   CtaType,
@@ -661,6 +662,20 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   }
   const reveal = (v: unknown) => { const s = String(v ?? ''); return REVEAL_KINDS.includes(s as RevealKind) ? (s as RevealKind) : undefined }
   const hover = (v: unknown) => { const s = String(v ?? ''); return HOVER_KINDS.includes(s as HoverKind) ? (s as HoverKind) : undefined }
+  // Photo adjustments: every field is a clamped number, so nothing can inject CSS.
+  const adjust = (v: unknown): ImageAdjust | undefined => {
+    const a = v && typeof v === 'object' ? (v as Record<string, unknown>) : null
+    if (!a) return undefined
+    const clamp = (val: unknown, min: number, max: number) => { const x = Number(val); return Number.isFinite(x) ? Math.min(max, Math.max(min, Math.round(x))) : undefined }
+    const r: ImageAdjust = {}
+    const b = clamp(a.brightness, 0, 200); if (b !== undefined && b !== 100) r.brightness = b
+    const c = clamp(a.contrast, 0, 200); if (c !== undefined && c !== 100) r.contrast = c
+    const s = clamp(a.saturate, 0, 300); if (s !== undefined && s !== 100) r.saturate = s
+    const bl = clamp(a.blur, 0, 20); if (bl) r.blur = bl
+    const g = clamp(a.grayscale, 0, 100); if (g) r.grayscale = g
+    const se = clamp(a.sepia, 0, 100); if (se) r.sepia = se
+    return Object.keys(r).length ? r : undefined
+  }
   // A unitless line-height multiplier kept to two decimals.
   const lineH = (v: unknown) => {
     const n = Number(v)
@@ -721,6 +736,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       ctaType,
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,
       fit: (['cover', 'contain'].includes(String(e?.fit)) ? String(e?.fit) : undefined) as ImageFit | undefined,
+      adjust: type === 'image' ? adjust(e?.adjust) : undefined,
       fill: hex(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,

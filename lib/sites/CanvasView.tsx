@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, gradientCss, type PageCanvas, type CanvasElement } from './types'
+import { CANVAS_W, MOBILE_W, gradientCss, filterCss, type PageCanvas, type CanvasElement } from './types'
 import CanvasMotion from './CanvasMotion'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
@@ -52,7 +52,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     if (el.type === 'image')
       return el.src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={el.src} alt="" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block' }} />
+        <img src={el.src} alt="" style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust) }} />
       ) : null
     if (el.type === 'box')
       return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined }} />
@@ -158,7 +158,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         if (el.type === 'image')
           return el.src ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img key={el.id} src={el.src} alt="" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o }} />
+            <img key={el.id} src={el.src} alt="" style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust) }} />
           ) : null
         if (el.type === 'box')
           return el.fill || el.gradient || el.borderColor ? <div key={el.id} style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o }} /> : null

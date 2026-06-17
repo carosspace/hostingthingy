@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, gradientCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, gradientCss, filterCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ImageAdjust } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
@@ -140,7 +140,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'adjust']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -563,7 +563,7 @@ export default function CanvasEditor({
     if (el.type === 'image')
       return el.src ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={el.src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqv(el.radius || 0), display: 'block', pointerEvents: 'none' }} />
+        <img src={el.src} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqv(el.radius || 0), display: 'block', pointerEvents: 'none', filter: filterCss(el.adjust) }} />
       ) : (
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>+ photo</div>
       )
@@ -859,6 +859,29 @@ export default function CanvasEditor({
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
+                {(() => {
+                  const A = sel.adjust || {}
+                  const setA = (patch: Partial<ImageAdjust>) => update(sel.id, { adjust: { ...A, ...patch } })
+                  const presets: [string, ImageAdjust | undefined][] = [['None', undefined], ['Warm', { sepia: 25, saturate: 112, brightness: 104 }], ['Mono', { grayscale: 100 }], ['Faded', { contrast: 86, brightness: 108, saturate: 78 }], ['Vivid', { saturate: 145, contrast: 110 }], ['Soft', { blur: 1, brightness: 104, contrast: 96 }]]
+                  const adj: [string, keyof ImageAdjust, number, number, number][] = [['Bright', 'brightness', 0, 200, 100], ['Contrast', 'contrast', 0, 200, 100], ['Saturate', 'saturate', 0, 300, 100], ['Blur', 'blur', 0, 20, 0], ['B&W', 'grayscale', 0, 100, 0]]
+                  return (
+                    <>
+                      <div className="h-px bg-gold/10" />
+                      <p style={labelCss}>Adjust photo</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {presets.map(([lbl, val]) => (
+                          <button key={lbl} type="button" onClick={() => update(sel.id, { adjust: val })} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1 rounded-sm">{lbl}</button>
+                        ))}
+                      </div>
+                      {adj.map(([lbl, key, min, max, dflt]) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <span style={{ ...labelCss, width: 52 }}>{lbl}</span>
+                          <input type="range" min={min} max={max} value={A[key] ?? dflt} onChange={e => { const v = Number(e.target.value); setA({ [key]: v === dflt ? undefined : v } as Partial<ImageAdjust>) }} style={{ flex: 1 }} />
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
               </>
             )}
             {sel.type === 'menu' && (

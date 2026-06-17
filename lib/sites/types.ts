@@ -114,6 +114,29 @@ export interface Gradient {
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
 export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
 
+// Non-destructive photo adjustments, applied as a CSS filter at render time.
+// brightness/contrast/saturate are percentages (100 = unchanged); blur is px;
+// grayscale/sepia are percentages (0 = off).
+export interface ImageAdjust {
+  brightness?: number
+  contrast?: number
+  saturate?: number
+  blur?: number
+  grayscale?: number
+  sepia?: number
+}
+export function filterCss(a?: ImageAdjust | null): string | undefined {
+  if (!a) return undefined
+  const parts: string[] = []
+  if (a.brightness !== undefined && a.brightness !== 100) parts.push(`brightness(${a.brightness}%)`)
+  if (a.contrast !== undefined && a.contrast !== 100) parts.push(`contrast(${a.contrast}%)`)
+  if (a.saturate !== undefined && a.saturate !== 100) parts.push(`saturate(${a.saturate}%)`)
+  if (a.blur) parts.push(`blur(${a.blur}px)`)
+  if (a.grayscale) parts.push(`grayscale(${a.grayscale}%)`)
+  if (a.sepia) parts.push(`sepia(${a.sepia}%)`)
+  return parts.length ? parts.join(' ') : undefined
+}
+
 // How an element animates into view as the visitor scrolls to it, and how it reacts to hover.
 export type RevealKind = 'fade' | 'up' | 'down' | 'left' | 'right' | 'zoom'
 export type HoverKind = 'grow' | 'lift' | 'glow' | 'dim' | 'rotate'
@@ -160,6 +183,7 @@ export interface CanvasElement {
   // image
   src?: string
   fit?: ImageFit
+  adjust?: ImageAdjust // non-destructive photo adjustments (CSS filter)
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)
