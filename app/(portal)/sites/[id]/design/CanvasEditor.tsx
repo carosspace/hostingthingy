@@ -5,6 +5,7 @@ import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, MAX
 import { fontVars } from '@/lib/sites/fonts'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack } from '@/lib/sites/CanvasView'
+import CropModal from './CropModal'
 import { saveCanvasAction } from '../../actions'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
@@ -50,6 +51,7 @@ export default function CanvasEditor({
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
+  const [cropId, setCropId] = useState('') // image element being cropped (modal open)
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
@@ -904,7 +906,10 @@ export default function CanvasEditor({
             )}
             {sel.type === 'image' && (
               <>
-                <button type="button" onClick={() => imgPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">{sel.src ? 'Replace photo' : 'Upload photo'}</button>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => imgPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">{sel.src ? 'Replace photo' : 'Upload photo'}</button>
+                  {sel.src && <button type="button" onClick={() => setCropId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Crop</button>}
+                </div>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Fit</span>
                   <select value={sel.fit || 'cover'} onChange={e => update(sel.id, { fit: e.target.value as ImageFit })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
@@ -1131,6 +1136,13 @@ export default function CanvasEditor({
           </div>
         )}
       </div>
+
+      {cropId && (() => {
+        const el = els.find(e => e.id === cropId)
+        return el && el.src ? (
+          <CropModal src={el.src} onApply={u => { update(cropId, { src: u }); setCropId('') }} onClose={() => setCropId('')} />
+        ) : null
+      })()}
     </div>
   )
 }
