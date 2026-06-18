@@ -290,6 +290,36 @@ export default function CanvasEditor({
       : e))
     touch()
   }
+  // --- Group / ungroup: elements sharing a groupId select and move together ---
+  // Expand a set of ids to include every element in the same group as any of them.
+  const withGroup = (ids: string[]): string[] => {
+    const cur = elsRef.current
+    const gids = new Set(ids.map(id => cur.find(e => e.id === id)?.groupId).filter((g): g is string => !!g))
+    if (!gids.size) return ids
+    const out = new Set(ids)
+    cur.forEach(e => { if (e.groupId && gids.has(e.groupId)) out.add(e.id) })
+    return Array.from(out)
+  }
+  // Toggle a whole group in/out of the selection (used by shift-click and the layers list).
+  const toggleGroupInSelection = (ids: string[]) => {
+    const g = withGroup(ids)
+    setSelectedIds(prev => (g.every(id => prev.includes(id)) ? prev.filter(x => !g.includes(x)) : Array.from(new Set([...prev, ...g]))))
+  }
+  const groupSelected = () => {
+    if (selectedIds.length < 2) return
+    const set = new Set(selectedIds)
+    const gid = 'g' + Math.random().toString(36).slice(2, 8)
+    snapshot(true)
+    setEls(p => p.map(e => (set.has(e.id) ? { ...e, groupId: gid } : e)))
+    touch()
+  }
+  const ungroupSelected = () => {
+    const set = new Set(selectedIds)
+    if (!elsRef.current.some(e => set.has(e.id) && e.groupId)) return
+    snapshot(true)
+    setEls(p => p.map(e => (set.has(e.id) && e.groupId ? { ...e, groupId: undefined } : e)))
+    touch()
+  }
   // --- Multi-selection group operations ---
   const removeMany = (ids: string[]) => {
     const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
@@ -305,7 +335,13 @@ export default function CanvasEditor({
     if (!src.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
-    const copies = src.map(e => ({ ...e, id: 'e' + idc.current++, z: ++z, ...patchXY(gx(e) + 16, gy(e) + 16) }))
+    // Re-id any shared group so the duplicated set is its own group, not merged with the original.
+    const gmap = new Map<string, string>()
+    const copies = src.map(e => {
+      let gid = e.groupId
+      if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
+      return { ...e, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(e) + 16, gy(e) + 16) }
+    })
     setEls(p => [...p, ...copies])
     setSelectedIds(copies.map(c => c.id))
     touch()
@@ -387,8 +423,8 @@ export default function CanvasEditor({
     const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => ey(e) + e.h))
     const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
     const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
-      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, ...rest } = e
-      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, groupId: _gid, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin; void _gid
       return { ...rest, x: e.x - minX, y: ey(e) - minY }
     })
     const id = 'c' + Math.random().toString(36).slice(2, 9)
@@ -478,8 +514,8 @@ export default function CanvasEditor({
     const maxX = Math.max(...sel.map(e => e.x + e.w)), maxY = Math.max(...sel.map(e => ey(e) + e.h))
     const w = Math.max(8, Math.round(maxX - minX)), h = Math.max(8, Math.round(maxY - minY))
     const cels: CanvasElement[] = [...sel].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(e => {
-      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, ...rest } = e
-      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin
+      const { mx: _mx, my: _my, mw: _mw, mh: _mh, mHidden: _mh2, mFontSize: _mf, componentId: _ci, pin: _pin, groupId: _gid, ...rest } = e
+      void _mx; void _my; void _mw; void _mh; void _mh2; void _mf; void _ci; void _pin; void _gid
       return { ...rest, x: e.x - minX, y: ey(e) - minY }
     })
     const compId = editingComp.id
@@ -826,7 +862,7 @@ export default function CanvasEditor({
         const bb = d.m ? 0 : canvasLayout(elsRef.current).bodyBottom
         const ey = (el: CanvasElement) => (el.pin === 'footer' && !d.m ? bb + ay(el) : ay(el))
         const hits = elsRef.current.filter(el => !el.locked && ax(el) < x + w && ax(el) + aw(el) > x && ey(el) < y + h && ey(el) + ah(el) > y).map(el => el.id)
-        setSelectedIds(hits)
+        setSelectedIds(withGroup(hits))
         return
       }
       // Move. With a single element selected we snap to the canvas centre and
@@ -929,7 +965,12 @@ export default function CanvasEditor({
         e.preventDefault()
         snapshot(true)
         let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
-        const copies = clip.current.map(s => ({ ...s, id: 'e' + idc.current++, z: ++z, ...patchXY(gx(s) + 20, gy(s) + 20) }))
+        const gmap = new Map<string, string>()
+        const copies = clip.current.map(s => {
+          let gid = s.groupId
+          if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
+          return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+        })
         setEls(p => [...p, ...copies])
         setSelectedIds(copies.map(c => c.id))
         touch()
@@ -977,14 +1018,16 @@ export default function CanvasEditor({
       dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el), ar: gh(el) > 0 ? gw(el) / gh(el) : 1 }
       return
     }
-    // Shift-click toggles an element in/out of the selection — no drag.
+    // Shift-click toggles an element (and its group) in/out of the selection — no drag.
     if (e.shiftKey) {
-      setSelectedIds(prev => (prev.includes(el.id) ? prev.filter(x => x !== el.id) : [...prev, el.id]))
+      toggleGroupInSelection([el.id])
       return
     }
-    // Drag the whole current selection if this element is part of it; otherwise select just it.
-    const ids = selectedIds.includes(el.id) ? selectedIds : [el.id]
-    if (!selectedIds.includes(el.id)) setSelectedIds([el.id])
+    // Drag the whole current selection if this element is part of it; otherwise select
+    // its group (or just it).
+    const groupSel = withGroup([el.id])
+    const ids = selectedIds.includes(el.id) ? selectedIds : groupSel
+    if (!selectedIds.includes(el.id)) setSelectedIds(groupSel)
     snapshot(true)
     const cur = elsRef.current
     // Locked elements stay put even when part of a dragged group.
@@ -1147,8 +1190,8 @@ export default function CanvasEditor({
     return 'Box'
   }
   const selectFromList = (e: ReactMouseEvent, id: string) => {
-    if (e.shiftKey) setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
-    else setSelectedIds([id])
+    if (e.shiftKey) toggleGroupInSelection([id])
+    else setSelectedIds(withGroup([id]))
   }
   const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
   const swatch: CSSProperties = swatchCss
@@ -1795,8 +1838,12 @@ export default function CanvasEditor({
                 </div>
               </div>
             )}
-            {!editingComp && <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">❖ Make component</button>}
-            <p className="font-body text-ash/50 text-[11px] leading-relaxed">Drag any selected element to move them all together. Shift-click an element to add or remove it.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={groupSelected} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:opacity-90 px-2.5 py-1.5 rounded-sm">⊞ Group</button>
+              {els.some(e => selectedIds.includes(e.id) && e.groupId) && <button type="button" onClick={ungroupSelected} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">Ungroup</button>}
+              {!editingComp && <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">❖ Make component</button>}
+            </div>
+            <p className="font-body text-ash/50 text-[11px] leading-relaxed">{els.some(e => selectedIds.includes(e.id) && e.groupId) ? 'Grouped — they select and move together. Ungroup to edit one on its own.' : 'Drag any selected element to move them all together. Group to keep them as one. Shift-click to add or remove.'}</p>
           </div>
         ) : null)}
       </div>

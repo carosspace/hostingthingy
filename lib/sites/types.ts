@@ -223,6 +223,7 @@ export interface CanvasElement {
   hidden?: boolean // kept in the design but not shown on the published page (any device)
   pin?: 'footer' // anchored to the bottom: y is measured down from the end of the body content, so it always sits at the very bottom as the page grows
   // (header needs no pin — the top never moves; just place elements at the top)
+  groupId?: string // elements sharing a groupId select and move together as a group
   // --- per-phone overrides (used only when the page's mobile layout is 'custom') ---
   mx?: number // mobile left, design px on MOBILE_W
   my?: number // mobile top
