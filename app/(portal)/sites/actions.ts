@@ -600,6 +600,36 @@ export async function removePageAction(formData: FormData): Promise<void> {
   redirect(`/sites/${id}/design`)
 }
 
+// Duplicate a page (with its blocks AND free-canvas layout) right after it.
+export async function duplicatePageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const slug = String(formData.get('slug') ?? '')
+  if (!id) return
+  const existing = (await getSite(id))?.content ?? null
+  const pages = getPages(existing)
+  const src = pages.find(p => p.slug === slug)
+  if (!src) return
+  const title = `${src.title || 'Page'} copy`
+  const base = slugify(title) || 'page'
+  let newSlug = base
+  let n = 1
+  while (pages.some(p => p.slug === newSlug)) { n += 1; newSlug = `${base}-${n}` }
+  // Deep clone so the copy shares nothing with the original (canvas, sections, etc.).
+  const clone: SitePage = JSON.parse(JSON.stringify(src))
+  clone.id = 'p' + Date.now()
+  clone.slug = newSlug
+  clone.title = title
+  clone.navLabel = undefined
+  const i = pages.findIndex(p => p.slug === slug)
+  const newPages = [...pages.slice(0, i + 1), clone, ...pages.slice(i + 1)]
+  const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...baseContent, pages: newPages })
+  revalidatePath(`/sites/${id}/design`)
+  redirect(`/sites/${id}/design?page=${newSlug}`)
+}
+
 // Rename a page (its internal title) and/or its menu label, and toggle whether it
 // shows in the header menu. The slug (URL) stays the same so links don't break.
 export async function updatePageAction(formData: FormData): Promise<void> {

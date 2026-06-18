@@ -121,4 +121,74 @@ export const CANVAS_TEMPLATES: CanvasTemplate[] = [
       return b.done()
     },
   },
+  {
+    key: 'services',
+    name: 'Services',
+    build: (accent) => {
+      const b = builder()
+      b.add('box', 0, 0, CANVAS_W, 88, { fill: '#ffffff' })
+      b.add('text', 48, 28, 240, 36, { text: 'Your brand', fontSize: 26, fontFamily: 'display', italic: true, color: INK })
+      b.add('menu', CANVAS_W - 520, 34, 480, 30, { fontSize: 15, fontFamily: 'label', color: INK, align: 'right' })
+      b.add('text', cx(620), 170, 620, 70, { text: 'What I offer', fontSize: 46, fontFamily: 'display', italic: true, color: INK, align: 'center' })
+      const cols = [90, 375, 660]
+      const names = ['Service one', 'Service two', 'Service three']
+      const prices = ['from €60', 'from €90', 'from €120']
+      cols.forEach((x, i) => {
+        b.add('box', x, 290, 250, 320, { fill: '#ffffff', radius: 12, borderColor: '#e6dfd2', borderWidth: 2 })
+        b.add('icon', x + 105, 322, 40, 40, { icon: ['sparkle', 'star', 'heart'][i], color: accent })
+        b.add('text', x + 20, 378, 210, 32, { text: names[i], fontSize: 21, fontFamily: 'display', italic: true, color: INK, align: 'center' })
+        b.add('text', x + 20, 416, 210, 110, { text: 'A couple of warm sentences about what this includes.', fontSize: 14, fontFamily: 'body', color: '#666', align: 'center' })
+        b.add('text', x + 20, 545, 210, 30, { text: prices[i], fontSize: 17, fontFamily: 'label', color: accent, align: 'center' })
+      })
+      b.add('button', cx(220), 680, 220, 56, { text: 'Book a call', fontSize: 18, fontFamily: 'label', fill: accent, radius: 6, ctaType: 'booking', align: 'center' })
+      b.add('box', 0, 0, CANVAS_W, 110, { fill: INK, pin: 'footer' })
+      b.add('text', 48, 42, 360, 28, { text: '© Your name', fontSize: 14, fontFamily: 'body', color: '#ffffff', pin: 'footer' })
+      return b.done()
+    },
+  },
+  {
+    key: 'portfolio',
+    name: 'Portfolio',
+    build: (accent) => {
+      const b = builder()
+      b.add('text', cx(620), 110, 620, 70, { text: 'Selected work', fontSize: 46, fontFamily: 'display', italic: true, color: INK, align: 'center' })
+      b.add('text', cx(460), 196, 460, 30, { text: 'A LITTLE LINE ABOUT YOUR CRAFT', fontSize: 14, fontFamily: 'label', color: accent, align: 'center' })
+      const gx = [100, 520], gy = [280, 700]
+      gy.forEach(y => gx.forEach(x => b.add('image', x, y, 380, 380, { fit: 'cover', radius: 10 })))
+      b.add('button', cx(240), 1130, 240, 56, { text: 'Work with me', fontSize: 18, fontFamily: 'label', fill: accent, radius: 6, ctaType: 'email', align: 'center' })
+      return b.done()
+    },
+  },
+  {
+    key: 'quote',
+    name: 'Quote',
+    build: (accent) => {
+      const b = builder()
+      b.add('box', 0, 60, CANVAS_W, 520, { fill: '#f4f1ec' })
+      b.add('icon', cx(60), 130, 60, 60, { icon: 'quote', color: accent })
+      b.add('text', cx(720), 230, 720, 200, { text: '“A short, glowing few words from someone you’ve worked with — kept big and centred.”', fontSize: 34, fontFamily: 'display', italic: true, color: INK, align: 'center' })
+      b.add('text', cx(360), 470, 360, 30, { text: '— Their name, what they do', fontSize: 16, fontFamily: 'label', color: accent, align: 'center' })
+      return b.done()
+    },
+  },
+  {
+    key: 'contact',
+    name: 'Contact',
+    build: (accent) => {
+      const b = builder()
+      b.add('text', cx(560), 140, 560, 70, { text: 'Get in touch', fontSize: 48, fontFamily: 'display', italic: true, color: INK, align: 'center' })
+      b.add('text', cx(540), 232, 540, 60, { text: 'The easiest ways to reach me — I’d love to hear from you.', fontSize: 19, fontFamily: 'body', color: '#555', align: 'center' })
+      const items: [string, string][] = [['email', 'Email'], ['whatsapp', 'WhatsApp'], ['instagram', 'Instagram']]
+      const sx = cx(3 * 220)
+      items.forEach(([ic, label], i) => {
+        const x = sx + i * 220
+        b.add('icon', x + 88, 360, 44, 44, { icon: ic, color: accent, ctaType: ic === 'email' ? 'email' : 'none' })
+        b.add('text', x + 10, 418, 200, 30, { text: label, fontSize: 16, fontFamily: 'label', color: INK, align: 'center' })
+      })
+      b.add('button', cx(220), 520, 220, 56, { text: 'Book a time', fontSize: 18, fontFamily: 'label', fill: accent, radius: 6, ctaType: 'booking', align: 'center' })
+      b.add('box', 0, 0, CANVAS_W, 100, { fill: INK, pin: 'footer' })
+      b.add('text', 48, 38, 360, 28, { text: '© Your name', fontSize: 14, fontFamily: 'body', color: '#ffffff', pin: 'footer' })
+      return b.done()
+    },
+  },
 ]

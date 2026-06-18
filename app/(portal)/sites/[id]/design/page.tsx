@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
-import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
+import { generateSiteAction, addPageAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
 import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
@@ -173,6 +173,12 @@ export default async function DesignPage({
               <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-2 rounded-sm">
                 Save
               </button>
+            </form>
+
+            <form action={duplicatePageAction} className="pt-1">
+              <input type="hidden" name="id" value={site.id} />
+              <input type="hidden" name="slug" value={current.slug} />
+              <button className="font-label text-[9px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">⧉ Duplicate this page</button>
             </form>
 
             {current.slug !== '' ? (
