@@ -575,7 +575,7 @@ export async function addPageAction(formData: FormData): Promise<void> {
   // canvas, the new page starts as a (blank) canvas too, instead of bouncing you
   // back to the block editor.
   const wantCanvas = String(formData.get('canvas') ?? '') === '1'
-  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [], ...(wantCanvas ? { canvas: { h: 1000, elements: [] } } : {}) }
+  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [], ...(wantCanvas ? { canvas: { h: 1000, elements: [], bg: '#ffffff' } } : {}) }
   const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
   await saveSiteContent(id, { ...baseContent, pages: [...pages, newPage] })
   revalidatePath(`/sites/${id}/design`)
@@ -962,7 +962,7 @@ export async function startCanvasAction(formData: FormData): Promise<void> {
         theme: existing?.theme,
         accent: existing?.accentColor,
       }))
-    : { h: 1000, elements: [] }
+    : { h: 1000, elements: [], bg: '#ffffff' }
   await setPageCanvas(id, pageSlug, canvas)
 }
 

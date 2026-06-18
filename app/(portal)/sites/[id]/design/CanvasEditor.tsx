@@ -579,19 +579,19 @@ export default function CanvasEditor({
   }
   // Preset "Add" buttons.
   const PRESETS: Record<string, Partial<CanvasElement> & { type: CanvasElementType }> = {
-    title: { type: 'text', w: 580, h: 92, text: 'Your title', fontSize: 56, fontFamily: 'display', italic: true, color: t.text },
-    subtitle: { type: 'text', w: 480, h: 54, text: 'A subtitle', fontSize: 26, fontFamily: 'display', color: t.text },
-    body: { type: 'text', w: 460, h: 120, text: 'Your text goes here…', fontSize: 18, fontFamily: 'body', color: t.text },
-    link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: accent, ctaType: 'link' },
-    button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: accent, ctaType: 'none', radius: 6, fontFamily: 'label' },
-    contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: accent, ctaType: 'email', radius: 6, fontFamily: 'label' },
+    title: { type: 'text', w: 580, h: 92, text: 'Your title', fontSize: 56, fontFamily: 'display', italic: true, color: '#111111' },
+    subtitle: { type: 'text', w: 480, h: 54, text: 'A subtitle', fontSize: 26, fontFamily: 'display', color: '#111111' },
+    body: { type: 'text', w: 460, h: 120, text: 'Your text goes here…', fontSize: 18, fontFamily: 'body', color: '#111111' },
+    link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: '#111111', ctaType: 'link' },
+    button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: '#111111', ctaType: 'none', radius: 6, fontFamily: 'label' },
+    contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: '#111111', ctaType: 'email', radius: 6, fontFamily: 'label' },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
-    menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: accent, align: 'left' },
+    menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
     box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
-    line: { type: 'box', w: 440, h: 4, fill: accent, radius: 0 },
+    line: { type: 'box', w: 440, h: 3, fill: '#111111', radius: 0 },
     section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f1ece3', radius: 0 },
-    shape: { type: 'shape', shape: 'wave', x: 0, w: CANVAS_W, h: 130, fill: accent },
+    shape: { type: 'shape', shape: 'line', x: 0, w: CANVAS_W, h: 60, fill: '#111111' },
   }
   // Drop a small group of pre-arranged elements.
   const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer' | 'banner' | 'bar') => {
@@ -1317,7 +1317,7 @@ export default function CanvasEditor({
               <p style={labelCss}>Icons</p>
               <div className="flex flex-wrap gap-1 mt-1" style={{ maxHeight: 156, overflowY: 'auto' }}>
                 {ICON_GROUPS.flatMap(g => g.keys).map(k => (
-                  <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: accent })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: accent }}>{canvasIcon(k)}</button>
+                  <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: '#111111' })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#3a2e20' }}>{canvasIcon(k)}</button>
                 ))}
               </div>
             </div>
@@ -1376,7 +1376,7 @@ export default function CanvasEditor({
         <div className="space-y-1.5">
           <p style={labelCss}>Page background</p>
           <div className="flex items-center gap-2 mt-1.5">
-            <ColorField value={bg || ''} onChange={v => { setBg(v); touch() }} fallback="#faf7f2" palette={palette} />
+            <ColorField value={bg || ''} onChange={v => { setBg(v); touch() }} fallback="#ffffff" palette={palette} />
             {bg && <button type="button" onClick={() => { setBg(''); touch() }} style={{ fontSize: 11, color: '#999' }}>×</button>}
             <button type="button" onClick={pickBg} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{bgImage ? 'Change photo' : '+ Photo'}</button>
             {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
@@ -1527,13 +1527,16 @@ export default function CanvasEditor({
                   {sel.type === 'text' && (
                     <>
                       <span style={labelCss}>Colour</span>
-                      {colorField(sel.color, v => update(sel.id, { color: v }), '#1a1612')}
+                      {colorField(sel.color, v => update(sel.id, { color: v }), '#111111')}
                     </>
                   )}
                   <button type="button" onClick={() => update(sel.id, { bold: !sel.bold })} style={{ fontWeight: 700, fontSize: 13, color: sel.bold ? accent : '#888', width: 24 }}>B</button>
                   <button type="button" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? accent : '#888', width: 24 }}>I</button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span style={labelCss}>Align</span>
                   {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
-                    <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
+                    <button key={a} type="button" title={a} onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 10px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
                 </div>
                 <div className="flex items-center gap-2">

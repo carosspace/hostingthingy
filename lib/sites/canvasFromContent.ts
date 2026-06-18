@@ -52,5 +52,5 @@ export function canvasFromContent(c: CanvasFromContent): PageCanvas {
     if (s.ctaType && s.ctaType !== 'none' && s.ctaLabel) { const w = 240; push({ type: 'button', x: Math.round((CANVAS_W - w) / 2), y, w, h: 54, text: s.ctaLabel, fontSize: 17, fontFamily: 'label', fill: accent, radius: 6, ctaType: s.ctaType, href: s.ctaHref, align: 'center' }); y += 54 + 24 }
   }
 
-  return { h: Math.max(900, y + 80), bg: THEMES[theme].bg, elements: els }
+  return { h: Math.max(900, y + 80), bg: '#ffffff', elements: els }
 }

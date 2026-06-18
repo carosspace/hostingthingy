@@ -127,10 +127,11 @@ export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component'
 
 // Decorative SVG section dividers (filled with the element's colour; rotate to flip).
-export type ShapeKind = 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
-export const SHAPE_KINDS: ShapeKind[] = ['wave', 'curve', 'tilt', 'triangle', 'hill', 'zigzag']
+export type ShapeKind = 'line' | 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
+export const SHAPE_KINDS: ShapeKind[] = ['line', 'wave', 'curve', 'tilt', 'triangle', 'hill', 'zigzag']
 export function shapePath(k?: ShapeKind): string {
   switch (k) {
+    case 'line': return 'M0,46 L100,46 L100,54 L0,54 Z'
     case 'curve': return 'M0,100 C30,30 70,30 100,100 Z'
     case 'tilt': return 'M0,100 L100,0 L100,100 Z'
     case 'triangle': return 'M0,100 L50,0 L100,100 Z'

@@ -105,9 +105,9 @@ export default async function DesignPage({
         </div>
 
         {/* Edit the menu: the current page's settings + extra (non-page) links */}
-        <details key={current.slug} open className="border border-gold/15 rounded-sm p-4">
+        <details key={current.slug} className="border border-gold/15 rounded-sm px-4 py-3">
           <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">
-            {current.navLabel || current.title || 'Home'} — page settings
+            ⚙ {current.navLabel || current.title || 'Home'} — page settings &amp; menu links
           </summary>
           <div className="mt-3 space-y-3">
             <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">
