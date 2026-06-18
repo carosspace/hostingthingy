@@ -612,11 +612,15 @@ export async function updatePageAction(formData: FormData): Promise<void> {
   const title = String(formData.get('title') ?? '').trim()
   const navLabel = String(formData.get('navLabel') ?? '').trim()
   const hidden = String(formData.get('hidden') ?? '') === '1'
+  const seoTitle = String(formData.get('seoTitle') ?? '').trim().slice(0, 70)
+  const seoDescription = String(formData.get('seoDescription') ?? '').trim().slice(0, 200)
+  const seoImageRaw = String(formData.get('seoImage') ?? '').trim()
+  const seoImage = /^https:\/\/[^\s()'"\\<>]+$/i.test(seoImageRaw) ? seoImageRaw.slice(0, 500) : undefined
 
   const existing = (await getSite(id))?.content ?? null
   const pages = getPages(existing).map(p =>
     p.slug === slug
-      ? { ...p, title: title || p.title, navLabel: navLabel || undefined, hidden: hidden || undefined }
+      ? { ...p, title: title || p.title, navLabel: navLabel || undefined, hidden: hidden || undefined, seoTitle: seoTitle || undefined, seoDescription: seoDescription || undefined, seoImage }
       : p,
   )
   const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }

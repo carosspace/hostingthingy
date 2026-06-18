@@ -338,6 +338,9 @@ export interface SitePage {
   sections: SiteSection[]
   canvas?: PageCanvas // when present, this page is a free-canvas page (replaces sections)
   canvasHidden?: boolean // the canvas is kept but the page is shown in block mode (so switching modes never loses work)
+  seoTitle?: string // per-page <title> / share title override
+  seoDescription?: string // per-page meta description / share description override
+  seoImage?: string // per-page social share image (a public https URL — data URLs don't work as og:image)
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string

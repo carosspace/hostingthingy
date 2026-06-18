@@ -139,6 +139,37 @@ export default async function DesignPage({
                 <input type="checkbox" name="hidden" value="1" defaultChecked={!!current.hidden} style={{ accentColor: '#a85c36' }} />
                 Hide from menu
               </label>
+              <div className="w-full" />
+              <label className="block">
+                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">SEO title <span className="opacity-60 normal-case">— for Google &amp; sharing</span></span>
+                <input
+                  name="seoTitle"
+                  defaultValue={current.seoTitle ?? ''}
+                  placeholder={current.title}
+                  className="mt-1 block bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+                  style={{ width: 280 }}
+                />
+              </label>
+              <label className="block">
+                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">SEO description</span>
+                <input
+                  name="seoDescription"
+                  defaultValue={current.seoDescription ?? ''}
+                  placeholder="One sentence describing this page"
+                  className="mt-1 block bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+                  style={{ width: 360 }}
+                />
+              </label>
+              <label className="block">
+                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">Share image URL <span className="opacity-60 normal-case">— https:// only</span></span>
+                <input
+                  name="seoImage"
+                  defaultValue={current.seoImage ?? ''}
+                  placeholder="https://…/photo.jpg"
+                  className="mt-1 block bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none placeholder:text-ash/40"
+                  style={{ width: 280 }}
+                />
+              </label>
               <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-5 py-2 rounded-sm">
                 Save
               </button>

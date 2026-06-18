@@ -13,9 +13,10 @@ export async function generateMetadata({ params }: { params: { slug: string; pag
   const brand = c?.brand || site.name
   const page = getPages(c).find(p => p.slug === params.page)
   if (!page) return {}
-  const title = `${page.title || page.headline || 'Page'} · ${c?.seoTitle || brand}`
-  const description = c?.seoDescription || page.subheadline || brand
-  const img = page.heroImage && page.heroImage.startsWith('http') ? [page.heroImage] : undefined
+  const title = page.seoTitle || `${page.title || page.headline || 'Page'} · ${c?.seoTitle || brand}`
+  const description = page.seoDescription || c?.seoDescription || page.subheadline || brand
+  const share = page.seoImage || (page.heroImage && page.heroImage.startsWith('http') ? page.heroImage : undefined)
+  const img = share && share.startsWith('http') ? [share] : undefined
   return {
     title,
     description,
