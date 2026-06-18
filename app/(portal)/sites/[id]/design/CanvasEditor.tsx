@@ -5,7 +5,8 @@ import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHA
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
-import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
+import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
+import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
 import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction } from '../../actions'
@@ -120,6 +121,7 @@ export default function CanvasEditor({
   const [aiPageBusy, setAiPageBusy] = useState(false)
   const [zoom, setZoom] = useState(1) // desktop canvas zoom; pan by scrolling the viewport
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null) // right-click menu position
+  const [showTemplates, setShowTemplates] = useState(false) // template gallery modal
   const setZoomClamped = (z: number) => setZoom(Math.min(3, Math.max(0.25, Math.round(z * 100) / 100)))
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
@@ -772,6 +774,22 @@ export default function CanvasEditor({
     }
     inp.click()
   }
+  // Drop a hand-designed starter layout onto the canvas (undoable; keeps brand/uploads).
+  const applyTemplate = (tpl: CanvasTemplate) => {
+    if (els.length && !confirm('Start from this template? It replaces what’s on the canvas now (you can undo).')) return
+    const c = tpl.build(accent)
+    snapshot(true)
+    setEls(c.elements.map(e => ({ ...e, id: 'e' + idc.current++ })))
+    setBg(c.bg || '#ffffff')
+    setBgGrad(c.bgGradient || null)
+    setBgImage(c.bgImage || '')
+    setPageWidth(c.width === 'contained' ? 'contained' : 'full')
+    if (c.fontSystem) setFontSys(c.fontSystem)
+    setSelectedIds([])
+    setEditingId('')
+    setShowTemplates(false)
+    touch()
+  }
   // Read a file straight to a data URL (used for SVGs, which we keep vector rather
   // than rasterising; they render via <img>, so no scripts run).
   const fileToDataUrl = (f: File) => new Promise<string>((res, rej) => {
@@ -1408,6 +1426,8 @@ export default function CanvasEditor({
         )}
 
         {lib && panelTab === 'design' && (<>
+        <button type="button" onClick={() => setShowTemplates(true)} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2.5 rounded-sm">🎨 Start from a template</button>
+        <div className="h-px bg-gold/15" />
         <div>
           <p style={labelCss}>Font style</p>
           <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
@@ -2056,6 +2076,28 @@ export default function CanvasEditor({
       })()}
 
       {stockId && <StockPhotos onSelect={u => { update(stockId, { src: u }); setStockId('') }} onClose={() => setStockId('')} />}
+
+      {showTemplates && (
+        <div onClick={() => setShowTemplates(false)} style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} className="rounded-lg p-5 flex flex-col" style={{ background: '#faf7f2', width: 'min(760px, 95vw)', maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#9a7d2e' }}>Start from a template</span>
+              <button type="button" onClick={() => setShowTemplates(false)} style={{ fontSize: 16, color: '#888', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12, paddingRight: 4 }}>
+              {CANVAS_TEMPLATES.map(tpl => (
+                <button key={tpl.key} type="button" onClick={() => applyTemplate(tpl)} className="text-left rounded-md overflow-hidden hover:opacity-95" style={{ border: '1px solid rgba(0,0,0,0.12)', background: '#fff' }}>
+                  <div style={{ height: 210, overflow: 'hidden', background: '#fff', pointerEvents: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                    <CanvasView canvas={tpl.build(accent)} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+                  </div>
+                  <div className="px-2.5 py-2 font-label" style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#5a513f' }}>{tpl.name}</div>
+                </button>
+              ))}
+            </div>
+            <p className="font-body text-ash/50 text-[11px] mt-3">Pick one to drop it onto your canvas — then change the words, colours and images. (Undoable.)</p>
+          </div>
+        </div>
+      )}
 
       {/* Right-click menu */}
       {ctxMenu && (() => {
