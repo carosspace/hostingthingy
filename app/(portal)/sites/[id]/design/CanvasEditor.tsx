@@ -119,6 +119,7 @@ export default function CanvasEditor({
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
   const [zoom, setZoom] = useState(1) // desktop canvas zoom; pan by scrolling the viewport
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null) // right-click menu position
   const setZoomClamped = (z: number) => setZoom(Math.min(3, Math.max(0.25, Math.round(z * 100) / 100)))
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
@@ -234,6 +235,16 @@ export default function CanvasEditor({
     })
     touch()
   }
+  // Bring/send a whole set forward/back in ONE undo step (right-click menu on a multi-selection).
+  const layerMany = (ids: string[], dir: 1 | -1) => {
+    const set = new Set(ids)
+    snapshot(true)
+    setEls(p => {
+      const n = p.length + 1
+      return p.map(e => (set.has(e.id) ? { ...e, z: (e.z ?? 0) + dir * n } : e))
+    })
+    touch()
+  }
   const duplicate = (id: string) => {
     const el = elsRef.current.find(e => e.id === id)
     if (!el) return
@@ -321,6 +332,22 @@ export default function CanvasEditor({
     if (!elsRef.current.some(e => set.has(e.id) && e.groupId)) return
     snapshot(true)
     setEls(p => p.map(e => (set.has(e.id) && e.groupId ? { ...e, groupId: undefined } : e)))
+    touch()
+  }
+  // --- Copy / paste (shared by the keyboard shortcuts and the right-click menu) ---
+  const copySelection = (ids: string[]) => { const set = new Set(ids); clip.current = elsRef.current.filter(x => set.has(x.id)) }
+  const pasteClipboard = () => {
+    if (!clip.current.length) return
+    snapshot(true)
+    let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+    const gmap = new Map<string, string>()
+    const copies = clip.current.map(s => {
+      let gid = s.groupId
+      if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
+      return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+    })
+    setEls(p => [...p, ...copies])
+    setSelectedIds(copies.map(c => c.id))
     touch()
   }
   // --- Multi-selection group operations ---
@@ -954,6 +981,7 @@ export default function CanvasEditor({
       const t = e.target as HTMLElement | null
       const tag = t?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      if (e.key === 'Escape') setCtxMenu(null)
       const mod = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
       if (mod && k === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return }
@@ -965,22 +993,8 @@ export default function CanvasEditor({
       // Format painter: Ctrl/Cmd+Shift+C copies the look, Ctrl/Cmd+Shift+V paints it.
       if (mod && e.shiftKey && k === 'c' && selectedId) { e.preventDefault(); const el = elsRef.current.find(x => x.id === selectedId); if (el) copyStyle(el); return }
       if (mod && e.shiftKey && k === 'v' && styleClip.current && selectedIds.length) { e.preventDefault(); pasteStyle(selectedIds); return }
-      if (mod && !e.shiftKey && k === 'c' && selectedIds.length) { e.preventDefault(); const set = new Set(selectedIds); clip.current = elsRef.current.filter(x => set.has(x.id)); return }
-      if (mod && !e.shiftKey && k === 'v' && clip.current.length) {
-        e.preventDefault()
-        snapshot(true)
-        let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
-        const gmap = new Map<string, string>()
-        const copies = clip.current.map(s => {
-          let gid = s.groupId
-          if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
-          return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
-        })
-        setEls(p => [...p, ...copies])
-        setSelectedIds(copies.map(c => c.id))
-        touch()
-        return
-      }
+      if (mod && !e.shiftKey && k === 'c' && selectedIds.length) { e.preventDefault(); copySelection(selectedIds); return }
+      if (mod && !e.shiftKey && k === 'v' && clip.current.length) { e.preventDefault(); pasteClipboard(); return }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length) { e.preventDefault(); removeMany(selectedIds); return }
       if (selectedIds.length && e.key.startsWith('Arrow')) {
         e.preventDefault()
@@ -1982,6 +1996,7 @@ export default function CanvasEditor({
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}
+              onContextMenu={e => { if (e.target === e.currentTarget) { e.preventDefault(); setSelectedIds([]); setCtxMenu({ x: e.clientX, y: e.clientY }) } }}
               onDragOver={e => { if (dragUploadSrc.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
               onDrop={onCanvasDrop}
               style={{
@@ -2004,6 +2019,7 @@ export default function CanvasEditor({
                   <div
                     key={el.id}
                     onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
+                    onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!selectedIds.includes(el.id)) setSelectedIds(withGroup([el.id])); setCtxMenu({ x: e.clientX, y: e.clientY }) }}
                     onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
                     style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
                   >
@@ -2040,6 +2056,51 @@ export default function CanvasEditor({
       })()}
 
       {stockId && <StockPhotos onSelect={u => { update(stockId, { src: u }); setStockId('') }} onClose={() => setStockId('')} />}
+
+      {/* Right-click menu */}
+      {ctxMenu && (() => {
+        const hasSel = selectedIds.length > 0
+        const many = selectedIds.length > 1
+        const one = selectedIds.length === 1 ? els.find(e => e.id === selectedIds[0]) : null
+        const anyGrouped = els.some(e => selectedIds.includes(e.id) && e.groupId)
+        const run = (fn: () => void) => { fn(); setCtxMenu(null) }
+        type Item = { label: string; sc?: string; fn: () => void; danger?: boolean }
+        const items: (Item | 'sep')[] = hasSel ? [
+          { label: 'Copy', sc: 'Ctrl C', fn: () => copySelection(selectedIds) },
+          ...(clip.current.length ? [{ label: 'Paste', sc: 'Ctrl V', fn: pasteClipboard } as Item] : []),
+          { label: 'Duplicate', sc: 'Ctrl D', fn: () => (many ? duplicateMany(selectedIds) : duplicate(selectedIds[0])) },
+          'sep',
+          { label: 'Bring to front', fn: () => layerMany(selectedIds, 1) },
+          { label: 'Send to back', fn: () => layerMany(selectedIds, -1) },
+          'sep',
+          ...(many ? [{ label: 'Group', sc: 'Ctrl G', fn: groupSelected } as Item] : []),
+          ...(anyGrouped ? [{ label: 'Ungroup', sc: 'Ctrl ⇧ G', fn: ungroupSelected } as Item] : []),
+          { label: one?.locked ? 'Unlock' : 'Lock', fn: () => selectedIds.forEach(id => { const e = els.find(x => x.id === id); update(id, { locked: !e?.locked }) }) },
+          'sep',
+          { label: 'Delete', sc: 'Del', danger: true, fn: () => (many ? removeMany(selectedIds) : remove(selectedIds[0])) },
+        ] : [
+          ...(clip.current.length ? [{ label: 'Paste', sc: 'Ctrl V', fn: pasteClipboard } as Item] : []),
+          { label: 'Select all', sc: 'Ctrl A', fn: () => setSelectedIds(elsRef.current.map(x => x.id)) },
+        ]
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 9999
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 9999
+        const left = Math.max(6, Math.min(ctxMenu.x, vw - 200))
+        const top = Math.max(6, Math.min(ctxMenu.y, vh - (items.length * 32 + 14)))
+        return (
+          <>
+            <div onPointerDown={() => setCtxMenu(null)} onContextMenu={e => { e.preventDefault(); setCtxMenu(null) }} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
+            <div style={{ position: 'fixed', left, top, zIndex: 201, background: '#fff', border: '1px solid rgba(0,0,0,0.14)', borderRadius: 7, boxShadow: '0 8px 28px rgba(0,0,0,0.2)', padding: 4, minWidth: 186 }}>
+              {items.map((it, i) => it === 'sep'
+                ? <div key={i} style={{ height: 1, background: 'rgba(0,0,0,0.08)', margin: '4px 6px' }} />
+                : (
+                  <button key={i} type="button" onClick={() => run(it.fn)} className="w-full flex items-center justify-between rounded-sm" style={{ padding: '6px 9px', fontSize: 12.5, color: it.danger ? '#b3402f' : '#3a2e20', textAlign: 'left', background: 'transparent' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,92,54,0.10)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <span>{it.label}</span>{it.sc && <span style={{ fontSize: 10, color: '#b0a99c', marginLeft: 16 }}>{it.sc}</span>}
+                  </button>
+                ))}
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }
