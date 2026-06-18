@@ -79,14 +79,23 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   }
   if (el.type === 'box')
     return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqf(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqf(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
-  if (el.type === 'menu')
+  if (el.type === 'menu') {
+    const ms = el.menuStyle || 'plain'
+    const col = el.color || ctx.accent
+    const stacked = ms === 'stacked'
+    const justify = el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start'
+    const linkBase: CSSProperties = { fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqf(el.fontSize || 18), color: col, textTransform: 'uppercase', letterSpacing: cqf(2), textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block' }
+    const extra: CSSProperties = ms === 'pills' ? { padding: `${cqf(7)} ${cqf(18)}`, border: `1px solid ${col}`, borderRadius: cqf(999) }
+      : ms === 'boxed' ? { padding: `${cqf(7)} ${cqf(16)}`, border: `1px solid ${col}` }
+      : ms === 'underline' ? { paddingBottom: cqf(4), borderBottom: `2px solid ${col}` } : {}
     return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cqf(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: stacked ? 'column' : 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: stacked ? justify : 'center', justifyContent: stacked ? 'flex-start' : justify, gap: cqf(stacked ? 12 : 22), overflow: 'hidden' }}>
         {ctx.navPages.map(p => (
-          <a key={p.slug} href={ctx.pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqf(el.fontSize || 18), color: el.color || ctx.accent, textTransform: 'uppercase', letterSpacing: cqf(2) }}>{p.label}</a>
+          <a key={p.slug} href={ctx.pageHref(p.slug)} style={{ ...linkBase, ...extra }}>{p.label}</a>
         ))}
       </div>
     )
+  }
   const isBtn = el.type === 'button'
   const content = (
     <div
@@ -241,10 +250,17 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           )
           node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined}>{btn}</a> : btn}</div>
         } else if (el.type === 'menu') {
+          const ms = el.menuStyle || 'plain'
+          const mcol = el.color || accent
+          const mStacked = ms === 'stacked'
+          const mJustify = el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start'
+          const mExtra: CSSProperties = ms === 'pills' ? { padding: '7px 16px', border: `1px solid ${mcol}`, borderRadius: 999 }
+            : ms === 'boxed' ? { padding: '7px 14px', border: `1px solid ${mcol}` }
+            : ms === 'underline' ? { paddingBottom: 3, borderBottom: `2px solid ${mcol}` } : {}
           node = (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', opacity: o }}>
+            <div style={{ display: 'flex', flexDirection: mStacked ? 'column' : 'row', flexWrap: mStacked ? 'nowrap' : 'wrap', alignItems: mStacked ? mJustify : 'center', gap: mStacked ? 10 : 16, justifyContent: mStacked ? 'flex-start' : mJustify, opacity: o }}>
               {navPages.map(p => (
-                <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: Math.min(el.fontSize || 16, 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: 1.5 }}>{p.label}</a>
+                <a key={p.slug} href={pageHref(p.slug)} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: Math.min(el.fontSize || 16, 18), color: mcol, textTransform: 'uppercase', letterSpacing: 1.5, textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-block', ...mExtra }}>{p.label}</a>
               ))}
             </div>
           )

@@ -7,8 +7,9 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiText, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
+import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import type {
   SiteContent,
   SavedDesign,
@@ -21,6 +22,7 @@ import type {
   HoverKind,
   ShadowKind,
   ShapeKind,
+  MenuStyle,
   CursorKind,
   ImageAdjust,
   SiteTheme,
@@ -838,6 +840,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
+      menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,
@@ -894,6 +897,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     uploads: Array.isArray(c.uploads)
       ? ((c.uploads as unknown[]).map(dataOrHttp).filter(Boolean) as string[]).slice(0, 24)
       : undefined,
+    fontSystem: FONT_SYSTEM_KEYS.includes(String(c.fontSystem ?? '')) ? String(c.fontSystem) : undefined,
   }
 }
 

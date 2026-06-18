@@ -126,6 +126,10 @@ export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String
 
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component'
 
+// How a page-menu element lays out its links.
+export type MenuStyle = 'plain' | 'underline' | 'pills' | 'boxed' | 'stacked'
+export const MENU_STYLES: MenuStyle[] = ['plain', 'underline', 'pills', 'boxed', 'stacked']
+
 // Decorative SVG section dividers (filled with the element's colour; rotate to flip).
 export type ShapeKind = 'line' | 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
 export const SHAPE_KINDS: ShapeKind[] = ['line', 'wave', 'curve', 'tilt', 'triangle', 'hill', 'zigzag']
@@ -258,6 +262,8 @@ export interface CanvasElement {
   shape?: ShapeKind
   // icon (a recolourable line/fill icon — `icon` is a key in lib/sites/icons.tsx; `color` tints it)
   icon?: string
+  // page menu
+  menuStyle?: MenuStyle
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)
@@ -302,6 +308,7 @@ export interface PageCanvas {
   fonts?: SiteFont[] // uploaded brand fonts, referenced by fontFamily 'custom:<id>'
   components?: SiteComponent[] // reusable components placed via 'component' elements
   uploads?: string[] // an asset library of uploaded logos/images (data URLs) to drag onto the canvas
+  fontSystem?: string // a font-bundle key (lib/sites/fonts) applied to this page's title/body/label fonts
 }
 
 // The most images a page's upload library can hold.

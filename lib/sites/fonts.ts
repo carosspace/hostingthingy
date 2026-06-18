@@ -60,7 +60,31 @@ export const FONT_SYSTEMS: FontSystem[] = [
     body: 'var(--font-lora), Georgia, serif',
     label: 'var(--font-montserrat), sans-serif',
   },
+  {
+    key: 'grand',
+    name: 'Grand & stately',
+    display: 'var(--font-cinzel), serif',
+    body: 'var(--font-cormorant), Georgia, serif',
+    label: 'var(--font-cinzel), serif',
+  },
+  {
+    key: 'fresh',
+    name: 'Fresh & airy',
+    display: 'var(--font-montserrat), system-ui, sans-serif',
+    body: 'var(--font-lora), Georgia, serif',
+    label: 'var(--font-montserrat), sans-serif',
+  },
+  {
+    key: 'bold',
+    name: 'Bold & expressive',
+    display: 'var(--font-fraunces), Georgia, serif',
+    body: 'var(--font-montserrat), system-ui, sans-serif',
+    label: 'var(--font-montserrat), sans-serif',
+  },
 ]
+
+// All system keys (for validation / pickers).
+export const FONT_SYSTEM_KEYS = FONT_SYSTEMS.map(f => f.key)
 
 export const DEFAULT_FONT_SYSTEM = 'serif'
 

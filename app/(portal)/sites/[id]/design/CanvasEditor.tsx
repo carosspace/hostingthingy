@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
-import { fontVars } from '@/lib/sites/fonts'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
+import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
@@ -101,6 +101,7 @@ export default function CanvasEditor({
   const [components, setComponents] = useState<SiteComponent[]>(initial?.components ?? [])
   const [editingComp, setEditingComp] = useState<{ id: string; outsideIds: string[]; origX: number; origY: number; origW: number; origH: number; origOpacity: number; origZ: number } | null>(null) // editing a component master in place
   const [uploads, setUploads] = useState<string[]>(initial?.uploads ?? []) // reusable image/logo library to drag onto the canvas
+  const [fontSys, setFontSys] = useState(initial?.fontSystem || fontSystem) // this page's font bundle
   const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -1071,6 +1072,7 @@ export default function CanvasEditor({
       fonts: fonts.length ? fonts : undefined,
       components: components.length ? components : undefined,
       uploads: uploads.length ? uploads : undefined,
+      fontSystem: fontSys || undefined,
     }
     const payload = JSON.stringify(canvas)
     // Guard against the Server Actions body limit (12 MB, see next.config) — embedded
@@ -1132,14 +1134,23 @@ export default function CanvasEditor({
       return <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>{renderInner(el, cqv, renderCtx)}</div>
     }
     if (el.type === 'box') return <div style={{ width: '100%', height: '100%', background: gradientCss(el.gradient) || el.fill || 'transparent', borderRadius: cqv(el.radius || 0), border: el.borderColor && el.borderWidth ? `${cqv(el.borderWidth)} solid ${el.borderColor}` : undefined, boxShadow: shadowCss(el.shadow) }} />
-    if (el.type === 'menu')
+    if (el.type === 'menu') {
+      const ms = el.menuStyle || 'plain'
+      const col = el.color || accent
+      const stacked = ms === 'stacked'
+      const justify = el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start'
+      const linkBase: CSSProperties = { fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqv(el.fontSize || 18), color: col, textTransform: 'uppercase', letterSpacing: cqv(2), whiteSpace: 'nowrap', display: 'inline-block' }
+      const extra: CSSProperties = ms === 'pills' ? { padding: `${cqv(7)} ${cqv(18)}`, border: `1px solid ${col}`, borderRadius: cqv(999) }
+        : ms === 'boxed' ? { padding: `${cqv(7)} ${cqv(16)}`, border: `1px solid ${col}` }
+        : ms === 'underline' ? { paddingBottom: cqv(4), borderBottom: `2px solid ${col}` } : {}
       return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: cqv(26), justifyContent: el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start', overflow: 'hidden', pointerEvents: 'none' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: stacked ? 'column' : 'row', flexWrap: stacked ? 'nowrap' : 'wrap', alignItems: stacked ? justify : 'center', justifyContent: stacked ? 'flex-start' : justify, gap: cqv(stacked ? 12 : 22), overflow: 'hidden', pointerEvents: 'none' }}>
           {(navPages.length ? navPages : [{ slug: '', label: 'Home' }, { slug: 'x', label: 'About' }]).map(p => (
-            <span key={p.slug} style={{ fontFamily: fontVar(el.fontFamily || 'label'), fontSize: cqv(el.fontSize || 18), color: el.color || accent, textTransform: 'uppercase', letterSpacing: cqv(2) }}>{p.label}</span>
+            <span key={p.slug} style={{ ...linkBase, ...extra }}>{p.label}</span>
           ))}
         </div>
       )
+    }
     const isBtn = el.type === 'button'
     const editing = editingId === el.id
     return (
@@ -1363,6 +1374,23 @@ export default function CanvasEditor({
         )}
 
         {lib && panelTab === 'design' && (<>
+        <div>
+          <p style={labelCss}>Font style</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {FONT_SYSTEMS.map(f => {
+              const on = fontSys === f.key
+              return (
+                <button key={f.key} type="button" onClick={() => { setFontSys(f.key); touch() }} title={f.name} style={{ ...fontVars(f.key), textAlign: 'left', padding: '6px 9px', borderRadius: 5, border: on ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff' } as CSSProperties}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, color: '#222', display: 'block', lineHeight: 1.15 }}>Aa</span>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#777', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
         <div>
           <p style={labelCss}>Page width</p>
           <div className="flex items-center gap-1.5 mt-1.5">
@@ -1690,7 +1718,15 @@ export default function CanvasEditor({
                     <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
                 </div>
-                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows links to all your pages. Manage pages in the Pages bar above the editor.</p>
+                <div>
+                  <span style={labelCss}>Menu style</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {([['plain', 'Plain'], ['underline', 'Underline'], ['pills', 'Pills'], ['boxed', 'Boxed'], ['stacked', 'Stacked ↕']] as [MenuStyle, string][]).map(([k, lbl]) => (
+                      <button key={k} type="button" onClick={() => update(sel.id, { menuStyle: k })} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm border" style={{ borderColor: (sel.menuStyle || 'plain') === k ? accent : 'rgba(0,0,0,0.15)', background: (sel.menuStyle || 'plain') === k ? accent : 'transparent', color: (sel.menuStyle || 'plain') === k ? '#fff' : '#666' }}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows links to all your pages. <b>Stacked</b> makes a vertical (side) menu. Manage pages in the Pages bar above the editor.</p>
               </>
             )}
             {sel.type === 'shape' && (
@@ -1897,7 +1933,7 @@ export default function CanvasEditor({
 
         {device === 'mobile' && !mobileCustom ? (
           // The automatic phone layout, shown read-only in a phone frame.
-          <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSystem) } as CSSProperties}>
+          <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSys) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
               <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
             </div>
@@ -1912,7 +1948,7 @@ export default function CanvasEditor({
               </div>
             )}
           <div onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
-          <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSystem), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
+          <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSys), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}
