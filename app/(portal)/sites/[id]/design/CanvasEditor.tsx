@@ -129,6 +129,9 @@ export default function CanvasEditor({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [draftAt, setDraftAt] = useState<number | null>(null) // a recoverable unsaved draft exists (autosave)
+  const draftCanvas = useRef<PageCanvas | null>(null)
+  const draftKey = `cvdraft:${siteId}:${pageSlug}`
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<Drag>(null)
   const idc = useRef(
@@ -1029,6 +1032,37 @@ export default function CanvasEditor({
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedIds, editingMobile])
 
+  // Draft recovery: on open, offer to restore an autosaved draft that differs from
+  // what loaded (i.e. the last session didn't get saved — a crash or navigation away).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey)
+      if (!raw) return
+      const d = JSON.parse(raw)
+      if (d?.canvas?.elements && JSON.stringify(d.canvas.elements) !== JSON.stringify(initial?.elements || [])) {
+        draftCanvas.current = d.canvas
+        setDraftAt(typeof d.ts === 'number' ? d.ts : Date.now())
+      } else {
+        localStorage.removeItem(draftKey)
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Autosave the working draft to localStorage (debounced) so a crash or accidental
+  // navigation never loses work. This does NOT publish — only the Save button does.
+  useEffect(() => {
+    if (!dirty.current) return
+    const t = setTimeout(() => {
+      try {
+        const payload = JSON.stringify({ ts: Date.now(), canvas: buildCanvas() })
+        if (payload.length < 3_000_000) localStorage.setItem(draftKey, payload) // stay under the localStorage quota
+      } catch { /* full / over quota — the manual Save still works */ }
+    }, 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys])
+
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
     if (!editingId) return
@@ -1087,25 +1121,46 @@ export default function CanvasEditor({
     setMarquee({ x: ox, y: oy, w: 0, h: 0 })
   }
 
+  // The current page assembled into a PageCanvas (used by Save + the draft autosave).
+  const buildCanvas = (): PageCanvas => ({
+    h: desktopH,
+    width: pageWidth === 'contained' ? 'contained' : undefined,
+    bg: bg.trim() || undefined,
+    bgGradient: bgGrad || undefined,
+    bgImage: bgImage.trim() || undefined,
+    bgVideo: bgVideo.trim() || undefined,
+    elements: els,
+    mobileCustom: mobileCustom || undefined,
+    mobileH: mobileCustom ? mobileH : undefined,
+    palette: palette.length ? palette : undefined,
+    fonts: fonts.length ? fonts : undefined,
+    components: components.length ? components : undefined,
+    uploads: uploads.length ? uploads : undefined,
+    fontSystem: fontSys || undefined,
+  })
+  // Load a whole PageCanvas into the editor state (used by draft recovery).
+  const loadCanvas = (c: PageCanvas) => {
+    setEls((c.elements || []).map(e => ({ ...e })))
+    setBg(c.bg || '')
+    setBgGrad(c.bgGradient || null)
+    setBgImage(c.bgImage || '')
+    setBgVideo(c.bgVideo || '')
+    setPageWidth(c.width === 'contained' ? 'contained' : 'full')
+    setMobileCustom(!!c.mobileCustom)
+    setPalette(c.palette || [])
+    setFonts(c.fonts || [])
+    setComponents(c.components || [])
+    setUploads(c.uploads || [])
+    setFontSys(c.fontSystem || fontSystem)
+    setSelectedIds([])
+    setEditingId('')
+    const maxId = (c.elements || []).reduce((m, e) => { const n = parseInt(String(e.id).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? Math.max(m, n) : m }, 0)
+    idc.current = Math.max(idc.current, maxId + 1)
+  }
   async function save() {
     if (editingComp) return // finish or cancel the master edit first — never persist mid-edit loose elements
     setSaving(true)
-    const canvas: PageCanvas = {
-      h: desktopH,
-      width: pageWidth === 'contained' ? 'contained' : undefined,
-      bg: bg.trim() || undefined,
-      bgGradient: bgGrad || undefined,
-      bgImage: bgImage.trim() || undefined,
-      bgVideo: bgVideo.trim() || undefined,
-      elements: els,
-      mobileCustom: mobileCustom || undefined,
-      mobileH: mobileCustom ? mobileH : undefined,
-      palette: palette.length ? palette : undefined,
-      fonts: fonts.length ? fonts : undefined,
-      components: components.length ? components : undefined,
-      uploads: uploads.length ? uploads : undefined,
-      fontSystem: fontSys || undefined,
-    }
+    const canvas = buildCanvas()
     const payload = JSON.stringify(canvas)
     // Guard against the Server Actions body limit (12 MB, see next.config) — embedded
     // images add up fast. Warn with something actionable instead of a silent failure.
@@ -1123,6 +1178,8 @@ export default function CanvasEditor({
       dirty.current = false
       setSaved(true)
       setSaveError('')
+      try { localStorage.removeItem(draftKey) } catch { /* ignore */ } // work is persisted; drop the recovery draft
+      setDraftAt(null)
     } catch {
       // Keep dirty so the work isn't considered saved; tell the user it failed.
       setSaveError('Couldn’t save — please check your connection and try again. If it keeps failing, your page may have too many large images.')
@@ -1313,6 +1370,15 @@ export default function CanvasEditor({
         </button>
         {saveError && (
           <p className="font-body text-[11px] leading-relaxed rounded-sm px-2.5 py-2" style={{ color: '#8a2b1d', background: '#fbe9e6', border: '1px solid rgba(179,64,47,0.3)' }}>{saveError}</p>
+        )}
+        {draftAt && (
+          <div className="rounded-sm px-2.5 py-2 flex flex-col gap-1.5" style={{ background: '#fef7e6', border: '1px solid rgba(154,125,46,0.45)' }}>
+            <span className="font-body text-[11px] leading-relaxed" style={{ color: '#7a5c0e' }}>You have unsaved changes from a previous session.</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => { if (draftCanvas.current) { snapshot(true); loadCanvas(draftCanvas.current); touch() } setDraftAt(null) }} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-1.5 rounded-sm">↩ Restore them</button>
+              <button type="button" onClick={() => { try { localStorage.removeItem(draftKey) } catch { /* ignore */ } setDraftAt(null) }} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2 py-1.5">Discard</button>
+            </div>
+          </div>
         )}
         {/* Write-with-AI + switch to the block editor */}
         <div className="flex items-center gap-1.5">
