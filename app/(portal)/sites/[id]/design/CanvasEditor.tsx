@@ -555,11 +555,36 @@ export default function CanvasEditor({
     shape: { type: 'shape', shape: 'wave', x: 0, w: CANVAS_W, h: 130, fill: accent },
   }
   // Drop a small group of pre-arranged elements.
-  const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer') => {
+  const addTemplate = (kind: 'card' | 'faq' | 'header' | 'footer' | 'banner' | 'bar') => {
     snapshot(true)
     let z = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const mk = (p: Partial<CanvasElement> & { type: CanvasElementType }): CanvasElement => ({ id: 'e' + idc.current++, x: 0, y: 0, w: 100, h: 60, opacity: 100, z: ++z, ...p })
     const bx = 150, by = 150
+    if (kind === 'banner') {
+      // A full-width hero banner placed below the current content.
+      const fy = els.reduce((m, e) => Math.max(m, e.y + e.h), 80) + 40
+      const group = [
+        mk({ type: 'box', x: 0, y: fy, w: CANVAS_W, h: 360, fill: accent, radius: 0 }),
+        mk({ type: 'text', x: 150, y: fy + 92, w: CANVAS_W - 300, h: 72, text: 'Your big headline', fontSize: 48, fontFamily: 'display', italic: true, color: '#ffffff', align: 'center' }),
+        mk({ type: 'text', x: 220, y: fy + 172, w: CANVAS_W - 440, h: 44, text: 'A short supporting line goes here.', fontSize: 20, fontFamily: 'body', color: '#ffffff', align: 'center' }),
+        mk({ type: 'button', x: Math.round((CANVAS_W - 220) / 2), y: fy + 240, w: 220, h: 54, text: 'Call to action', fontSize: 17, fontFamily: 'label', fill: t.text, ctaType: 'none', radius: 6, align: 'center' }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedIds([group[1].id])
+      touch()
+      return
+    }
+    if (kind === 'bar') {
+      // A thin full-width announcement bar at the very top.
+      const group = [
+        mk({ type: 'box', x: 0, y: 0, w: CANVAS_W, h: 46, fill: t.text }),
+        mk({ type: 'text', x: 100, y: 12, w: CANVAS_W - 200, h: 24, text: '✦ Free shipping over €50 — for a limited time', fontSize: 14, fontFamily: 'label', color: '#ffffff', align: 'center' }),
+      ]
+      setEls(p => [...p, ...group])
+      setSelectedIds([group[1].id])
+      touch()
+      return
+    }
     if (kind === 'header') {
       const group = [
         mk({ type: 'box', x: 0, y: 0, w: CANVAS_W, h: 96, fill: '#ffffff' }),
@@ -1162,7 +1187,7 @@ export default function CanvasEditor({
       {/* LEFT: a Canva-style icon rail + the active tool panel */}
       <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2 mb-4 lg:mb-0">
         <div className="flex flex-col gap-1 shrink-0">
-          {([['design', '🎨', 'Design'], ['text', 'T', 'Text'], ['elements', '＋', 'Add'], ['uploads', '☁', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
+          {([['design', '🎨', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '☁', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
             const on = lib && panelTab === key
             return (
               <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
@@ -1240,7 +1265,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Starters</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['header', 'Header'], ['footer', 'Footer'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
+                {([['header', 'Header'], ['footer', 'Footer'], ['banner', 'Banner'], ['bar', 'Bar'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
                   <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
               </div>
