@@ -8,6 +8,7 @@ import { generateSiteContent, aiSection, aiText, aiRewritePage, type GeneratedPa
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS } from '@/lib/sites/types'
+import { ICON_KINDS } from '@/lib/sites/icons'
 import type {
   SiteContent,
   SavedDesign,
@@ -787,7 +788,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -835,6 +836,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       slides: type === 'carousel' && Array.isArray(e?.slides) ? (e.slides.map(dataOrHttp).filter(Boolean) as string[]).slice(0, 10) : undefined,
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
+      icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,

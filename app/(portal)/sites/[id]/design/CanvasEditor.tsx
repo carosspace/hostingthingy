@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
+import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
@@ -1076,6 +1077,8 @@ export default function CanvasEditor({
           <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
         </svg>
       )
+    if (el.type === 'icon')
+      return <div style={{ width: '100%', height: '100%', color: el.color || accent, pointerEvents: 'none' }}>{canvasIcon(el.icon)}</div>
     if (el.type === 'component') {
       const comp = components.find(c => c.id === el.componentId)
       if (!comp) return <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, color: accent, fontSize: cqv(14) }}>missing component</div>
@@ -1129,13 +1132,14 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
     if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'shape') return 'Shape divider'
+    if (el.type === 'icon') return 'Icon · ' + (el.icon || 'star')
     if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
@@ -1262,6 +1266,14 @@ export default function CanvasEditor({
                 </div>
               </div>
             ))}
+            <div>
+              <p style={labelCss}>Icons</p>
+              <div className="flex flex-wrap gap-1 mt-1" style={{ maxHeight: 156, overflowY: 'auto' }}>
+                {ICON_GROUPS.flatMap(g => g.keys).map(k => (
+                  <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: accent })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: accent }}>{canvasIcon(k)}</button>
+                ))}
+              </div>
+            </div>
             <div>
               <p style={labelCss}>Starters</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
@@ -1415,7 +1427,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -1645,6 +1657,20 @@ export default function CanvasEditor({
                   {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
                 </div>
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Rotate 180° (above) to flip it the other way.</p>
+              </>
+            )}
+            {sel.type === 'icon' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Colour</span>
+                  {colorField(sel.color, v => update(sel.id, { color: v }), accent)}
+                </div>
+                <p style={labelCss}>Pick an icon</p>
+                <div className="flex flex-wrap gap-1" style={{ maxHeight: 170, overflowY: 'auto' }}>
+                  {ICON_GROUPS.flatMap(g => g.keys).map(k => (
+                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
+                  ))}
+                </div>
               </>
             )}
             {sel.type === 'box' && (

@@ -124,7 +124,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'component'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component'
 
 // Decorative SVG section dividers (filled with the element's colour; rotate to flip).
 export type ShapeKind = 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
@@ -254,6 +254,8 @@ export interface CanvasElement {
   interval?: number // auto-advance seconds (0 = manual only)
   // shape divider
   shape?: ShapeKind
+  // icon (a recolourable line/fill icon — `icon` is a key in lib/sites/icons.tsx; `color` tints it)
+  icon?: string
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)

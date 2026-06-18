@@ -3,6 +3,7 @@ import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, filterCss, shadowCss, sh
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
+import { canvasIcon } from './icons'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -60,6 +61,8 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         <path d={shapePath(el.shape)} style={{ fill: el.fill || ctx.accent }} />
       </svg>
     )
+  if (el.type === 'icon')
+    return <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
   if (el.type === 'component') {
     const comp = (ctx.components ?? []).find(c => c.id === el.componentId)
     if (!comp || !comp.elements.length) return null
@@ -224,6 +227,9 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
         } else if (el.type === 'shape') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
+        } else if (el.type === 'icon') {
+          node = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
+
         } else if (el.type === 'component') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{renderInner(el, p => `${p}px`, ctx)}</div>
         } else if (el.type === 'box') {
