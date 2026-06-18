@@ -7,6 +7,7 @@ import { getEngine } from '@/lib/sites/engine'
 import { generateSiteContent, aiSection, aiText, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
+import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
@@ -824,7 +825,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -853,7 +854,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       mh: e?.mh === undefined || e?.mh === null ? undefined : num(e?.mh, 8, 8000, 60),
       mHidden: e?.mHidden ? true : undefined,
       mFontSize: (type === 'text' || type === 'button') && e?.mFontSize ? num(e?.mFontSize, 6, 400, 24) : undefined,
-      text: type === 'text' || type === 'button' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
+      text: type === 'text' || type === 'button' || type === 'form' ? String(e?.text ?? '').slice(0, 2000) || undefined : undefined,
       fontSize: type === 'text' || type === 'button' ? num(e?.fontSize, 6, 400, 24) : undefined,
       color: color(e?.color),
       align,
@@ -1046,6 +1047,36 @@ export async function searchStockPhotos(query: string): Promise<{ ok: boolean; e
   } catch {
     return { ok: false, error: 'failed' }
   }
+}
+
+// Public: a visitor submits a contact form. No auth — the RPC resolves the owner from
+// the site slug, so a visitor can only ever create a message for that site's owner.
+export async function submitMessageAction(args: { slug: string; name: string; email: string; body: string; hp?: string }): Promise<{ ok: boolean }> {
+  const slug = String(args?.slug ?? '').trim()
+  const body = String(args?.body ?? '').trim()
+  if (!slug || !body) return { ok: false }
+  // Honeypot filled → almost certainly a bot. Pretend success, store nothing.
+  if (String(args?.hp ?? '').trim()) return { ok: true }
+  const ok = await submitMessage(slug, String(args?.name ?? '').slice(0, 120), String(args?.email ?? '').slice(0, 200), body.slice(0, 5000))
+  return { ok }
+}
+
+// Owner: mark a message read/unread or delete it (RLS limits to the owner).
+export async function setMessageReadAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  await setMessageRead(id, String(formData.get('read') ?? '') === '1')
+  revalidatePath('/messages')
+}
+export async function deleteMessageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  await deleteMessageRecord(id)
+  revalidatePath('/messages')
 }
 
 // Switch a page back to the block editor — KEEP the canvas (just hide it) so you can

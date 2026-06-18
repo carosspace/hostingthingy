@@ -124,7 +124,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form'
 
 // How a page-menu element lays out its links.
 export type MenuStyle = 'plain' | 'underline' | 'pills' | 'boxed' | 'stacked'

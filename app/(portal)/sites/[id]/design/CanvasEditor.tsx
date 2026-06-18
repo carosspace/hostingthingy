@@ -185,7 +185,7 @@ export default function CanvasEditor({
   const brandVars: CSSProperties = {}
   palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
   // Read-only context for rendering component instances inside the editor.
-  const renderCtx: RenderCtx = { accent, navPages, pageHref: () => '#', ctaHref: () => '', components }
+  const renderCtx: RenderCtx = { accent, siteSlug, navPages, pageHref: () => '#', ctaHref: () => '', components }
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
@@ -618,6 +618,7 @@ export default function CanvasEditor({
     link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: '#111111', ctaType: 'link' },
     button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: '#111111', ctaType: 'none', radius: 6, fontFamily: 'label' },
     contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: '#111111', ctaType: 'email', radius: 6, fontFamily: 'label' },
+    form: { type: 'form', w: 360, h: 360, text: 'Send message', fill: '#111111', color: '#1a1612', radius: 10, fontFamily: 'body' },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
@@ -1240,6 +1241,18 @@ export default function CanvasEditor({
         </div>
       )
     }
+    if (el.type === 'form') {
+      const r = cqv(Math.max(0, (el.radius ?? 10) - 2))
+      const fieldStyle: CSSProperties = { width: '100%', padding: `${cqv(9)} ${cqv(11)}`, borderRadius: r, border: '1px solid rgba(0,0,0,0.16)', background: 'rgba(255,255,255,0.86)', color: 'rgba(0,0,0,0.42)', fontSize: cqv(15), marginBottom: cqv(8), boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap' }
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none', fontFamily: fontVar(el.fontFamily), overflow: 'hidden' }}>
+          <div style={fieldStyle}>Your name</div>
+          <div style={fieldStyle}>Email</div>
+          <div style={{ ...fieldStyle, flex: 1, minHeight: cqv(36), marginBottom: cqv(8) }}>Message</div>
+          <div style={{ padding: `${cqv(9)} ${cqv(16)}`, borderRadius: r, background: el.fill || accent, color: '#fff', fontSize: cqv(15), fontWeight: 600, textAlign: 'center' }}>{el.text || 'Send message'}</div>
+        </div>
+      )
+    }
     const isBtn = el.type === 'button'
     const editing = editingId === el.id
     return (
@@ -1279,7 +1292,7 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
@@ -1289,6 +1302,7 @@ export default function CanvasEditor({
     if (el.type === 'icon') return 'Icon · ' + (el.icon || 'star')
     if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
+    if (el.type === 'form') return 'Contact form'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
     return 'Box'
@@ -1442,7 +1456,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact']] as [string, string][]).map(([key, lbl]) => (
+                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['contact', 'Email button']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
@@ -1627,7 +1641,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -1909,6 +1923,25 @@ export default function CanvasEditor({
                     <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
                   ))}
                 </div>
+              </>
+            )}
+            {sel.type === 'form' && (
+              <>
+                <div>
+                  <span style={labelCss}>Button text</span>
+                  <input value={sel.text || ''} onChange={e => update(sel.id, { text: e.target.value })} placeholder="Send message" style={{ ...inputCss, width: '100%', marginTop: 4 }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Button</span>
+                  {colorField(sel.fill, v => update(sel.id, { fill: v }), '#111111')}
+                  <span style={labelCss}>Text</span>
+                  {colorField(sel.color, v => update(sel.id, { color: v }), '#1a1612')}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Round</span>
+                  <input type="range" min={0} max={40} value={sel.radius ?? 10} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Visitors send you <b>Name · Email · Message</b>. Replies arrive in <b>Messages</b> in your dashboard — no email setup needed.</p>
               </>
             )}
             {sel.type === 'box' && (

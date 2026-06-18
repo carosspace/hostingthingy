@@ -4,6 +4,7 @@ import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
 import { canvasIcon } from './icons'
+import { ContactForm } from './ContactForm'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -36,6 +37,7 @@ type ViewProps = {
 
 export type RenderCtx = {
   accent: string
+  siteSlug: string
   navPages: { slug: string; label: string }[]
   pageHref: (slug: string) => string
   ctaHref: (el: CanvasElement) => string
@@ -66,6 +68,17 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
     return ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
   }
+  if (el.type === 'form')
+    return (
+      <ContactForm
+        slug={ctx.siteSlug}
+        accent={el.fill || ctx.accent}
+        label={el.text || 'Send message'}
+        radius={el.radius ?? 10}
+        fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined}
+        textColor={el.color || '#1a1612'}
+      />
+    )
   if (el.type === 'component') {
     const comp = (ctx.components ?? []).find(c => c.id === el.componentId)
     if (!comp || !comp.elements.length) return null
@@ -156,7 +169,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     backgroundPosition: 'center',
   }
 
-  const ctx: RenderCtx = { accent, navPages, pageHref, ctaHref, components: canvas.components }
+  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
   const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => renderInner(el, cqf, ctx, mobile)
 
   const desktopEls = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
@@ -220,7 +233,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
     backgroundSize: 'cover',
     backgroundPosition: 'center',
   }
-  const ctx: RenderCtx = { accent, navPages, pageHref, ctaHref, components: canvas.components }
+  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
   const ordered = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   // Footer-pinned elements always stack at the very bottom on phones.
   const els = [...ordered.filter(e => e.pin !== 'footer'), ...ordered.filter(e => e.pin === 'footer')]
@@ -253,6 +266,12 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
             <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
           )
           node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined}>{btn}</a> : btn}</div>
+        } else if (el.type === 'form') {
+          node = (
+            <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, minHeight: 260, opacity: o }}>
+              <ContactForm slug={siteSlug} accent={el.fill || accent} label={el.text || 'Send message'} radius={el.radius ?? 10} fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined} textColor={el.color || '#1a1612'} />
+            </div>
+          )
         } else if (el.type === 'menu') {
           const ms = el.menuStyle || 'plain'
           const mcol = el.color || accent

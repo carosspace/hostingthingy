@@ -1,11 +1,19 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
+import { unreadMessageCount } from '@/lib/sites/messages'
 
 // Every page inside the (portal) group is gated here: no session → /login.
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
+
+  let unread = 0
+  try {
+    unread = await unreadMessageCount()
+  } catch {
+    // messages table not migrated yet — show no badge
+  }
 
   return (
     <div className="bg-background min-h-screen text-parchment">
@@ -18,6 +26,14 @@ export default async function PortalLayout({ children }: { children: React.React
             <Link href="/dashboard" className="text-ash hover:text-gold transition-colors">Dashboard</Link>
             <Link href="/sites" className="text-ash hover:text-gold transition-colors">Sites</Link>
             <Link href="/bookings" className="text-ash hover:text-gold transition-colors">Bookings</Link>
+            <Link href="/messages" className="text-ash hover:text-gold transition-colors">
+              Messages
+              {unread > 0 && (
+                <span className="ml-1.5 inline-block bg-gold text-background rounded-full px-1.5 py-px text-[9px] leading-none align-middle">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
+            </Link>
             <Link href="/account" className="text-ash hover:text-gold transition-colors">Account</Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors">
