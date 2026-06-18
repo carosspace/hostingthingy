@@ -959,6 +959,8 @@ export default function CanvasEditor({
       if (mod && k === 'y') { e.preventDefault(); redo(); return }
       if (mod && k === 'a') { e.preventDefault(); setSelectedIds(elsRef.current.map(x => x.id)); return }
       if (mod && k === 'd' && selectedIds.length) { e.preventDefault(); duplicateMany(selectedIds); return }
+      // Group (Ctrl/Cmd+G) / ungroup (Ctrl/Cmd+Shift+G) the selection.
+      if (mod && k === 'g' && selectedIds.length > 1) { e.preventDefault(); if (e.shiftKey) ungroupSelected(); else groupSelected(); return }
       // Format painter: Ctrl/Cmd+Shift+C copies the look, Ctrl/Cmd+Shift+V paints it.
       if (mod && e.shiftKey && k === 'c' && selectedId) { e.preventDefault(); const el = elsRef.current.find(x => x.id === selectedId); if (el) copyStyle(el); return }
       if (mod && e.shiftKey && k === 'v' && styleClip.current && selectedIds.length) { e.preventDefault(); pasteStyle(selectedIds); return }
