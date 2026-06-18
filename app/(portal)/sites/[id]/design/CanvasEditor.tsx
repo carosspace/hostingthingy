@@ -1530,6 +1530,11 @@ export default function CanvasEditor({
             {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
           </div>
           {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
+          <div className="flex flex-wrap gap-1.5">
+            {([{ c: '#ffffff' }, { c: '#faf7f2' }, { c: '#f1ece3' }, { c: '#1a1612' }, { c: accent }, { g: { from: accent, to: '#1a1612', angle: 180 } }, { g: { from: '#ffffff', to: '#efe9dd', angle: 180 } }, { g: { from: accent, to: '#ffffff', angle: 180 } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
+              <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
+            ))}
+          </div>
           <input value={bgVideo} onChange={e => { setBgVideo(e.target.value); touch() }} placeholder="Background video URL (https://…mp4)" style={{ ...inputCss, fontSize: 11, marginTop: 4 }} />
         </div>
 
@@ -1661,6 +1666,19 @@ export default function CanvasEditor({
                     className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-2 rounded-sm disabled:opacity-50 shrink-0"
                   >{aiBusy ? '…' : '✨ AI'}</button>
                 </div>
+                {sel.type === 'text' && (
+                  <div className="flex flex-wrap gap-1">
+                    {([
+                      ['Heading', { fontSize: 48, fontFamily: 'display', italic: true, bold: false, lineHeight: 1.1, letterSpacing: 0 }],
+                      ['Subhead', { fontSize: 28, fontFamily: 'display', italic: false, bold: false, lineHeight: 1.2, letterSpacing: 0 }],
+                      ['Body', { fontSize: 18, fontFamily: 'body', italic: false, bold: false, lineHeight: 1.5, letterSpacing: 0 }],
+                      ['Caption', { fontSize: 13, fontFamily: 'label', italic: false, bold: false, lineHeight: 1.3, letterSpacing: 2 }],
+                      ['Quote', { fontSize: 26, fontFamily: 'display', italic: true, bold: false, lineHeight: 1.4, letterSpacing: 0 }],
+                    ] as [string, Partial<CanvasElement>][]).map(([lbl, st]) => (
+                      <button key={lbl} type="button" onClick={() => update(sel.id, st)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1 rounded-sm">{lbl}</button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>{editingMobile ? 'Size (phone)' : 'Size'}</span>
                   {editingMobile ? (
