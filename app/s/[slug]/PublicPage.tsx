@@ -242,7 +242,7 @@ export default function PublicPage({
         )}
       </header>
 
-      {page.canvas && page.canvas.elements.length > 0 ? (
+      {page.canvas && !page.canvasHidden && page.canvas.elements.length > 0 ? (
         <main className={`flex-1 ${contentPad}`} style={page.canvas.fontSystem ? (fontVars(page.canvas.fontSystem) as CSSProperties) : undefined}>
           <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={visiblePages.map(p => ({ slug: p.slug, label: p.navLabel || p.title }))} />
         </main>

@@ -908,11 +908,10 @@ function httpUrl(v: unknown): string | undefined {
   try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? s : undefined } catch { return undefined }
 }
 
-async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {
+// Patch one page's fields and re-mirror the home page's content onto the top level.
+async function patchCanvasPage(id: string, pageSlug: string, patch: Partial<SitePage>): Promise<void> {
   const base: SiteContent = (await getSite(id))?.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
-  // Keep the page's blocks so switching back to the block editor restores them; the
-  // public page renders the canvas only when it has elements, otherwise the blocks.
-  const updatedPages: SitePage[] = getPages(base).map(p => (p.slug === pageSlug ? { ...p, canvas } : p))
+  const updatedPages: SitePage[] = getPages(base).map(p => (p.slug === pageSlug ? { ...p, ...patch } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
   await saveSiteContent(id, {
     ...base,
@@ -923,6 +922,11 @@ async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | 
   })
   revalidatePath(`/sites/${id}/design`)
   revalidatePath(`/sites/${id}`)
+}
+
+async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {
+  // Setting a canvas also reveals it (canvasHidden=false) so the page shows it.
+  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: canvas ? false : undefined })
 }
 
 // Save the current free-canvas page.
@@ -950,9 +954,15 @@ export async function startCanvasAction(formData: FormData): Promise<void> {
   const pageSlug = String(formData.get('pageSlug') ?? '')
   const existing = (await getSite(id))?.content ?? null
   const page = getPages(existing).find(p => p.slug === pageSlug)
-  // Seed the new canvas from whatever the page already has (hand-written or AI-written
-  // blocks), so switching to the free canvas brings your content across as draggable
-  // elements instead of dropping you onto a blank page.
+  // If a canvas already exists (it was only hidden when you switched to blocks),
+  // just reveal it again — never re-seed over your saved canvas work.
+  if (page?.canvas) {
+    await patchCanvasPage(id, pageSlug, { canvasHidden: false })
+    return
+  }
+  // Otherwise seed a new canvas from whatever the page already has (hand-written or
+  // AI-written blocks), so switching to the free canvas brings your content across as
+  // draggable elements instead of dropping you onto a blank page.
   const hasContent = !!(page && (page.headline || page.subheadline || (page.sections && page.sections.length)))
   const canvas = hasContent && page
     ? sanitizeCanvas(canvasFromContent({
@@ -1002,13 +1012,14 @@ export async function searchStockPhotos(query: string): Promise<{ ok: boolean; e
   }
 }
 
-// Switch a page back to the block editor.
+// Switch a page back to the block editor — KEEP the canvas (just hide it) so you can
+// switch back without losing your free-canvas work.
 export async function clearCanvasAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
   if (!user) return
   const id = String(formData.get('id') ?? '')
   if (!id) return
-  await setPageCanvas(id, String(formData.get('pageSlug') ?? ''), undefined)
+  await patchCanvasPage(id, String(formData.get('pageSlug') ?? ''), { canvasHidden: true })
 }
 
 // --- Saved designs: keep up to MAX_SAVED_DESIGNS whole-site snapshots and switch between them ---

@@ -197,7 +197,7 @@ export default async function DesignPage({
         </details>
       )}
 
-      {current.canvas ? (
+      {current.canvas && !current.canvasHidden ? (
         <div className="space-y-3">
           <CanvasEditor
             key={'canvas:' + current.slug + ':' + site.updatedAt}
@@ -218,7 +218,9 @@ export default async function DesignPage({
           <form action={startCanvasAction} className="mb-1">
             <input type="hidden" name="id" value={site.id} />
             <input type="hidden" name="pageSlug" value={current.slug} />
-            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">✨ Switch this page to the free canvas (Canva-style) — brings your content across</button>
+            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">
+              {current.canvas ? '↩ Back to the free canvas (your layout is saved)' : '✨ Switch this page to the free canvas (Canva-style) — brings your content across'}
+            </button>
           </form>
           <LiveEditor
             key={current.slug + ':' + site.updatedAt}

@@ -337,6 +337,7 @@ export interface SitePage {
   heroImage?: string
   sections: SiteSection[]
   canvas?: PageCanvas // when present, this page is a free-canvas page (replaces sections)
+  canvasHidden?: boolean // the canvas is kept but the page is shown in block mode (so switching modes never loses work)
   ctaLabel?: string
   ctaType?: CtaType
   ctaHref?: string

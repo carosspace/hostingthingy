@@ -1280,7 +1280,7 @@ export default function CanvasEditor({
           <form action={clearCanvasAction} className="flex-1">
             <input type="hidden" name="id" value={siteId} />
             <input type="hidden" name="pageSlug" value={pageSlug} />
-            <button type="submit" onClick={e => { if (!confirm('Switch this page to the block editor? The free-canvas layout for this page will be removed.')) e.preventDefault() }} title="Switch this page back to the block editor" className="w-full font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">▤ Blocks</button>
+            <button type="submit" title="Switch this page to the block editor — your free-canvas layout is saved and you can switch back anytime" className="w-full font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">▤ Blocks</button>
           </form>
         </div>
         {aiPageOpen && (
