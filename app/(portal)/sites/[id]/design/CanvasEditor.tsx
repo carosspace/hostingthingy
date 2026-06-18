@@ -1233,10 +1233,18 @@ export default function CanvasEditor({
             ))}
           </div>
           {g.kind !== 'radial' && (
-            <div className="flex items-center gap-2">
-              <span style={labelCss}>Angle</span>
-              <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
-            </div>
+            <>
+              <div className="flex items-center gap-1.5">
+                <span style={labelCss}>Direction</span>
+                {([['↓', 180], ['↑', 0], ['→', 90], ['←', 270], ['↘', 135], ['↗', 45]] as [string, number][]).map(([sym, ang]) => (
+                  <button key={ang} type="button" title={ang === 180 ? 'Top → bottom' : ang === 0 ? 'Bottom → top' : `${ang}°`} onClick={() => onChange({ ...g, angle: ang })} style={{ width: 22, height: 22, fontSize: 13, lineHeight: '20px', textAlign: 'center', borderRadius: 3, border: `1px solid ${g.angle === ang ? accent : 'rgba(0,0,0,0.18)'}`, background: g.angle === ang ? accent : 'transparent', color: g.angle === ang ? '#fff' : '#555' }}>{sym}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Angle</span>
+                <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
+              </div>
+            </>
           )}
         </>
       )}
@@ -1311,32 +1319,44 @@ export default function CanvasEditor({
         )}
         {lib && panelTab === 'elements' && (
           <div className="space-y-3">
-            {([
-              ['Media & buttons', [['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact'], ['menu', 'Page menu']]],
-              ['Shapes', [['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']]],
-            ] as [string, [string, string][]][]).map(([group, items]) => (
-              <div key={group}>
-                <p style={labelCss}>{group}</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {items.map(([key, lbl]) => (
-                    <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
-                  ))}
-                </div>
+            <div>
+              <p style={labelCss}>Page menu</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <button type="button" onClick={() => place(PRESETS.menu)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Page menu</button>
               </div>
-            ))}
+            </div>
+            <div>
+              <p style={labelCss}>Sections</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {([['header', 'Header'], ['footer', 'Footer'], ['banner', 'Banner'], ['bar', 'Bar']] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p style={labelCss}>Shapes</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {([['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']] as [string, string][]).map(([key, lbl]) => (
+                  <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p style={labelCss}>Media &amp; buttons</p>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['contact', 'Contact']] as [string, string][]).map(([key, lbl]) => (
+                  <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                ))}
+                {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                ))}
+              </div>
+            </div>
             <div>
               <p style={labelCss}>Icons</p>
               <div className="flex flex-wrap gap-1 mt-1" style={{ maxHeight: 156, overflowY: 'auto' }}>
                 {ICON_GROUPS.flatMap(g => g.keys).map(k => (
                   <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: '#111111' })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#3a2e20' }}>{canvasIcon(k)}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p style={labelCss}>Starters</p>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['header', 'Header'], ['footer', 'Footer'], ['banner', 'Banner'], ['bar', 'Bar'], ['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
-                  <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
               </div>
             </div>
@@ -1750,6 +1770,16 @@ export default function CanvasEditor({
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Colour</span>
                   {colorField(sel.color, v => update(sel.id, { color: v }), accent)}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span style={labelCss}>Icon link</span>
+                  <select value={sel.ctaType || 'none'} onChange={e => update(sel.id, { ctaType: e.target.value as CtaType })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                    <option value="none">No link</option>
+                    <option value="link">Web / social URL</option>
+                    <option value="email">Email me</option>
+                    <option value="booking">Booking page</option>
+                  </select>
+                  {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://instagram.com/…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />}
                 </div>
                 <p style={labelCss}>Pick an icon</p>
                 <div className="flex flex-wrap gap-1" style={{ maxHeight: 170, overflowY: 'auto' }}>

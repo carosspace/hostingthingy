@@ -61,8 +61,11 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         <path d={shapePath(el.shape)} style={{ fill: el.fill || ctx.accent }} />
       </svg>
     )
-  if (el.type === 'icon')
-    return <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
+  if (el.type === 'icon') {
+    const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
+    const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
+    return ih ? <a href={ih} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
+  }
   if (el.type === 'component') {
     const comp = (ctx.components ?? []).find(c => c.id === el.componentId)
     if (!comp || !comp.elements.length) return null
@@ -237,8 +240,9 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'shape') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
         } else if (el.type === 'icon') {
-          node = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
-
+          const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
+          const ih = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
+          node = ih ? <a href={ih} data-jump={el.anchorTo || undefined} style={{ display: 'inline-block' }}>{ic}</a> : ic
         } else if (el.type === 'component') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{renderInner(el, p => `${p}px`, ctx)}</div>
         } else if (el.type === 'box') {
