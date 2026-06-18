@@ -117,6 +117,8 @@ export default function CanvasEditor({
   const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
+  const [zoom, setZoom] = useState(1) // desktop canvas zoom; pan by scrolling the viewport
+  const setZoomClamped = (z: number) => setZoom(Math.min(3, Math.max(0.25, Math.round(z * 100) / 100)))
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -1896,7 +1898,16 @@ export default function CanvasEditor({
             </div>
           </div>
         ) : (
-          <div className={`rounded-sm overflow-hidden border border-gold/15 mx-auto ${!editingMobile && pageWidth === 'contained' ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSystem), maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
+          <>
+            {!editingMobile && (
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <button type="button" onClick={() => setZoomClamped(zoom - 0.1)} title="Zoom out" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>−</button>
+                <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="font-label text-[10px] tracking-[1px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 54, height: 24 }}>{Math.round(zoom * 100)}%</button>
+                <button type="button" onClick={() => setZoomClamped(zoom + 0.1)} title="Zoom in" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>+</button>
+              </div>
+            )}
+          <div onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
+          <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSystem), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}
@@ -1945,6 +1956,8 @@ export default function CanvasEditor({
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
             </div>
           </div>
+          </div>
+          </>
         )}
       </div>
 
