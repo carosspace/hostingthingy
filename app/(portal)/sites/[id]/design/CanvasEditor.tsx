@@ -1746,6 +1746,7 @@ export default function CanvasEditor({
                       <option value="link">Custom link</option>
                     </select>
                     {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={{ ...inputCss, width: 130 }} />}
+                    {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                   </div>
                 )}
               </>
@@ -1764,6 +1765,7 @@ export default function CanvasEditor({
                   </select>
                 </div>
                 {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={inputCss} />}
+                {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ alignSelf: 'flex-start', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                 {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
@@ -1774,6 +1776,7 @@ export default function CanvasEditor({
                   <button type="button" onClick={() => setStockId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Stock photos</button>
                   {sel.src && <button type="button" onClick={() => setCropId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Crop</button>}
                 </div>
+                <input value={sel.alt || ''} onChange={e => update(sel.id, { alt: e.target.value })} placeholder="Describe this image (alt text — for SEO &amp; screen readers)" style={{ ...inputCss, fontSize: 12 }} />
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Fit</span>
                   <select value={sel.fit || 'cover'} onChange={e => update(sel.id, { fit: e.target.value as ImageFit })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
@@ -1898,6 +1901,7 @@ export default function CanvasEditor({
                     <option value="booking">Booking page</option>
                   </select>
                   {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://instagram.com/…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />}
+                  {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                 </div>
                 <p style={labelCss}>Pick an icon</p>
                 <div className="flex flex-wrap gap-1" style={{ maxHeight: 170, overflowY: 'auto' }}>

@@ -51,7 +51,7 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   if (el.type === 'image')
     return el.src ? (
       /* eslint-disable-next-line @next/next/no-img-element */
-      <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
+      <img src={el.src} alt={el.alt || ''} loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', height: '100%', objectFit: el.fit || 'cover', borderRadius: cqf(el.radius || 0), display: 'block', filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
     ) : null
   if (el.type === 'carousel')
     return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
@@ -64,7 +64,7 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   if (el.type === 'icon') {
     const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
     const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
-    return ih ? <a href={ih} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
+    return ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
   }
   if (el.type === 'component') {
     const comp = (ctx.components ?? []).find(c => c.id === el.componentId)
@@ -130,7 +130,7 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   )
   const h = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
   return h ? (
-    <a href={h} data-jump={el.anchorTo || undefined} style={{ display: 'block', width: '100%', height: '100%' }}>
+    <a href={h} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>
       {content}
     </a>
   ) : content
@@ -233,7 +233,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         if (el.type === 'image') {
           node = el.src ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={el.src} alt="" loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
+            <img src={el.src} alt={el.alt || ''} loading="lazy" decoding="async" data-lightbox={el.lightbox ? el.src : undefined} style={{ width: '100%', borderRadius: el.radius || 0, objectFit: el.fit || 'cover', display: 'block', opacity: o, filter: filterCss(el.adjust), boxShadow: shadowCss(el.shadow), cursor: el.lightbox ? 'zoom-in' : undefined }} />
           ) : null
         } else if (el.type === 'carousel') {
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
@@ -242,7 +242,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'icon') {
           const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
           const ih = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
-          node = ih ? <a href={ih} data-jump={el.anchorTo || undefined} style={{ display: 'inline-block' }}>{ic}</a> : ic
+          node = ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'inline-block' }}>{ic}</a> : ic
         } else if (el.type === 'component') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{renderInner(el, p => `${p}px`, ctx)}</div>
         } else if (el.type === 'box') {
@@ -252,7 +252,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           const btn = (
             <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
           )
-          node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined}>{btn}</a> : btn}</div>
+          node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined}>{btn}</a> : btn}</div>
         } else if (el.type === 'menu') {
           const ms = el.menuStyle || 'plain'
           const mcol = el.color || accent

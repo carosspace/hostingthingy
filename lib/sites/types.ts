@@ -249,10 +249,12 @@ export interface CanvasElement {
   dropCap?: boolean // enlarge the first letter of a text block
   href?: string
   ctaType?: CtaType
+  newTab?: boolean // open this element's link in a new browser tab
   anchorTo?: string // id of another element on the page to smooth-scroll to (a "jump link")
   // image
   src?: string
   fit?: ImageFit
+  alt?: string // image alt text (accessibility + SEO)
   adjust?: ImageAdjust // non-destructive photo adjustments (CSS filter)
   lightbox?: boolean // clicking the image opens it full-screen
   // carousel
