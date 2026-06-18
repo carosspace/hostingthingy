@@ -217,6 +217,35 @@ export async function aiSectionAction(args: {
   }
 }
 
+// Write/redesign a whole free-canvas page with AI from a plain-language description.
+// Returns a laid-out canvas the editor drops in (undoable) — it does NOT persist, so
+// the owner reviews/tweaks and saves normally.
+export async function aiCanvasAction(args: {
+  siteId: string
+  description: string
+}): Promise<{ ok: boolean; canvas?: PageCanvas }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(args.siteId)
+  if (!site) return { ok: false }
+  const desc = String(args.description ?? '').trim()
+  if (!desc) return { ok: false }
+  try {
+    const gen = await generateSiteContent(site.name, desc)
+    const canvas = sanitizeCanvas(canvasFromContent({
+      headline: gen.headline,
+      subheadline: gen.subheadline,
+      heroImage: gen.heroImage,
+      sections: gen.sections,
+      theme: gen.theme,
+      accent: site.content?.accentColor,
+    }))
+    return { ok: true, canvas }
+  } catch {
+    return { ok: false }
+  }
+}
+
 // Rewrite a single text element on the free canvas with AI. Returns the new text so
 // the editor can drop it straight onto the element (no full save round-trip).
 export async function aiTextAction(args: {

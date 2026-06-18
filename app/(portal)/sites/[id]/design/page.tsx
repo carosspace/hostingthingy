@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
-import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction, startCanvasAction, clearCanvasAction } from '../../actions'
+import { generateSiteAction, addPageAction, removePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
 import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
@@ -105,9 +105,9 @@ export default async function DesignPage({
         </div>
 
         {/* Edit the menu: the current page's settings + extra (non-page) links */}
-        <details key={current.slug} className="border border-gold/15 rounded-sm p-4">
+        <details key={current.slug} open className="border border-gold/15 rounded-sm p-4">
           <summary className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 cursor-pointer">
-            Edit your menu — page names, labels, order &amp; extra links
+            {current.navLabel || current.title || 'Home'} — page settings
           </summary>
           <div className="mt-3 space-y-3">
             <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">
@@ -174,28 +174,28 @@ export default async function DesignPage({
         </details>
       </div>
 
-      <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
-        <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
-        <p className="font-body text-ash/70 text-sm mt-3 mb-3">
-          {current.canvas
-            ? 'Describe this page and Claude lays it out on your canvas — then drag, restyle and rearrange it. (This replaces what’s on the canvas now.)'
-            : 'Describe this page and Claude writes it — then edit it right here.'}
-        </p>
-        <form action={generateSiteAction} className="space-y-3">
-          <input type="hidden" name="id" value={site.id} />
-          <input type="hidden" name="pageSlug" value={current.slug} />
-          <textarea
-            name="description"
-            required
-            rows={3}
-            placeholder="e.g. I run Anima Temple — Reiki, soul readings, and meditation circles in Lisbon."
-            className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
-          />
-          <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">
-            Generate ✨
-          </button>
-        </form>
-      </details>
+      {/* On a free-canvas page the "Write with AI" + block/canvas switch live inside the
+          editor (top-left). On a block page they stay here. */}
+      {!current.canvas && (
+        <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
+          <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
+          <p className="font-body text-ash/70 text-sm mt-3 mb-3">Describe this page and Claude writes it — then edit it right here.</p>
+          <form action={generateSiteAction} className="space-y-3">
+            <input type="hidden" name="id" value={site.id} />
+            <input type="hidden" name="pageSlug" value={current.slug} />
+            <textarea
+              name="description"
+              required
+              rows={3}
+              placeholder="e.g. I run Anima Temple — Reiki, soul readings, and meditation circles in Lisbon."
+              className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
+            />
+            <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">
+              Generate ✨
+            </button>
+          </form>
+        </details>
+      )}
 
       {current.canvas ? (
         <div className="space-y-3">
@@ -212,11 +212,6 @@ export default async function DesignPage({
             navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
             initial={current.canvas}
           />
-          <form action={clearCanvasAction}>
-            <input type="hidden" name="id" value={site.id} />
-            <input type="hidden" name="pageSlug" value={current.slug} />
-            <button className="font-label text-[9px] tracking-[2px] uppercase text-ash/50 hover:text-gold">← Switch this page back to the block editor</button>
-          </form>
         </div>
       ) : (
         <>

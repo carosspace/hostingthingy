@@ -7,7 +7,7 @@ import { resizeToDataUrl } from '@/lib/sites/image'
 import { MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction } from '../../actions'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
@@ -113,6 +113,9 @@ export default function CanvasEditor({
   // Which tool category the left panel shows (Canva-style). Selecting an element
   // overrides this with its properties (the inspector); deselect to see a tab again.
   const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers'>('design')
+  const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
+  const [aiPageDesc, setAiPageDesc] = useState('')
+  const [aiPageBusy, setAiPageBusy] = useState(false)
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -726,6 +729,29 @@ export default function CanvasEditor({
     dragUploadSrc.current = null
     void placeUpload(src, e.clientX, e.clientY)
   }
+  // Write/redesign this whole page with AI, then drop the laid-out result onto the
+  // canvas (undoable — the owner reviews and saves). Keeps brand palette/fonts/uploads.
+  const runAiCanvas = async () => {
+    if (aiPageBusy) return
+    const description = aiPageDesc.trim()
+    if (!description) return
+    setAiPageBusy(true)
+    try {
+      const r = await aiCanvasAction({ siteId, description })
+      if (r.ok && r.canvas) {
+        snapshot(true)
+        setEls(r.canvas.elements)
+        if (r.canvas.bg) setBg(r.canvas.bg)
+        setSelectedIds([])
+        setEditingId('')
+        setAiPageOpen(false)
+        setAiPageDesc('')
+        touch()
+      }
+    } finally {
+      setAiPageBusy(false)
+    }
+  }
   // Rewrite a text/button element's words with AI from a plain-language instruction.
   const runAiText = async (id: string, instruction: string) => {
     if (aiBusy) return
@@ -1160,6 +1186,24 @@ export default function CanvasEditor({
         </button>
         {saveError && (
           <p className="font-body text-[11px] leading-relaxed rounded-sm px-2.5 py-2" style={{ color: '#8a2b1d', background: '#fbe9e6', border: '1px solid rgba(179,64,47,0.3)' }}>{saveError}</p>
+        )}
+        {/* Write-with-AI + switch to the block editor */}
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => setAiPageOpen(o => !o)} title="Write this page with AI" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border px-2 py-1.5 rounded-sm" style={{ borderColor: aiPageOpen ? accent : 'rgba(168,92,54,0.35)', background: aiPageOpen ? accent : 'transparent', color: aiPageOpen ? '#fff' : accent }}>✨ AI</button>
+          <form action={clearCanvasAction} className="flex-1">
+            <input type="hidden" name="id" value={siteId} />
+            <input type="hidden" name="pageSlug" value={pageSlug} />
+            <button type="submit" onClick={e => { if (!confirm('Switch this page to the block editor? The free-canvas layout for this page will be removed.')) e.preventDefault() }} title="Switch this page back to the block editor" className="w-full font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">▤ Blocks</button>
+          </form>
+        </div>
+        {aiPageOpen && (
+          <div className="rounded-sm p-2.5 flex flex-col gap-2" style={{ background: 'rgba(168,92,54,0.07)', border: '1px solid rgba(168,92,54,0.25)' }}>
+            <textarea value={aiPageDesc} onChange={e => setAiPageDesc(e.target.value)} rows={3} placeholder="Describe this page — e.g. Reiki, soul readings and meditation circles in Lisbon." style={{ ...inputCss, resize: 'none', fontSize: 12 }} />
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={aiPageBusy || !aiPageDesc.trim()} onClick={runAiCanvas} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{aiPageBusy ? 'Writing…' : '✨ Generate'}</button>
+              <span className="font-body text-ash/50 text-[10px] leading-tight">Lays it out on the canvas — replaces what&rsquo;s here (undoable).</span>
+            </div>
+          </div>
         )}
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
