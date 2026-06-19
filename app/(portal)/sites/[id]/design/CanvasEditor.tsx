@@ -1501,40 +1501,77 @@ export default function CanvasEditor({
   const colorField = (value: string | undefined, onChange: (v: string) => void, fallback: string) => (
     <ColorField value={value} onChange={onChange} fallback={fallback} palette={palette} />
   )
-  // A compact on/off two-stop gradient editor, reused for boxes, buttons and the page background.
-  const gradientControls = (g: Gradient | null | undefined, onChange: (g: Gradient | null) => void) => (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <span style={labelCss}>Gradient</span>
-        <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? accent : 'rgba(0,0,0,0.15)'}`, background: g ? accent : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
-      </div>
-      {g && (
-        <>
-          <div className="flex items-center gap-2">
-            <input type="color" value={g.from} onChange={e => onChange({ ...g, from: e.target.value })} style={swatch} title="From" />
-            <input type="color" value={g.to} onChange={e => onChange({ ...g, to: e.target.value })} style={swatch} title="To" />
-            {(['linear', 'radial', 'conic'] as const).map(k => (
-              <button key={k} type="button" title={k} onClick={() => onChange({ ...g, kind: k === 'linear' ? undefined : k })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 6px', borderRadius: 3, border: `1px solid ${(g.kind || 'linear') === k ? accent : 'rgba(0,0,0,0.15)'}`, background: (g.kind || 'linear') === k ? accent : 'transparent', color: (g.kind || 'linear') === k ? '#fff' : '#666' }}>{k[0]}</button>
-            ))}
-          </div>
-          {g.kind !== 'radial' && (
+  // A compact on/off multi-stop gradient editor, reused for boxes, buttons, text and
+  // the page background. 2 stops use from/to; 3-6 stops use an explicit `stops` list
+  // (kept in user order; gradientCss sorts by position at render time).
+  const gradStopsOf = (gr: Gradient): { color: string; at: number }[] =>
+    gr.stops && gr.stops.length >= 2 ? gr.stops : [{ color: gr.from, at: 0 }, { color: gr.to, at: 100 }]
+  const gradientControls = (g: Gradient | null | undefined, onChange: (g: Gradient | null) => void) => {
+    const writeStops = (gr: Gradient, next: { color: string; at: number }[]) => {
+      const clean = next.slice(0, 6)
+      if (clean.length <= 2) onChange({ ...gr, from: clean[0]?.color || gr.from, to: clean[1]?.color || clean[0]?.color || gr.to, stops: undefined })
+      else onChange({ ...gr, stops: clean, from: clean[0].color, to: clean[clean.length - 1].color })
+    }
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span style={labelCss}>Gradient</span>
+          <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? accent : 'rgba(0,0,0,0.15)'}`, background: g ? accent : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
+        </div>
+        {g && (() => {
+          const stops = gradStopsOf(g)
+          const multi = stops.length > 2
+          return (
             <>
-              <div className="flex items-center gap-1.5">
-                <span style={labelCss}>Direction</span>
-                {([['↓', 180], ['↑', 0], ['→', 90], ['←', 270], ['↘', 135], ['↗', 45]] as [string, number][]).map(([sym, ang]) => (
-                  <button key={ang} type="button" title={ang === 180 ? 'Top → bottom' : ang === 0 ? 'Bottom → top' : `${ang}°`} onClick={() => onChange({ ...g, angle: ang })} style={{ width: 22, height: 22, fontSize: 13, lineHeight: '20px', textAlign: 'center', borderRadius: 3, border: `1px solid ${g.angle === ang ? accent : 'rgba(0,0,0,0.18)'}`, background: g.angle === ang ? accent : 'transparent', color: g.angle === ang ? '#fff' : '#555' }}>{sym}</button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {stops.map((s, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <input type="color" value={s.color} onChange={e => writeStops(g, stops.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))} style={swatch} title={`Stop ${i + 1}`} />
+                    {stops.length > 2 && (
+                      <button type="button" onClick={() => writeStops(g, stops.filter((_, j) => j !== i))} title="Remove stop" style={{ position: 'absolute', top: -5, right: -5, width: 14, height: 14, borderRadius: 999, background: '#fff', border: '1px solid rgba(0,0,0,0.25)', fontSize: 9, lineHeight: '12px', color: '#888' }}>×</button>
+                    )}
+                  </div>
                 ))}
+                {stops.length < 6 && (
+                  <button type="button" onClick={() => writeStops(g, [...stops, { color: accent, at: 50 }])} title="Add a colour stop" style={{ width: 24, height: 24, borderRadius: 4, border: '1px dashed rgba(0,0,0,0.3)', color: '#888', fontSize: 15, lineHeight: '20px' }}>+</button>
+                )}
+                <div className="flex items-center gap-1 ml-auto">
+                  {(['linear', 'radial', 'conic'] as const).map(k => (
+                    <button key={k} type="button" title={k} onClick={() => onChange({ ...g, kind: k === 'linear' ? undefined : k })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 6px', borderRadius: 3, border: `1px solid ${(g.kind || 'linear') === k ? accent : 'rgba(0,0,0,0.15)'}`, background: (g.kind || 'linear') === k ? accent : 'transparent', color: (g.kind || 'linear') === k ? '#fff' : '#666' }}>{k[0]}</button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span style={labelCss}>Angle</span>
-                <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
-              </div>
+              {multi && (
+                <div className="space-y-1">
+                  {stops.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span style={{ width: 13, height: 13, borderRadius: 3, background: s.color, border: '1px solid rgba(0,0,0,0.2)', flex: 'none' }} />
+                      <input type="range" min={0} max={100} value={s.at} onChange={e => writeStops(g, stops.map((x, j) => (j === i ? { ...x, at: Number(e.target.value) } : x)))} style={{ flex: 1 }} />
+                      <span style={{ fontSize: 10, color: '#888', width: 30 }}>{s.at}%</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {g.kind !== 'radial' && (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span style={labelCss}>Direction</span>
+                    {([['↓', 180], ['↑', 0], ['→', 90], ['←', 270], ['↘', 135], ['↗', 45]] as [string, number][]).map(([sym, ang]) => (
+                      <button key={ang} type="button" title={ang === 180 ? 'Top → bottom' : ang === 0 ? 'Bottom → top' : `${ang}°`} onClick={() => onChange({ ...g, angle: ang })} style={{ width: 22, height: 22, fontSize: 13, lineHeight: '20px', textAlign: 'center', borderRadius: 3, border: `1px solid ${g.angle === ang ? accent : 'rgba(0,0,0,0.18)'}`, background: g.angle === ang ? accent : 'transparent', color: g.angle === ang ? '#fff' : '#555' }}>{sym}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span style={labelCss}>Angle</span>
+                    <input type="range" min={0} max={360} value={g.angle} onChange={e => onChange({ ...g, angle: Number(e.target.value) })} style={{ flex: 1 }} />
+                  </div>
+                </>
+              )}
             </>
-          )}
-        </>
-      )}
-    </div>
-  )
+          )
+        })()}
+      </div>
+    )
+  }
 
   return (
     <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
@@ -1869,7 +1906,7 @@ export default function CanvasEditor({
           </div>
           {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
           <div className="flex flex-wrap gap-1.5">
-            {([{ c: '#ffffff' }, { c: '#faf7f2' }, { c: '#f1ece3' }, { c: '#1a1612' }, { c: accent }, { g: { from: accent, to: '#1a1612', angle: 180 } }, { g: { from: '#ffffff', to: '#efe9dd', angle: 180 } }, { g: { from: accent, to: '#ffffff', angle: 180 } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
+            {([{ c: '#ffffff' }, { c: '#faf7f2' }, { c: '#f1ece3' }, { c: '#1a1612' }, { c: accent }, { g: { from: accent, to: '#1a1612', angle: 180 } }, { g: { from: '#ffffff', to: '#efe9dd', angle: 180 } }, { g: { from: accent, to: '#ffffff', angle: 180 } }, { g: { from: '#fbeaf0', to: '#e4f0fb', angle: 135, stops: [{ color: '#fbeaf0', at: 0 }, { color: '#f3ecfa', at: 50 }, { color: '#e4f0fb', at: 100 }] } }, { g: { from: '#fce9d8', to: '#e7f3ea', angle: 160, stops: [{ color: '#fce9d8', at: 0 }, { color: '#f7e3ec', at: 45 }, { color: '#e7f3ea', at: 100 }] } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
               <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
             ))}
           </div>

@@ -199,14 +199,23 @@ export function shapePath(k?: ShapeKind): string {
   }
 }
 
-// A two-stop gradient (used for box/button fills and the page background).
+// A gradient (used for box/button/text fills and the page background). `from`/`to`
+// describe the simple two-stop case; `stops` (when present, 2-6 entries) describes a
+// multi-stop gradient and takes precedence. `from`/`to` are kept in sync with the
+// first/last stop so older readers and the two-stop fallback keep working.
 export type GradientKind = 'linear' | 'radial' | 'conic'
 export const GRADIENT_KINDS: GradientKind[] = ['linear', 'radial', 'conic']
+export const MAX_GRADIENT_STOPS = 6
+export interface GradientStop {
+  color: string // hex
+  at: number // position along the gradient, 0-100
+}
 export interface Gradient {
   from: string // hex
   to: string // hex
   angle: number // degrees 0-360 (the angle for linear/conic)
   kind?: GradientKind // linear (default), radial, or conic
+  stops?: GradientStop[] // 2-6 colour stops; overrides from/to when present
 }
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
 export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
@@ -258,13 +267,23 @@ export function shadowCss(s?: ShadowKind): string | undefined {
   }
 }
 
-// CSS for a gradient, or undefined when it isn't a valid two-stop gradient.
+// CSS for a gradient, or undefined when it isn't valid. Prefers the multi-stop list
+// (sorted by position so the rendered order is always correct, regardless of edit
+// order); falls back to the two-stop from/to.
 export function gradientCss(g?: Gradient | null): string | undefined {
-  if (!g || !g.from || !g.to) return undefined
+  if (!g) return undefined
+  let stopStr: string
+  if (g.stops && g.stops.length >= 2) {
+    stopStr = [...g.stops].sort((p, q) => p.at - q.at).map(s => `${s.color} ${s.at}%`).join(', ')
+  } else if (g.from && g.to) {
+    stopStr = `${g.from}, ${g.to}`
+  } else {
+    return undefined
+  }
   const a = g.angle ?? 90
-  if (g.kind === 'radial') return `radial-gradient(circle, ${g.from}, ${g.to})`
-  if (g.kind === 'conic') return `conic-gradient(from ${a}deg, ${g.from}, ${g.to})`
-  return `linear-gradient(${a}deg, ${g.from}, ${g.to})`
+  if (g.kind === 'radial') return `radial-gradient(circle, ${stopStr})`
+  if (g.kind === 'conic') return `conic-gradient(from ${a}deg, ${stopStr})`
+  return `linear-gradient(${a}deg, ${stopStr})`
 }
 
 export interface CanvasElement {

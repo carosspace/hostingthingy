@@ -843,7 +843,23 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const to = hex(g?.to)
     if (!from || !to) return undefined
     const kind = (['linear', 'radial', 'conic'].includes(String(g?.kind)) ? String(g?.kind) : undefined) as Gradient['kind']
-    return { from, to, angle: num(g?.angle, 0, 360, 90), kind: kind && kind !== 'linear' ? kind : undefined }
+    // Optional multi-stop list: up to 6 stops, each a valid hex colour + clamped position.
+    // Only kept when at least 3 stops survive validation — exactly two stops always
+    // collapse to the from/to model, matching the editor's writeStops, so `stops`
+    // present ⟺ a true 3+-stop gradient (no ambiguous 2-entry list can persist).
+    let stops: { color: string; at: number }[] | undefined
+    if (Array.isArray(g?.stops)) {
+      const parsed = (g!.stops as unknown[])
+        .map(s => {
+          const o = s && typeof s === 'object' ? (s as Record<string, unknown>) : {}
+          const c = hex(o.color)
+          return c ? { color: c, at: num(o.at, 0, 100, 50) } : null
+        })
+        .filter((s): s is { color: string; at: number } => s !== null)
+        .slice(0, 6)
+      if (parsed.length >= 3) stops = parsed
+    }
+    return { from, to, angle: num(g?.angle, 0, 360, 90), kind: kind && kind !== 'linear' ? kind : undefined, stops }
   }
   const blend = (v: unknown) => {
     const s = String(v ?? '')
