@@ -1,10 +1,12 @@
 import type { MetadataRoute } from 'next'
+import { siteBaseUrl } from '@/lib/sites/baseurl'
 
-const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.animatemple.com'
+export const dynamic = 'force-dynamic'
 
 // Let search engines crawl the published sites (/s/...) but keep the owner
 // dashboard and auth routes out of the index.
 export default function robots(): MetadataRoute.Robots {
+  const BASE = siteBaseUrl()
   return {
     rules: {
       userAgent: '*',

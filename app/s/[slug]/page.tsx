@@ -3,11 +3,10 @@ import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getPages } from '@/lib/sites/types'
 import { jsonLd } from '@/lib/sites/jsonld'
+import { siteBaseUrl } from '@/lib/sites/baseurl'
 import PublicPage from './PublicPage'
 
 export const dynamic = 'force-dynamic'
-
-const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.animatemple.com'
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const site = await getPublicSite(params.slug)
@@ -38,7 +37,7 @@ export default async function HomePage({ params }: { params: { slug: string } })
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(site, home, BASE) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(site, home, siteBaseUrl()) }} />
       <PublicPage
         siteSlug={site.slug}
         siteName={site.name}

@@ -1,13 +1,13 @@
 import type { MetadataRoute } from 'next'
 import { listPublicPages } from '@/lib/sites/public'
+import { siteBaseUrl } from '@/lib/sites/baseurl'
 
 export const dynamic = 'force-dynamic'
-
-const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.animatemple.com'
 
 // Lists every live site and its pages. Until migration 008 is run (or if the DB
 // is unreachable) it degrades to just the platform root.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const BASE = siteBaseUrl()
   let sites: Awaited<ReturnType<typeof listPublicPages>> = []
   try {
     sites = await listPublicPages()
