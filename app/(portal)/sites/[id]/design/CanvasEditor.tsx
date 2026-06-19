@@ -9,7 +9,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -581,6 +581,52 @@ export default function CanvasEditor({
     touch()
   }
   const useAutoMobile = () => { setMobileCustom(false); setSelectedIds([]); touch() }
+
+  // AI arrange-for-phone: Claude decides order/emphasis/hide per element; the editor lays
+  // them out as a clean single-column stack (positions computed here, so no overlap/overflow).
+  const [mobileBusy, setMobileBusy] = useState(false)
+  const aiArrangeMobile = async () => {
+    if (mobileBusy) return
+    const visible = elsRef.current.filter(e => !e.hidden)
+    if (!visible.length) { alert('Add some elements first.'); return }
+    setMobileBusy(true)
+    try {
+      const res = await mobileLayoutAction({ siteId, items: visible.map(e => ({ id: e.id, type: e.type, text: (e.text || '').replace(/\s+/g, ' ').slice(0, 80), w: Math.round(e.w), h: Math.round(e.h) })) })
+      if ('items' in res && res.items.length) {
+        const hint = new Map(res.items.map(it => [it.id, it]))
+        snapshot(true)
+        const margin = 20, gap = 18
+        const normalW = MOBILE_W - margin * 2
+        const smallW = Math.round(normalW * 0.62)
+        const ordered = [...visible].sort((a, b) => {
+          const oa = hint.get(a.id)?.order ?? 9999, ob = hint.get(b.id)?.order ?? 9999
+          return oa - ob || (a.pin === 'footer' ? 1 : 0) - (b.pin === 'footer' ? 1 : 0) || a.y - b.y
+        })
+        let y = 40
+        const m = new Map<string, Partial<CanvasElement>>()
+        for (const e of ordered) {
+          const h = hint.get(e.id)
+          if (h?.hide) { m.set(e.id, { mHidden: true }); continue }
+          const isBand = e.w >= CANVAS_W * 0.8
+          const mw = h?.emphasis === 'full' || isBand ? MOBILE_W : h?.emphasis === 'small' ? smallW : normalW
+          const mh = Math.max(20, Math.round(e.h * (mw / Math.max(1, e.w))))
+          const mx = mw >= MOBILE_W ? 0 : Math.round((MOBILE_W - mw) / 2)
+          m.set(e.id, { mx, my: y, mw, mh, mHidden: undefined })
+          y += mh + gap
+        }
+        setEls(p => p.map(e => (m.has(e.id) ? { ...e, ...m.get(e.id) } : e)))
+        setMobileCustom(true)
+        setDevice('mobile')
+        touch()
+      } else {
+        alert('Couldn’t arrange for phone — please try again.')
+      }
+    } catch {
+      alert('Couldn’t arrange for phone — please try again.')
+    } finally {
+      setMobileBusy(false)
+    }
+  }
 
   // --- Reusable components ---
   // Turn the current selection into a reusable component + replace it with one instance.
@@ -2832,12 +2878,14 @@ export default function CanvasEditor({
             {mobileCustom ? (
               <>
                 <span className="font-body text-ash/60 text-[11px]">Custom phone layout — drag, resize and arrange just like desktop.</span>
+                <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange'}</button>
                 <button type="button" onClick={seedMobile} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm">↺ Re-stack</button>
                 <button type="button" onClick={useAutoMobile} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2 py-1">Back to automatic</button>
               </>
             ) : (
               <>
                 <span className="font-body text-ash/60 text-[11px]">Your phone layout is automatic — everything stacks neatly top to bottom.</span>
+                <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-3 py-1.5 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange for phone'}</button>
                 <button type="button" onClick={seedMobile} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm">✏️ Customise the phone layout</button>
               </>
             )}

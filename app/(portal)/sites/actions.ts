@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, aiMobileLayout, type GeneratedPage, type DesignCritique, type MobileEmphasis } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -336,6 +336,24 @@ export async function critiqueDesignAction(args: { siteId: string; summary: stri
   if (!summary) return { error: 'empty' }
   try {
     return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000), brandVoice: site.content?.brandVoice })
+  } catch {
+    return { error: 'failed' }
+  }
+}
+
+// Decide a phone layout for the canvas (the editor applies the hints as a clean stack).
+export async function mobileLayoutAction(args: { siteId: string; items: { id: string; type: string; text: string; w: number; h: number }[] }): Promise<{ items: { id: string; order: number; emphasis: MobileEmphasis; hide: boolean }[] } | { error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'auth' }
+  const site = await getSite(args.siteId)
+  if (!site) return { error: 'notfound' }
+  const items = (Array.isArray(args.items) ? args.items : [])
+    .map(it => ({ id: String(it?.id ?? '').slice(0, 40), type: String(it?.type ?? '').slice(0, 20), text: String(it?.text ?? '').slice(0, 80), w: Math.max(0, Math.round(Number(it?.w) || 0)), h: Math.max(0, Math.round(Number(it?.h) || 0)) }))
+    .filter(it => it.id)
+    .slice(0, 40)
+  if (!items.length) return { error: 'empty' }
+  try {
+    return await aiMobileLayout({ siteName: site.name, items })
   } catch {
     return { error: 'failed' }
   }

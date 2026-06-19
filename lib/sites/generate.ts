@@ -305,6 +305,53 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
   }
 }
 
+// Decide a phone layout: for each element, the order, an emphasis (width), and whether to
+// hide it on small screens. The editor turns these hints into a clean single-column stack
+// (it computes the actual coordinates, so the AI can never overlap or overflow the canvas).
+export type MobileEmphasis = 'full' | 'normal' | 'small'
+export async function aiMobileLayout(opts: { siteName: string; items: { id: string; type: string; text: string; w: number; h: number }[] }): Promise<{ items: { id: string; order: number; emphasis: MobileEmphasis; hide: boolean }[] }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const list = opts.items.map(it => `[${it.id}] ${it.type}${it.text ? ` "${it.text}"` : ''} (${it.w}x${it.h})`).join('\n')
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1500,
+    system:
+      'You arrange a website\'s elements into a clean single-column PHONE layout. For each element choose: its order top-to-bottom ' +
+      '(natural reading + conversion order — brand/logo first, then the hero headline, a short supporting line, the primary call-to-action, ' +
+      'then supporting content; menus near the top, footers/contact last); an emphasis — "full" (edge-to-edge: hero images, primary buttons, ' +
+      'full-width bands), "normal" (the default comfortable width) or "small" (a narrower secondary element); and whether to HIDE it on phones ' +
+      '(true ONLY for purely decorative shapes, lines or background boxes that add nothing on a small screen — NEVER hide text, meaningful images, ' +
+      'buttons, forms or menus). Return a decision for every element id.',
+    tools: [
+      {
+        name: 'arrange',
+        description: 'Provide a phone layout decision for every element.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            items: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, order: { type: 'number' }, emphasis: { type: 'string', enum: ['full', 'normal', 'small'] }, hide: { type: 'boolean' } }, required: ['id', 'order', 'emphasis', 'hide'] } },
+          },
+          required: ['items'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'arrange' },
+    messages: [{ role: 'user', content: `Arrange these elements for a phone screen (single column). Brand: "${opts.siteName}".\n\nElements:\n${list}\n\nReturn one decision per id.` }],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a phone layout. Please try again.')
+  const input = block.input as { items?: { id?: string; order?: number; emphasis?: string; hide?: boolean }[] }
+  const items = (input.items ?? [])
+    .map(it => ({
+      id: String(it.id ?? ''),
+      order: Number.isFinite(it.order) ? Number(it.order) : 9999,
+      emphasis: (['full', 'normal', 'small'].includes(String(it.emphasis)) ? it.emphasis : 'normal') as MobileEmphasis,
+      hide: !!it.hide,
+    }))
+    .filter(it => it.id)
+  return { items }
+}
+
 // Polish every text item on a page in one batched call, in a chosen tone, honouring the
 // brand voice. Returns rewrites keyed by the SAME ids so the editor can apply them.
 export async function aiPolishCopy(opts: { siteName: string; brandVoice?: string; tone: string; items: { id: string; text: string }[] }): Promise<{ items: { id: string; text: string }[] }> {
