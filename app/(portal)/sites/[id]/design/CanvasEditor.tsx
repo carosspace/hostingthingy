@@ -9,7 +9,8 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction } from '../../actions'
+import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
@@ -173,6 +174,9 @@ export default function CanvasEditor({
   const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
   const [banner, setBanner] = useState<SiteBanner | null>(initial?.banner ?? null) // optional announcement bar above the page
   const [popup, setPopup] = useState<SitePopup | null>(initial?.popup ?? null) // optional one-time modal
+  const [critique, setCritique] = useState<DesignCritique | null>(null) // AI design review result
+  const [critiquing, setCritiquing] = useState(false)
+  const [critiqueErr, setCritiqueErr] = useState('')
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -954,6 +958,55 @@ export default function CanvasEditor({
     }
   }
 
+  // Build a compact, blob-free text description of the page for the AI design review.
+  const buildDesignSummary = (): string => {
+    const lines: string[] = []
+    const visible = els.filter(e => !e.hidden)
+    lines.push(`Page background: ${bgImage ? 'a background image' : bgGrad ? 'a gradient' : bg}. Content width: ${pageWidth === 'contained' ? 'contained / centered' : 'full-bleed'}.`)
+    if (palette.length) lines.push(`Brand palette: ${palette.join(', ')}.`)
+    if (banner?.text) lines.push(`A dismissible announcement bar reads: "${banner.text.replace(/\s+/g, ' ').slice(0, 120)}".`)
+    if (popup?.text) lines.push(`A popup (after ${popup.delay ?? 2}s) says: "${[popup.title, popup.text].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 160)}".`)
+    lines.push(`Mobile layout: ${mobileCustom ? 'hand-tuned for phones' : 'automatic top-to-bottom stack'}.`)
+    lines.push('')
+    lines.push(`${visible.length} element(s) on the canvas (top to bottom):`)
+    visible
+      .slice()
+      .sort((a, b) => a.y - b.y)
+      .slice(0, 40)
+      .forEach(el => {
+        const p: string[] = [`• ${el.type}`]
+        if ((el.type === 'text' || el.type === 'button') && el.text) p.push(`"${el.text.replace(/\s+/g, ' ').slice(0, 100)}"`)
+        if (el.fontSize) p.push(`${el.fontSize}px`)
+        if (el.weight) p.push(`weight ${el.weight}`)
+        else if (el.bold) p.push('bold')
+        if (el.color) p.push(`text ${el.color}`)
+        if (el.fill) p.push(`fill ${el.fill}`)
+        if (el.type === 'image') p.push(el.alt ? `alt "${el.alt.slice(0, 60)}"` : 'NO alt text')
+        p.push(`— at (${Math.round(el.x)},${Math.round(el.y)}), ${Math.round(el.w)}×${Math.round(el.h)}px`)
+        lines.push(p.join(' '))
+      })
+    if (visible.length > 40) lines.push(`…and ${visible.length - 40} more.`)
+    return lines.join('\n')
+  }
+
+  // The "design pair": ask Claude for a warm, prioritized review of the current page.
+  const reviewDesign = async () => {
+    if (critiquing) return
+    if (els.filter(e => !e.hidden).length < 2) { setCritiqueErr('Add a few elements first, then ask for a review.'); setCritique(null); return }
+    setCritiquing(true)
+    setCritiqueErr('')
+    setCritique(null)
+    try {
+      const res = await critiqueDesignAction({ siteId, summary: buildDesignSummary() })
+      if ('error' in res) setCritiqueErr(res.error === 'empty' ? 'Add a few elements first, then ask for a review.' : 'Couldn’t reach the reviewer — please try again.')
+      else setCritique(res)
+    } catch {
+      setCritiqueErr('Couldn’t reach the reviewer — please try again.')
+    } finally {
+      setCritiquing(false)
+    }
+  }
+
   // One-click "motion personality": cascade coherent reveal + hover + stagger onto the
   // content elements (in top-to-bottom order), or clear all motion with 'none'.
   const applyMood = (mood: 'calm' | 'playful' | 'energetic' | 'none') => {
@@ -1636,6 +1689,35 @@ export default function CanvasEditor({
 
         {lib && panelTab === 'design' && (<>
         <button type="button" onClick={() => setShowTemplates(true)} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2.5 rounded-sm">🎨 Start from a template</button>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <div className="flex items-center justify-between">
+            <p style={labelCss}>Design review</p>
+            <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{critiquing ? 'Reviewing…' : '✦ Review my page'}</button>
+          </div>
+          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A kind second pair of eyes — hierarchy, contrast, spacing &amp; warmth.</p>
+          {critiqueErr && <p className="font-body text-[11px] mt-2" style={{ color: '#b4532e' }}>{critiqueErr}</p>}
+          {critique && (
+            <div className="mt-2.5 space-y-2">
+              <p className="font-body text-[12px] italic leading-relaxed" style={{ color: '#5a5a5a' }}>{critique.summary}</p>
+              {critique.findings.map((f, i) => {
+                const c = f.severity === 'praise' ? '#3b7d4f' : f.severity === 'fix' ? '#b4532e' : '#9a7b1f'
+                return (
+                  <div key={i} className="flex gap-2">
+                    <span style={{ flex: 'none', marginTop: 5, width: 6, height: 6, borderRadius: 999, background: c }} />
+                    <p className="font-body text-[12px] leading-relaxed" style={{ color: '#3a3a3a' }}>
+                      <span style={{ color: c, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginRight: 6, fontWeight: 600 }}>{f.area}</span>
+                      {f.note}
+                    </p>
+                  </div>
+                )
+              })}
+              <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
+            </div>
+          )}
+        </div>
+
         <div className="h-px bg-gold/15" />
         <div>
           <p style={labelCss}>Font style</p>

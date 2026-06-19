@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, type GeneratedPage } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -321,6 +321,22 @@ export async function suggestAltAction(src: string): Promise<{ alt: string; erro
     return await aiAltText(s)
   } catch {
     return { alt: '', error: 'failed' }
+  }
+}
+
+// The in-editor "design pair": Claude reviews a compact text summary of the canvas
+// and returns a few warm, specific design + accessibility notes. No save, read-only.
+export async function critiqueDesignAction(args: { siteId: string; summary: string }): Promise<DesignCritique | { error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'auth' }
+  const site = await getSite(args.siteId)
+  if (!site) return { error: 'notfound' }
+  const summary = String(args.summary ?? '').trim()
+  if (!summary) return { error: 'empty' }
+  try {
+    return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000) })
+  } catch {
+    return { error: 'failed' }
   }
 }
 

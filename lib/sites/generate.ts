@@ -214,6 +214,88 @@ export async function aiAltText(src: string): Promise<{ alt: string }> {
   return { alt: (input.alt ?? '').trim().slice(0, 250) }
 }
 
+// A warm, opinionated design + accessibility review of the current page — "a kind
+// senior designer looking over your shoulder". The editor sends a compact text summary
+// of the page; the AI returns a few high-leverage, specific notes.
+export type CritiqueArea = 'Hierarchy' | 'Contrast' | 'Spacing' | 'Copy' | 'Colour' | 'Accessibility' | 'Mobile'
+export type CritiqueSeverity = 'praise' | 'tip' | 'fix'
+export interface DesignFinding {
+  area: CritiqueArea
+  severity: CritiqueSeverity
+  note: string
+}
+export interface DesignCritique {
+  summary: string
+  findings: DesignFinding[]
+}
+
+const CRITIQUE_AREAS: CritiqueArea[] = ['Hierarchy', 'Contrast', 'Spacing', 'Copy', 'Colour', 'Accessibility', 'Mobile']
+const CRITIQUE_SEVS: CritiqueSeverity[] = ['praise', 'tip', 'fix']
+
+export async function aiCritiqueDesign(opts: { siteName: string; summary: string }): Promise<DesignCritique> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1500,
+    system:
+      'You are a warm, expert design and accessibility coach for conscious, soulful wellness and coaching brands. ' +
+      "You review one-page website designs the way a kind senior designer looks over someone's shoulder: specific, " +
+      'encouraging, and never generic. You care about visual hierarchy (does the eye land on the right thing first), ' +
+      'readable contrast (WCAG AA), generous breathing room, copy that feels warm and clear, and accessibility (alt text, ' +
+      'tap targets). Give a few high-leverage notes, not a long checklist. Genuinely praise what works. Every note must be ' +
+      'specific to THIS page and reference the actual elements described — never invent elements that are not in the summary. ' +
+      'Mark a note "fix" only for real problems (especially low contrast or missing alt text), "tip" for things that could be ' +
+      'stronger, and "praise" for what is already working.',
+    tools: [
+      {
+        name: 'give_critique',
+        description: 'Return a short, warm, prioritized design review of the page.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            summary: { type: 'string', description: 'One warm, honest sentence on the overall feel of the page.' },
+            findings: {
+              type: 'array',
+              description: '3 to 6 specific notes, most important first.',
+              items: {
+                type: 'object',
+                properties: {
+                  area: { type: 'string', enum: CRITIQUE_AREAS },
+                  severity: { type: 'string', enum: CRITIQUE_SEVS, description: 'praise = working well; tip = could be stronger; fix = should change.' },
+                  note: { type: 'string', description: 'One specific, actionable sentence that references the actual page.' },
+                },
+                required: ['area', 'severity', 'note'],
+              },
+            },
+          },
+          required: ['summary', 'findings'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'give_critique' },
+    messages: [
+      {
+        role: 'user',
+        content: `Brand: ${opts.siteName}\n\nHere is the current one-page design (positions and sizes are in design pixels on a desktop canvas):\n\n${opts.summary}\n\nReview it warmly and specifically.`,
+      },
+    ],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a review. Please try again.')
+  const input = block.input as { summary?: string; findings?: { area?: string; severity?: string; note?: string }[] }
+  return {
+    summary: (input.summary ?? '').trim().slice(0, 300),
+    findings: (input.findings ?? [])
+      .slice(0, 7)
+      .map(f => ({
+        area: (CRITIQUE_AREAS.includes(f.area as CritiqueArea) ? f.area : 'Hierarchy') as CritiqueArea,
+        severity: (CRITIQUE_SEVS.includes(f.severity as CritiqueSeverity) ? f.severity : 'tip') as CritiqueSeverity,
+        note: (f.note ?? '').trim().slice(0, 280),
+      }))
+      .filter(f => f.note),
+  }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string
