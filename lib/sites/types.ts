@@ -374,6 +374,18 @@ export interface PageCanvas {
   guidesY?: number[] // editor-only horizontal guide lines (design px y)
   textStyles?: Record<string, TextStyleProps> // global text styles (Heading/Body/…) for this page
   banner?: SiteBanner // a dismissible announcement bar shown above the page
+  popup?: SitePopup // a one-time modal shown after a delay
+}
+
+// A modal shown to a visitor a few seconds after arriving (once per visitor).
+export interface SitePopup {
+  text: string
+  title?: string
+  bg?: string
+  color?: string
+  ctaLabel?: string
+  ctaHref?: string
+  delay?: number // seconds before it appears (0-60)
 }
 
 // A thin announcement bar at the very top of a published page (e.g. "Free shipping

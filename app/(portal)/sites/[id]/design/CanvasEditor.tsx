@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -172,6 +172,7 @@ export default function CanvasEditor({
   const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
   const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
   const [banner, setBanner] = useState<SiteBanner | null>(initial?.banner ?? null) // optional announcement bar above the page
+  const [popup, setPopup] = useState<SitePopup | null>(initial?.popup ?? null) // optional one-time modal
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1165,7 +1166,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner])
+  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1245,6 +1246,7 @@ export default function CanvasEditor({
     guidesY: guidesY.length ? guidesY : undefined,
     textStyles,
     banner: banner && banner.text.trim() ? banner : undefined,
+    popup: popup && popup.text.trim() ? popup : undefined,
   })
   // Load a whole PageCanvas into the editor state (used by draft recovery).
   const loadCanvas = (c: PageCanvas) => {
@@ -1264,6 +1266,7 @@ export default function CanvasEditor({
     setGuidesY(c.guidesY || [])
     setTextStyles(c.textStyles ?? defaultTextStyles())
     setBanner(c.banner ?? null)
+    setPopup(c.popup ?? null)
     setShowRulers(v => v || !!(c.guidesX?.length || c.guidesY?.length))
     setSelectedIds([])
     setEditingId('')
@@ -1667,6 +1670,36 @@ export default function CanvasEditor({
               </div>
               <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
               <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <div className="flex items-center justify-between">
+            <p style={labelCss}>Popup</p>
+            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? accent : 'rgba(0,0,0,0.15)'}`, background: popup ? accent : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
+          </div>
+          {popup && (
+            <div className="mt-1.5 space-y-1.5">
+              <input value={popup.title || ''} onChange={e => { setPopup({ ...popup, title: e.target.value || undefined }); touch() }} placeholder="Title (optional)" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+              <textarea value={popup.text} onChange={e => { setPopup({ ...popup, text: e.target.value }); touch() }} rows={2} placeholder="Your message…" style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'none' }} />
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Card</span>
+                {colorField(popup.bg, v => { setPopup({ ...popup, bg: v }); touch() }, '#ffffff')}
+                <span style={labelCss}>Text</span>
+                {colorField(popup.color, v => { setPopup({ ...popup, color: v }); touch() }, '#1a1612')}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input value={popup.ctaLabel || ''} onChange={e => { setPopup({ ...popup, ctaLabel: e.target.value || undefined }); touch() }} placeholder="Button" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
+                <input value={popup.ctaHref || ''} onChange={e => { setPopup({ ...popup, ctaHref: e.target.value || undefined }); touch() }} placeholder="Button link (https://…)" style={{ ...inputCss, fontSize: 11, flex: 1.4 }} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Delay</span>
+                <input type="range" min={0} max={60} value={popup.delay ?? 2} onChange={e => { setPopup({ ...popup, delay: Number(e.target.value) }); touch() }} style={{ flex: 1 }} />
+                <span style={{ fontSize: 11, color: '#666', width: 30 }}>{popup.delay ?? 2}s</span>
+              </div>
+              <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows once per visitor, {popup.delay ?? 2}s after they arrive. They can close it.</p>
             </div>
           )}
         </div>

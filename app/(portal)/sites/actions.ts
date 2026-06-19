@@ -1027,6 +1027,20 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       if (!text) return undefined
       return { text, bg: color(b?.bg), color: color(b?.color), href: safeStoredHref(String(b?.href ?? '')) || undefined }
     })(),
+    popup: (() => {
+      const p = c.popup as Record<string, unknown> | undefined
+      const text = String(p?.text ?? '').trim().slice(0, 600)
+      if (!text) return undefined
+      return {
+        text,
+        title: String(p?.title ?? '').trim().slice(0, 120) || undefined,
+        bg: color(p?.bg),
+        color: color(p?.color),
+        ctaLabel: String(p?.ctaLabel ?? '').trim().slice(0, 60) || undefined,
+        ctaHref: safeStoredHref(String(p?.ctaHref ?? '')) || undefined,
+        delay: num(p?.delay, 0, 60, 2),
+      }
+    })(),
   }
 }
 

@@ -7,6 +7,7 @@ import { canvasIcon } from './icons'
 import { ContactForm } from './ContactForm'
 import { embedSrc } from './embed'
 import { Banner } from './Banner'
+import { Popup } from './Popup'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -232,6 +233,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       <CanvasMotion />
       <CanvasLightbox />
     </div>
+    {canvas.popup?.text && <Popup popup={canvas.popup} safeHref={safeHref} />}
     </>
   )
 }
