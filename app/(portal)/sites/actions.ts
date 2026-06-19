@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, type GeneratedPage } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, type GeneratedPage } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -270,6 +270,22 @@ export async function aiTextAction(args: {
     })
   } catch {
     return fallback
+  }
+}
+
+// Owner-only: suggest alt text for an image via Claude vision. Returns {alt} or an
+// {error} the editor can surface gently. Caps the payload so a huge data URL can't
+// blow the action body limit.
+export async function suggestAltAction(src: string): Promise<{ alt: string; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { alt: '', error: 'auth' }
+  const s = String(src ?? '').trim()
+  if (!s) return { alt: '', error: 'nosrc' }
+  if (s.length > 7_000_000) return { alt: '', error: 'toobig' }
+  try {
+    return await aiAltText(s)
+  } catch {
+    return { alt: '', error: 'failed' }
   }
 }
 

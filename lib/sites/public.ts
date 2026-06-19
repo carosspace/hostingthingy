@@ -23,3 +23,22 @@ export async function getPublicSite(slug: string): Promise<PublicSite | null> {
     content: (row.content ?? null) as SiteContent | null,
   }
 }
+
+export interface PublicSiteIndex {
+  slug: string
+  updatedAt: string | null
+  pageSlugs: string[]
+}
+
+// Lists every live site + its page slugs (via the list_public_pages RPC, migration
+// 008) for the sitemap. Returns [] if the function isn't migrated yet.
+export async function listPublicPages(): Promise<PublicSiteIndex[]> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('list_public_pages')
+  if (error || !data) return []
+  return (data as Record<string, unknown>[]).map(r => ({
+    slug: String(r.slug ?? ''),
+    updatedAt: (r.updated_at as string) ?? null,
+    pageSlugs: Array.isArray(r.page_slugs) ? (r.page_slugs as unknown[]).map(s => (s == null ? '' : String(s))) : [''],
+  }))
+}

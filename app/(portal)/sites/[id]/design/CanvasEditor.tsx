@@ -9,7 +9,8 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction } from '../../actions'
+import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
@@ -113,6 +114,7 @@ export default function CanvasEditor({
   const [stockId, setStockId] = useState('') // image element picking a stock photo (modal open)
   const [aiInstr, setAiInstr] = useState('') // the instruction for the AI text rewrite
   const [aiBusy, setAiBusy] = useState(false)
+  const [altBusy, setAltBusy] = useState(false) // AI alt-text suggestion in progress
   // Which tool category the left panel shows (Canva-style). Selecting an element
   // overrides this with its properties (the inspector); deselect to see a tab again.
   const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers'>('design')
@@ -878,6 +880,21 @@ export default function CanvasEditor({
       if (next && next !== (el.text || '')) { snapshot(true); setEls(p => p.map(e => (e.id === id ? { ...e, text: next } : e))); touch() }
     } finally {
       setAiBusy(false)
+    }
+  }
+
+  // Ask Claude to describe the selected image and drop the result into its alt text.
+  const suggestAlt = async (id: string) => {
+    if (altBusy) return
+    const el = elsRef.current.find(e => e.id === id)
+    if (!el || !el.src) return
+    setAltBusy(true)
+    try {
+      const res = await suggestAltAction(el.src)
+      if (res.alt) { snapshot(true); setEls(p => p.map(e => (e.id === id ? { ...e, alt: res.alt } : e))); touch() }
+      else if (res.error === 'failed') alert('Couldn’t suggest alt text for this image — please write a short description.')
+    } finally {
+      setAltBusy(false)
     }
   }
 
@@ -1713,6 +1730,34 @@ export default function CanvasEditor({
                   <button type="button" onClick={() => update(sel.id, { bold: !sel.bold })} style={{ fontWeight: 700, fontSize: 13, color: sel.bold ? accent : '#888', width: 24 }}>B</button>
                   <button type="button" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? accent : '#888', width: 24 }}>I</button>
                 </div>
+                {(() => {
+                  // Gentle WCAG contrast hint: text vs the box/page behind it; button label (white) vs the button fill.
+                  let fg: string | null
+                  let bgc: string | null
+                  if (sel.type === 'button') {
+                    if (sel.gradient) return null
+                    fg = '#ffffff'
+                    bgc = resolveColor(sel.fill || accent, palette)
+                  } else {
+                    fg = resolveColor(sel.color, palette) || '#1a1612'
+                    const cx = sel.x + sel.w / 2
+                    const cy = sel.y + sel.h / 2
+                    const behind = els.filter(e => e.id !== sel.id && e.type === 'box' && !e.hidden && !e.gradient && e.fill && (e.z ?? 0) <= (sel.z ?? 0) && e.x <= cx && cx <= e.x + e.w && e.y <= cy && cy <= e.y + e.h)
+                    if (behind.length) bgc = resolveColor(behind.reduce((a, b) => ((b.z ?? 0) >= (a.z ?? 0) ? b : a)).fill, palette)
+                    else if (bgImage) bgc = null
+                    else if (bgGrad) bgc = resolveColor(bgGrad.from, palette)
+                    else bgc = resolveColor(bg, palette) || '#ffffff'
+                  }
+                  if (!fg || !bgc) return null
+                  const ratio = contrastRatio(fg, bgc)
+                  if (ratio == null) return null
+                  const v = contrastVerdict(ratio, (sel.fontSize || 24) >= 24)
+                  return (
+                    <p className="font-body text-[11px]" style={{ color: v.ok ? '#3f7d4f' : '#9a7d2e' }} title="Contrast between this text and what's behind it (WCAG). Aim for ‘Readable’ or better.">
+                      {v.ok ? '✓' : '⚠'} {v.label}{!v.ok ? ' — may be hard to read' : ''}
+                    </p>
+                  )
+                })()}
                 <div className="flex items-center gap-1.5">
                   <span style={labelCss}>Align</span>
                   {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
@@ -1790,7 +1835,17 @@ export default function CanvasEditor({
                   <button type="button" onClick={() => setStockId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Stock photos</button>
                   {sel.src && <button type="button" onClick={() => setCropId(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">Crop</button>}
                 </div>
-                <input value={sel.alt || ''} onChange={e => update(sel.id, { alt: e.target.value })} placeholder="Describe this image (alt text — for SEO &amp; screen readers)" style={{ ...inputCss, fontSize: 12 }} />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <input value={sel.alt || ''} onChange={e => update(sel.id, { alt: e.target.value })} placeholder="Describe this image (alt text — for SEO &amp; screen readers)" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
+                    {sel.src && (
+                      <button type="button" onClick={() => void suggestAlt(sel.id)} disabled={altBusy} title="Let AI describe this image" className="shrink-0 font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm disabled:opacity-50">{altBusy ? '…' : '✨ Suggest'}</button>
+                    )}
+                  </div>
+                  {sel.src && !(sel.alt || '').trim() && (
+                    <p className="font-body text-[11px] mt-1" style={{ color: '#9a7d2e' }}>A short description helps screen readers and Google. ✨ Suggest writes one for you.</p>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Fit</span>
                   <select value={sel.fit || 'cover'} onChange={e => update(sel.id, { fit: e.target.value as ImageFit })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>

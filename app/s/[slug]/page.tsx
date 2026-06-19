@@ -2,9 +2,12 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getPages } from '@/lib/sites/types'
+import { jsonLd } from '@/lib/sites/jsonld'
 import PublicPage from './PublicPage'
 
 export const dynamic = 'force-dynamic'
+
+const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://app.animatemple.com'
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const site = await getPublicSite(params.slug)
@@ -34,13 +37,16 @@ export default async function HomePage({ params }: { params: { slug: string } })
   const home = pages.find(p => p.slug === '') ?? pages[0]
 
   return (
-    <PublicPage
-      siteSlug={site.slug}
-      siteName={site.name}
-      content={site.content}
-      page={home}
-      pages={pages}
-      currentSlug={home.slug}
-    />
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(site, home, BASE) }} />
+      <PublicPage
+        siteSlug={site.slug}
+        siteName={site.name}
+        content={site.content}
+        page={home}
+        pages={pages}
+        currentSlug={home.slug}
+      />
+    </>
   )
 }

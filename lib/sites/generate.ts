@@ -164,6 +164,56 @@ export async function aiText(opts: {
   return { text: (input.text ?? '').trim() }
 }
 
+// Describe an image for alt text using Claude vision. Accepts a base64 data URL
+// (jpeg/png/gif/webp) or an http(s) URL. Throws for unsupported types (e.g. SVG).
+export async function aiAltText(src: string): Promise<{ alt: string }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const s = src.trim()
+  let source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } | { type: 'url'; url: string }
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(s)
+  if (m) {
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowed.includes(m[1])) throw new Error('Alt suggestions aren’t available for this image type.')
+    source = { type: 'base64', media_type: m[1] as 'image/jpeg', data: m[2] }
+  } else if (/^https?:\/\//i.test(s)) {
+    source = { type: 'url', url: s }
+  } else {
+    throw new Error('Unsupported image source.')
+  }
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 120,
+    tools: [
+      {
+        name: 'set_alt',
+        description: 'Provide concise alt text for the image.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            alt: { type: 'string', description: 'A concise (max ~120 chars) description for screen readers and SEO. No "image of"/"picture of" prefix.' },
+          },
+          required: ['alt'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'set_alt' },
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source },
+          { type: 'text', text: 'Write concise, useful alt text for this image (for screen readers and SEO). Plainly describe what is shown, max ~120 characters. Do not start with "image of" or "picture of".' },
+        ],
+      },
+    ],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return alt text. Please try again.')
+  const input = block.input as { alt?: string }
+  return { alt: (input.alt ?? '').trim().slice(0, 250) }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string
