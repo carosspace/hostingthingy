@@ -305,6 +305,45 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
   }
 }
 
+// Polish every text item on a page in one batched call, in a chosen tone, honouring the
+// brand voice. Returns rewrites keyed by the SAME ids so the editor can apply them.
+export async function aiPolishCopy(opts: { siteName: string; brandVoice?: string; tone: string; items: { id: string; text: string }[] }): Promise<{ items: { id: string; text: string }[] }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const list = opts.items.map((it, i) => `${i + 1}. [${it.id}] ${it.text.replace(/\s+/g, ' ').slice(0, 500)}`).join('\n')
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 3000,
+    system:
+      'You polish the copy on a website while keeping each piece roughly the same length and the same meaning. ' +
+      'Warm, clear and human; never invent facts, claims, names or numbers. Return exactly one rewrite per input id, reusing that id.',
+    tools: [
+      {
+        name: 'rewrite_all',
+        description: 'Return the rewritten copy for each text item, keyed by its id.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            items: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' } }, required: ['id', 'text'] } },
+          },
+          required: ['items'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'rewrite_all' },
+    messages: [
+      {
+        role: 'user',
+        content: `For the website "${opts.siteName}", rewrite each text item to feel ${opts.tone}, keeping roughly the same length and the same meaning.${voiceLine(opts.brandVoice)}\n\nItems (rewrite each; return the SAME id in brackets):\n${list}\n\nReturn only the rewritten text per id — no preamble, no markdown.`,
+      },
+    ],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return rewrites. Please try again.')
+  const input = block.input as { items?: { id?: string; text?: string }[] }
+  const items = (input.items ?? []).map(it => ({ id: String(it.id ?? ''), text: String(it.text ?? '').trim() })).filter(it => it.id && it.text)
+  return { items }
+}
+
 // Suggest a small, cohesive brand colour palette tuned to the site + its brand voice.
 export async function aiPalette(opts: { siteName: string; brandVoice?: string }): Promise<{ colors: string[] }> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

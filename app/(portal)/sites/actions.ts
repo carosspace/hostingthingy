@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -336,6 +336,26 @@ export async function critiqueDesignAction(args: { siteId: string; summary: stri
   if (!summary) return { error: 'empty' }
   try {
     return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000), brandVoice: site.content?.brandVoice })
+  } catch {
+    return { error: 'failed' }
+  }
+}
+
+// Polish all the copy on a canvas page in a chosen tone (batched, brand-voice aware).
+export async function polishCopyAction(args: { siteId: string; tone: string; items: { id: string; text: string }[] }): Promise<{ items: { id: string; text: string }[] } | { error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'auth' }
+  const site = await getSite(args.siteId)
+  if (!site) return { error: 'notfound' }
+  const TONES = ['warmer', 'calmer', 'more premium', 'punchier']
+  const tone = TONES.includes(String(args.tone)) ? String(args.tone) : 'warmer'
+  const items = (Array.isArray(args.items) ? args.items : [])
+    .map(it => ({ id: String(it?.id ?? '').slice(0, 40), text: String(it?.text ?? '').slice(0, 500) }))
+    .filter(it => it.id && it.text)
+    .slice(0, 30)
+  if (!items.length) return { error: 'empty' }
+  try {
+    return await aiPolishCopy({ siteName: site.name, brandVoice: site.content?.brandVoice, tone, items })
   } catch {
     return { error: 'failed' }
   }

@@ -9,7 +9,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -189,6 +189,7 @@ export default function CanvasEditor({
   const savedBrandVoice = useRef(initialBrandVoice) // last persisted value, to avoid redundant saves
   const [pageTransition, setPageTransition] = useState<PageTransitionKind>(initialPageTransition) // site-wide enter animation
   const [paletteBusy, setPaletteBusy] = useState(false) // AI palette suggestion in flight
+  const [polishBusy, setPolishBusy] = useState('') // tone of an in-flight copy polish, '' when idle
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1096,6 +1097,29 @@ export default function CanvasEditor({
     }
   }
 
+  // Rewrite every text/button's copy in a chosen tone, in one batched call (undoable).
+  const polishCopy = async (tone: string) => {
+    if (polishBusy) return
+    const items = elsRef.current.filter(e => (e.type === 'text' || e.type === 'button') && (e.text || '').trim()).map(e => ({ id: e.id, text: e.text as string }))
+    if (!items.length) { alert('Add some text to the page first.'); return }
+    setPolishBusy(tone)
+    try {
+      const res = await polishCopyAction({ siteId, tone, items })
+      if ('items' in res && res.items.length) {
+        const map = new Map(res.items.map(it => [it.id, it.text]))
+        snapshot(true)
+        setEls(p => p.map(e => (map.has(e.id) ? { ...e, text: map.get(e.id) as string } : e)))
+        touch()
+      } else {
+        alert('Couldn’t polish the copy — please try again.')
+      }
+    } catch {
+      alert('Couldn’t polish the copy — please try again.')
+    } finally {
+      setPolishBusy('')
+    }
+  }
+
   // Ask Claude for a cohesive brand palette and drop it into the swatches (undoable).
   const suggestPalette = async () => {
     if (paletteBusy) return
@@ -1908,6 +1932,17 @@ export default function CanvasEditor({
               <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
             </div>
           )}
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Polish copy</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">Rewrite every heading &amp; paragraph in one go — same meaning, new tone, in your brand voice.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {([['warmer', 'Warmer'], ['calmer', 'Calmer'], ['more premium', 'Premium'], ['punchier', 'Punchier']] as [string, string][]).map(([tone, lbl]) => (
+              <button key={tone} type="button" onClick={() => polishCopy(tone)} disabled={!!polishBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{polishBusy === tone ? '…' : lbl}</button>
+            ))}
+          </div>
         </div>
 
         <div className="h-px bg-gold/15" />
