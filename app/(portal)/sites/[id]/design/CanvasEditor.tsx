@@ -65,6 +65,14 @@ function hsvToHex(h: number, s: number, v: number): string {
   return '#' + to(r) + to(g) + to(b)
 }
 const DEFAULT_SOLIDS = ['#000000', '#3f3f46', '#71717a', '#a1a1aa', '#d4d4d8', '#ffffff', '#e24b4a', '#ef9f27', '#f4d03f', '#5fa85a', '#1d9e75', '#378add', '#5b5bd6', '#9b59b6', '#d4537e']
+const RECENT_KEY = 'cveditor:recentColors'
+function readRecent(): string[] {
+  try { const a = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); return Array.isArray(a) ? a.filter((c: unknown) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)).slice(0, 12) : [] } catch { return [] }
+}
+function pushRecent(hex: string) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return
+  try { const next = [hex.toLowerCase(), ...readRecent().filter(c => c.toLowerCase() !== hex.toLowerCase())].slice(0, 12); localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+}
 
 // A Canva-style colour control: a swatch button + hex box inline; clicking the swatch
 // opens a floating picker with an HSV spectrum, an eyedropper, the brand palette
@@ -77,12 +85,14 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [hsv, setHsv] = useState(() => hexToHsv(current))
+  const [recent, setRecent] = useState<string[]>([])
   const wrapRef = useRef<HTMLSpanElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
   useEffect(() => { setText(resolved) }, [resolved])
 
   const openPicker = () => {
     setHsv(hexToHsv(current))
+    setRecent(readRecent())
     const r = wrapRef.current?.getBoundingClientRect()
     if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 240)), top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 320)) })
     setOpen(true)
@@ -99,7 +109,7 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [open])
 
-  const pick = (hex: string) => { onChange(hex); setHsv(hexToHsv(hex)) }
+  const pick = (hex: string) => { onChange(hex); setHsv(hexToHsv(hex)); pushRecent(hex); setRecent(readRecent()) }
   const setH = (h: number) => { const n = { ...hsv, h }; setHsv(n); onChange(hsvToHex(n.h, n.s, n.v)) }
   const setSV = (s: number, v: number) => { const n = { ...hsv, s, v }; setHsv(n); onChange(hsvToHex(n.h, n.s, n.v)) }
   const svMove = (e: RPointerEvent) => { const r = e.currentTarget.getBoundingClientRect(); setSV(clamp01((e.clientX - r.left) / r.width), clamp01(1 - (e.clientY - r.top) / r.height)) }
@@ -142,6 +152,14 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
               <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Colours in this design</div>
               <div className="flex flex-wrap gap-1.5">
                 {palette.map((c, i) => swatch(c, value === brandVar(i), () => { onChange(brandVar(i)); setHsv(hexToHsv(c || '#888888')) }, 'p' + i))}
+              </div>
+            </>
+          )}
+          {recent.length > 0 && (
+            <>
+              <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Recent</div>
+              <div className="flex flex-wrap gap-1.5">
+                {recent.map(c => swatch(c, resolved.toLowerCase() === c, () => pick(c), 'r' + c))}
               </div>
             </>
           )}
@@ -901,9 +919,9 @@ export default function CanvasEditor({
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
-    box: { type: 'box', w: 340, h: 220, fill: '#e8dcc0', radius: 10 },
+    box: { type: 'box', w: 340, h: 220, fill: '#eaeaea', radius: 10 },
     line: { type: 'box', w: 440, h: 3, fill: '#111111', radius: 0 },
-    section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f1ece3', radius: 0 },
+    section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f3f3f1', radius: 0 },
     shape: { type: 'shape', shape: 'line', x: 0, w: CANVAS_W, h: 60, fill: '#111111' },
   }
   // Drop a small group of pre-arranged elements.
