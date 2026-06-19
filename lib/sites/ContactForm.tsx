@@ -43,19 +43,32 @@ export function ContactForm({
   }
   const set = (i: number, v: string) => setVals(p => ({ ...p, [i]: v }))
 
+  // Conditional visibility. Evaluated top-to-bottom so a field is shown only when its
+  // controlling field is BOTH visible and equal to the chosen value — references point
+  // at earlier fields (enforced by the editor), so chains resolve without cycles.
+  const visible: boolean[] = []
+  list.forEach((f, i) => {
+    visible[i] = true
+    if (!f.showIf) return
+    const ci = list.findIndex(x => x.id === f.showIf!.field)
+    // Only apply the condition when it points at an EARLIER field; a dangling or forward
+    // reference is ignored (fail open) so a field is never permanently stuck hidden.
+    if (ci >= 0 && ci < i) visible[i] = visible[ci] && (vals[ci] || '').trim() === f.showIf!.equals
+  })
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (state === 'sending') return
-    // Required fields must be filled.
+    // Required fields must be filled — but only the ones currently shown.
     for (let i = 0; i < list.length; i++) {
-      if (list[i].required && !(vals[i] || '').trim()) return
+      if (visible[i] && list[i].required && !(vals[i] || '').trim()) return
     }
     const emailIdx = list.findIndex(f => f.type === 'email')
     const nameIdx = list.findIndex(f => f.type === 'text')
-    const email = emailIdx >= 0 ? (vals[emailIdx] || '').trim() : ''
-    const name = nameIdx >= 0 ? (vals[nameIdx] || '').trim() : ''
+    const email = emailIdx >= 0 && visible[emailIdx] ? (vals[emailIdx] || '').trim() : ''
+    const name = nameIdx >= 0 && visible[nameIdx] ? (vals[nameIdx] || '').trim() : ''
     const body = list
-      .map((f, i) => ((vals[i] || '').trim() ? `${f.label}: ${(vals[i] || '').trim()}` : ''))
+      .map((f, i) => (visible[i] && (vals[i] || '').trim() ? `${f.label}: ${(vals[i] || '').trim()}` : ''))
       .filter(Boolean)
       .join('\n')
     if (!body) return
@@ -96,7 +109,7 @@ export function ContactForm({
         style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
       />
       {list.map((f, i) =>
-        f.type === 'textarea' ? (
+        !visible[i] ? null : f.type === 'textarea' ? (
           <textarea
             key={i}
             style={{ ...field, flex: 1, minHeight: 56, resize: 'none' }}
@@ -104,6 +117,18 @@ export function ContactForm({
             value={vals[i] || ''}
             onChange={(e) => set(i, e.target.value)}
           />
+        ) : f.type === 'select' ? (
+          <select
+            key={i}
+            style={{ ...field, appearance: 'auto' }}
+            value={vals[i] || ''}
+            onChange={(e) => set(i, e.target.value)}
+          >
+            <option value="">{f.label + (f.required ? ' *' : '')}</option>
+            {(f.options ?? []).map((opt, oi) => (
+              <option key={oi} value={opt}>{opt}</option>
+            ))}
+          </select>
         ) : (
           <input
             key={i}

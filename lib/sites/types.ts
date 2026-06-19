@@ -142,15 +142,18 @@ export interface TextStyleProps {
 // Configurable contact-form fields. Submissions still map to the existing messages
 // schema (an email field → email, a text field → name, all fields → the body), so no
 // DB change is needed.
-export type FormFieldType = 'text' | 'email' | 'textarea' | 'tel'
-export const FORM_FIELD_TYPES: FormFieldType[] = ['text', 'email', 'textarea', 'tel']
-export const FORM_FIELD_LABELS: Record<FormFieldType, string> = { text: 'Short text', email: 'Email', textarea: 'Long text', tel: 'Phone' }
+export type FormFieldType = 'text' | 'email' | 'textarea' | 'tel' | 'select'
+export const FORM_FIELD_TYPES: FormFieldType[] = ['text', 'email', 'textarea', 'tel', 'select']
+export const FORM_FIELD_LABELS: Record<FormFieldType, string> = { text: 'Short text', email: 'Email', textarea: 'Long text', tel: 'Phone', select: 'Dropdown' }
 export interface FormField {
   id: string
   label: string
   type: FormFieldType
   required?: boolean
+  options?: string[] // the choices, for a 'select' (dropdown) field
+  showIf?: { field: string; equals: string } // only show this field when the named field's value equals this
 }
+export const MAX_FORM_OPTIONS = 12
 export const MAX_FORM_FIELDS = 12
 export function defaultFormFields(): FormField[] {
   return [

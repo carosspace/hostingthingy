@@ -1452,7 +1452,7 @@ export default function CanvasEditor({
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none', fontFamily: fontVar(el.fontFamily), overflow: 'hidden' }}>
           {list.map((f, i) => (
-            <div key={i} style={f.type === 'textarea' ? { ...fieldStyle, flex: 1, minHeight: cqv(36) } : fieldStyle}>{f.label}{f.required ? ' *' : ''}</div>
+            <div key={i} style={{ ...(f.type === 'textarea' ? { ...fieldStyle, flex: 1, minHeight: cqv(36) } : fieldStyle), opacity: f.showIf ? 0.55 : 1 }}>{f.label}{f.required ? ' *' : ''}{f.type === 'select' ? ' ▾' : ''}</div>
           ))}
           <div style={{ padding: `${cqv(9)} ${cqv(16)}`, borderRadius: r, background: el.fill || accent, color: '#fff', fontSize: cqv(15), fontWeight: 600, textAlign: 'center' }}>{el.text || 'Send message'}</div>
         </div>
@@ -2441,17 +2441,54 @@ export default function CanvasEditor({
                   return (
                     <div>
                       <span style={labelCss}>Fields</span>
-                      <div className="space-y-1 mt-1">
-                        {fl.map((f, i) => (
-                          <div key={i} className="flex items-center gap-1">
-                            <input value={f.label} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ ...inputCss, fontSize: 12, flex: 1, padding: '4px 6px' }} />
-                            <select value={f.type} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, type: e.target.value as FormFieldType } : x)))} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
-                              {FORM_FIELD_TYPES.map(t => <option key={t} value={t}>{FORM_FIELD_LABELS[t]}</option>)}
-                            </select>
-                            <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? accent : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
-                            {fl.length > 1 && <button type="button" title="Remove field" onClick={() => setFields(fl.filter((_, j) => j !== i))} style={{ fontSize: 13, color: '#b3402f', width: 16 }}>×</button>}
-                          </div>
-                        ))}
+                      <div className="space-y-1.5 mt-1">
+                        {fl.map((f, i) => {
+                          const earlierSelects = fl.slice(0, i).filter(x => x.type === 'select' && (x.options ?? []).length > 0)
+                          const ctrlField = f.showIf ? fl.find(x => x.id === f.showIf!.field) : undefined
+                          return (
+                            <div key={i} className="rounded-sm" style={{ padding: '1px 0' }}>
+                              <div className="flex items-center gap-1">
+                                <input value={f.label} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ ...inputCss, fontSize: 12, flex: 1, padding: '4px 6px' }} />
+                                <select value={f.type} onChange={e => {
+                                  const nt = e.target.value as FormFieldType
+                                  const fid = f.id
+                                  // Leaving 'select' drops stale options and any other field's condition that pointed here.
+                                  setFields(fl.map((x, j) => (j === i ? { ...x, type: nt, options: nt === 'select' ? x.options : undefined } : nt !== 'select' && x.showIf?.field === fid ? { ...x, showIf: undefined } : x)))
+                                }} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
+                                  {FORM_FIELD_TYPES.map(t => <option key={t} value={t}>{FORM_FIELD_LABELS[t]}</option>)}
+                                </select>
+                                <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? accent : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
+                                {fl.length > 1 && <button type="button" title="Remove field" onClick={() => { const rid = f.id; setFields(fl.filter((_, j) => j !== i).map(x => (x.showIf?.field === rid ? { ...x, showIf: undefined } : x))) }} style={{ fontSize: 13, color: '#b3402f', width: 16 }}>×</button>}
+                              </div>
+                              {f.type === 'select' && (
+                                <textarea value={(f.options ?? []).join('\n')} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, options: e.target.value.split('\n').map(s => s.slice(0, 60)).slice(0, 12) } : x)))} rows={2} placeholder="One choice per line" style={{ ...inputCss, fontSize: 11, width: '100%', marginTop: 3, resize: 'vertical' }} />
+                              )}
+                              {earlierSelects.length > 0 && (
+                                <div className="flex items-center gap-1 mt-1" style={{ fontSize: 11, color: '#999' }}>
+                                  <span>Show if</span>
+                                  <select value={f.showIf?.field ?? ''} onChange={e => {
+                                    const fid = e.target.value
+                                    if (!fid) { setFields(fl.map((x, j) => (j === i ? { ...x, showIf: undefined } : x))); return }
+                                    const tgt = fl.find(x => x.id === fid)
+                                    const eq = f.showIf?.field === fid ? f.showIf.equals : ((tgt?.options ?? [])[0] ?? '')
+                                    setFields(fl.map((x, j) => (j === i ? { ...x, showIf: { field: fid, equals: eq } } : x)))
+                                  }} style={{ ...inputCss, fontSize: 11, padding: '2px 4px', width: 'auto' }}>
+                                    <option value="">always</option>
+                                    {earlierSelects.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
+                                  </select>
+                                  {f.showIf && ctrlField && (
+                                    <>
+                                      <span>is</span>
+                                      <select value={f.showIf.equals} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, showIf: { field: f.showIf!.field, equals: e.target.value } } : x)))} style={{ ...inputCss, fontSize: 11, padding: '2px 4px', width: 'auto', flex: 1 }}>
+                                        {(ctrlField.options ?? []).map((opt, oi) => <option key={oi} value={opt}>{opt}</option>)}
+                                      </select>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                       {fl.length < 12 && (
                         <button type="button" onClick={() => setFields([...fl, { id: 'f' + (idc.current++).toString(36), label: 'New field', type: 'text' }])} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm mt-1.5">+ Add field</button>

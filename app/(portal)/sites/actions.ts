@@ -998,12 +998,25 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
       fields: type === 'form' && Array.isArray(e?.fields)
-        ? ((e.fields as Record<string, unknown>[]).slice(0, 12).map((f, fi): FormField => ({
-            id: /^[a-z0-9_]{1,16}$/i.test(String(f?.id ?? '')) ? String(f?.id) : 'f' + fi,
-            label: String(f?.label ?? 'Field').slice(0, 60) || 'Field',
-            type: FORM_FIELD_TYPES.includes(String(f?.type) as FormFieldType) ? (String(f?.type) as FormFieldType) : 'text',
-            required: f?.required ? true : undefined,
-          })))
+        ? ((e.fields as Record<string, unknown>[]).slice(0, 12).map((f, fi): FormField => {
+            const ftype = FORM_FIELD_TYPES.includes(String(f?.type) as FormFieldType) ? (String(f?.type) as FormFieldType) : 'text'
+            // Dropdown choices: trimmed, de-blanked, capped (only kept for select fields).
+            const opts = ftype === 'select' && Array.isArray(f?.options)
+              ? (f.options as unknown[]).map(o => String(o ?? '').trim().slice(0, 60)).filter(Boolean).slice(0, 12)
+              : undefined
+            // Conditional visibility: keep only if it names a valid field id + a value.
+            const si = f?.showIf && typeof f.showIf === 'object' ? (f.showIf as Record<string, unknown>) : null
+            const siField = si && /^[a-z0-9_]{1,16}$/i.test(String(si.field ?? '')) ? String(si.field) : ''
+            const siEquals = si ? String(si.equals ?? '').trim().slice(0, 60) : ''
+            return {
+              id: /^[a-z0-9_]{1,16}$/i.test(String(f?.id ?? '')) ? String(f?.id) : 'f' + fi,
+              label: String(f?.label ?? 'Field').slice(0, 60) || 'Field',
+              type: ftype,
+              required: f?.required ? true : undefined,
+              options: opts && opts.length ? opts : undefined,
+              showIf: siField && siEquals ? { field: siField, equals: siEquals } : undefined,
+            }
+          }))
         : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' || type === 'text' ? grad(e?.gradient) : undefined,
