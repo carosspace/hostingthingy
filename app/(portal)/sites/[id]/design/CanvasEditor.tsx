@@ -1082,6 +1082,31 @@ export default function CanvasEditor({
     }
   }
 
+  // Write AI alt text for every image that's missing it (sequential, capped, undoable).
+  const [altAllBusy, setAltAllBusy] = useState(false)
+  const fillAllAlt = async () => {
+    if (altAllBusy) return
+    const targets = elsRef.current.filter(e => e.type === 'image' && e.src && !(e.alt || '').trim()).slice(0, 8)
+    if (!targets.length) { alert('Every image already has alt text ✓'); return }
+    setAltAllBusy(true)
+    snapshot(true)
+    let done = 0
+    try {
+      for (const e of targets) {
+        try {
+          const res = await suggestAltAction(e.src as string)
+          if (res.alt) { setEls(p => p.map(x => (x.id === e.id ? { ...x, alt: res.alt } : x))); done += 1 }
+        } catch {
+          /* skip this one, keep going */
+        }
+      }
+    } finally {
+      setAltAllBusy(false)
+      if (done) touch()
+    }
+    if (!done) alert('Couldn’t generate alt text right now — please try again.')
+  }
+
   // Build a compact, blob-free text description of the page for the AI design review.
   const buildDesignSummary = (): string => {
     const lines: string[] = []
@@ -1989,6 +2014,7 @@ export default function CanvasEditor({
               <button key={tone} type="button" onClick={() => polishCopy(tone)} disabled={!!polishBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{polishBusy === tone ? '…' : lbl}</button>
             ))}
           </div>
+          <button type="button" onClick={fillAllAlt} disabled={altAllBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm mt-2">{altAllBusy ? 'Writing alt text…' : '✦ Fill missing alt text'}</button>
         </div>
 
         <div className="h-px bg-gold/15" />
