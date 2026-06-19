@@ -24,6 +24,16 @@ export async function getPublicSite(slug: string): Promise<PublicSite | null> {
   }
 }
 
+// Which live site (slug) currently owns a domain, if any — used to stop one site
+// from claiming a domain another site already uses. Returns null if unclaimed.
+export async function siteSlugForDomain(domain: string): Promise<string | null> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('get_site_by_domain', { p_host: domain })
+  if (error || !data) return null
+  const row = Array.isArray(data) ? data[0] : data
+  return row?.slug ? String(row.slug) : null
+}
+
 export interface PublicSiteIndex {
   slug: string
   updatedAt: string | null

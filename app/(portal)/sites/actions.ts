@@ -8,6 +8,7 @@ import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, type 
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
+import { siteSlugForDomain } from '@/lib/sites/public'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
@@ -139,6 +140,24 @@ export async function setDomainAction(formData: FormData): Promise<void> {
     // Block the platform's own host/subdomains so a site can't hijack them.
     const isPlatform = domain === 'app.animatemple.com' || domain.endsWith('.animatemple.com')
     if (!validFqdn || isPlatform) domain = null
+  }
+
+  // Must own the site, and only act on a real change (avoids needless redeploys).
+  const site = await getSite(id)
+  if (!site) return
+  const prev = site.domain ?? null
+  if (prev === domain) {
+    revalidatePath(`/sites/${id}`)
+    return
+  }
+
+  // Don't let one site claim a domain another site already uses (cross-tenant guard).
+  if (domain) {
+    const claimant = await siteSlugForDomain(domain)
+    if (claimant && claimant !== site.slug) {
+      revalidatePath(`/sites/${id}`)
+      return
+    }
   }
 
   try {
