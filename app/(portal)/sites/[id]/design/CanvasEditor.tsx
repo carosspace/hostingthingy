@@ -441,6 +441,57 @@ export default function CanvasEditor({
     setSelectedIds(copies.map(c => c.id))
     touch()
   }
+
+  // --- Saved blocks: a per-browser library of reusable element groups (localStorage,
+  // shared across all the owner's sites). Inserting drops independent copies, like paste. ---
+  type SavedBlock = { id: string; name: string; els: CanvasElement[] }
+  const [blocks, setBlocks] = useState<SavedBlock[]>([])
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('cveditor:blocks')
+      if (raw) {
+        const arr = JSON.parse(raw)
+        if (Array.isArray(arr)) setBlocks(arr.filter((b: SavedBlock) => b && typeof b.name === 'string' && Array.isArray(b.els) && b.els.length).slice(0, 40))
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  const persistBlocks = (next: SavedBlock[]) => {
+    setBlocks(next)
+    try {
+      localStorage.setItem('cveditor:blocks', JSON.stringify(next))
+    } catch {
+      alert('Couldn’t save the block — the library is full (large images use up space). Delete a block and try again.')
+    }
+  }
+  const saveAsBlock = (ids: string[]) => {
+    const set = new Set(ids)
+    // Deep-clone so the stored block is a fully independent snapshot (no shared nested arrays).
+    const els = elsRef.current.filter(x => set.has(x.id)).map(e => JSON.parse(JSON.stringify(e)) as CanvasElement)
+    if (!els.length) return
+    const name = typeof window !== 'undefined' ? window.prompt('Name this block', `Block ${blocks.length + 1}`) : `Block ${blocks.length + 1}`
+    if (name === null) return // cancelled
+    persistBlocks([{ id: 'b' + idc.current++, name: (name.trim() || `Block ${blocks.length + 1}`).slice(0, 40), els }, ...blocks].slice(0, 40))
+  }
+  const insertBlock = (block: SavedBlock) => {
+    if (!block.els.length) return
+    snapshot(true)
+    let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+    const gmap = new Map<string, string>()
+    const copies = block.els.map(orig => {
+      // Deep-clone so an inserted instance can never mutate the stored block.
+      const s = JSON.parse(JSON.stringify(orig)) as CanvasElement
+      let gid = s.groupId
+      if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
+      return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+    })
+    setEls(p => [...p, ...copies])
+    setSelectedIds(copies.map(c => c.id))
+    touch()
+  }
+  const deleteBlock = (bid: string) => persistBlocks(blocks.filter(b => b.id !== bid))
+
   // --- Multi-selection group operations ---
   const removeMany = (ids: string[]) => {
     const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
@@ -1763,6 +1814,22 @@ export default function CanvasEditor({
                 ))}
               </div>
             </div>
+            <div>
+              <p style={labelCss}>My blocks</p>
+              <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">Select elements on the canvas, right-click &rarr; &ldquo;Save as block&rdquo;. Your blocks are reusable across all your sites.</p>
+              {blocks.length === 0 ? (
+                <p className="font-body text-ash/40 text-[11px]">No saved blocks yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {blocks.map(b => (
+                    <div key={b.id} className="flex items-center gap-1">
+                      <button type="button" onClick={() => insertBlock(b)} title="Insert this block" className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm flex-1 text-left truncate">+ {b.name}</button>
+                      <button type="button" title="Delete block" onClick={() => deleteBlock(b.id)} style={{ fontSize: 13, color: '#b3402f', width: 18, flex: 'none' }}>&times;</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2876,6 +2943,7 @@ export default function CanvasEditor({
           { label: 'Copy', sc: 'Ctrl C', fn: () => copySelection(selectedIds) },
           ...(clip.current.length ? [{ label: 'Paste', sc: 'Ctrl V', fn: pasteClipboard } as Item] : []),
           { label: 'Duplicate', sc: 'Ctrl D', fn: () => (many ? duplicateMany(selectedIds) : duplicate(selectedIds[0])) },
+          { label: 'Save as block', fn: () => saveAsBlock(selectedIds) },
           'sep',
           { label: 'Bring to front', fn: () => layerMany(selectedIds, 1) },
           { label: 'Send to back', fn: () => layerMany(selectedIds, -1) },
