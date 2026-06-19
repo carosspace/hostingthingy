@@ -1015,6 +1015,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
               required: f?.required ? true : undefined,
               options: opts && opts.length ? opts : undefined,
               showIf: siField && siEquals ? { field: siField, equals: siEquals } : undefined,
+              newStep: fi > 0 && f?.newStep ? true : undefined,
             }
           }))
         : undefined,

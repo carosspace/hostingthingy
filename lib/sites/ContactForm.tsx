@@ -28,6 +28,7 @@ export function ContactForm({
   const [vals, setVals] = useState<Record<number, string>>({})
   const [hp, setHp] = useState('') // honeypot — humans never see/fill it; bots do
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [step, setStep] = useState(0) // current step in a multi-step form
 
   const r = Math.max(0, radius - 2)
   const field: CSSProperties = {
@@ -56,6 +57,20 @@ export function ContactForm({
     if (ci >= 0 && ci < i) visible[i] = visible[ci] && (vals[ci] || '').trim() === f.showIf!.equals
   })
 
+  // Multi-step: a field with newStep begins a new step. Steps with no currently-visible
+  // field are skipped during navigation (so a conditionally-emptied step is never shown).
+  const stepOf: number[] = []
+  { let s = 0; list.forEach((f, i) => { if (i > 0 && f.newStep) s += 1; stepOf[i] = s }) }
+  const totalSteps = list.length ? stepOf[list.length - 1] + 1 : 1
+  const multi = totalSteps > 1
+  const stepHasVisible = (s: number) => list.some((_, i) => stepOf[i] === s && visible[i])
+  const nextActive = (from: number) => { for (let s = from + 1; s < totalSteps; s++) if (stepHasVisible(s)) return s; return -1 }
+  const prevActive = (from: number) => { for (let s = from - 1; s >= 0; s--) if (stepHasVisible(s)) return s; return -1 }
+  const cur = multi ? Math.min(Math.max(step, 0), totalSteps - 1) : 0
+  const onLastStep = !multi || nextActive(cur) === -1
+  // Required, but only for the fields shown on the current step (used to gate "Next").
+  const stepValid = (s: number) => list.every((f, i) => !(stepOf[i] === s && visible[i] && f.required && !(vals[i] || '').trim()))
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (state === 'sending') return
@@ -78,6 +93,7 @@ export function ContactForm({
       if (res.ok) {
         setState('sent')
         setVals({})
+        setStep(0)
       } else {
         setState('error')
       }
@@ -108,8 +124,13 @@ export function ContactForm({
         onChange={(e) => setHp(e.target.value)}
         style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
       />
+      {multi && (
+        <div style={{ fontSize: '0.78em', opacity: 0.7, marginBottom: '0.5em', letterSpacing: '0.05em' }}>
+          Step {cur + 1} of {totalSteps}
+        </div>
+      )}
       {list.map((f, i) =>
-        !visible[i] ? null : f.type === 'textarea' ? (
+        !visible[i] || (multi && stepOf[i] !== cur) ? null : f.type === 'textarea' ? (
           <textarea
             key={i}
             style={{ ...field, flex: 1, minHeight: 56, resize: 'none' }}
@@ -140,13 +161,34 @@ export function ContactForm({
           />
         )
       )}
-      <button
-        type="submit"
-        disabled={state === 'sending'}
-        style={{ padding: '0.6em 1em', borderRadius: r, border: 'none', background: accent, color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: state === 'sending' ? 0.7 : 1 }}
-      >
-        {state === 'sending' ? 'Sending…' : label}
-      </button>
+      <div style={{ display: 'flex', gap: '0.5em', marginTop: 'auto' }}>
+        {multi && prevActive(cur) !== -1 && (
+          <button
+            type="button"
+            onClick={() => setStep(prevActive(cur))}
+            style={{ padding: '0.6em 1em', borderRadius: r, border: `1px solid ${accent}`, background: 'transparent', color: accent, font: 'inherit', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Back
+          </button>
+        )}
+        {multi && !onLastStep ? (
+          <button
+            type="button"
+            onClick={() => { if (stepValid(cur)) { const n = nextActive(cur); if (n !== -1) setStep(n) } }}
+            style={{ flex: 1, padding: '0.6em 1em', borderRadius: r, border: 'none', background: accent, color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Next
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={state === 'sending'}
+            style={{ flex: 1, padding: '0.6em 1em', borderRadius: r, border: 'none', background: accent, color: '#fff', font: 'inherit', fontWeight: 600, cursor: 'pointer', opacity: state === 'sending' ? 0.7 : 1 }}
+          >
+            {state === 'sending' ? 'Sending…' : label}
+          </button>
+        )}
+      </div>
       {state === 'error' && <div style={{ color: '#c0392b', fontSize: '0.85em', marginTop: '0.4em' }}>Couldn’t send. Please try again.</div>}
     </form>
   )

@@ -1452,7 +1452,7 @@ export default function CanvasEditor({
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none', fontFamily: fontVar(el.fontFamily), overflow: 'hidden' }}>
           {list.map((f, i) => (
-            <div key={i} style={{ ...(f.type === 'textarea' ? { ...fieldStyle, flex: 1, minHeight: cqv(36) } : fieldStyle), opacity: f.showIf ? 0.55 : 1 }}>{f.label}{f.required ? ' *' : ''}{f.type === 'select' ? ' ▾' : ''}</div>
+            <div key={i} style={{ ...(f.type === 'textarea' ? { ...fieldStyle, flex: 1, minHeight: cqv(36) } : fieldStyle), opacity: f.showIf ? 0.55 : 1, ...(i > 0 && f.newStep ? { borderTop: '2px dashed rgba(0,0,0,0.22)', paddingTop: cqv(7), marginTop: cqv(4) } : {}) }}>{f.label}{f.required ? ' *' : ''}{f.type === 'select' ? ' ▾' : ''}</div>
           ))}
           <div style={{ padding: `${cqv(9)} ${cqv(16)}`, borderRadius: r, background: el.fill || accent, color: '#fff', fontSize: cqv(15), fontWeight: 600, textAlign: 'center' }}>{el.text || 'Send message'}</div>
         </div>
@@ -2447,6 +2447,7 @@ export default function CanvasEditor({
                           const ctrlField = f.showIf ? fl.find(x => x.id === f.showIf!.field) : undefined
                           return (
                             <div key={i} className="rounded-sm" style={{ padding: '1px 0' }}>
+                              {i > 0 && f.newStep && <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: accent, borderTop: `1px dashed ${accent}66`, paddingTop: 3, marginTop: 3, marginBottom: 2 }}>New step ↓</div>}
                               <div className="flex items-center gap-1">
                                 <input value={f.label} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ ...inputCss, fontSize: 12, flex: 1, padding: '4px 6px' }} />
                                 <select value={f.type} onChange={e => {
@@ -2458,6 +2459,7 @@ export default function CanvasEditor({
                                   {FORM_FIELD_TYPES.map(t => <option key={t} value={t}>{FORM_FIELD_LABELS[t]}</option>)}
                                 </select>
                                 <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? accent : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
+                                {i > 0 && <button type="button" title={f.newStep ? 'Starts a new step' : 'Start a new step here'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, newStep: !x.newStep } : x)))} style={{ fontSize: 12, color: f.newStep ? accent : '#cbb', width: 16 }}>⤓</button>}
                                 {fl.length > 1 && <button type="button" title="Remove field" onClick={() => { const rid = f.id; setFields(fl.filter((_, j) => j !== i).map(x => (x.showIf?.field === rid ? { ...x, showIf: undefined } : x))) }} style={{ fontSize: 13, color: '#b3402f', width: 16 }}>×</button>}
                               </div>
                               {f.type === 'select' && (

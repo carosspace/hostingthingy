@@ -152,6 +152,7 @@ export interface FormField {
   required?: boolean
   options?: string[] // the choices, for a 'select' (dropdown) field
   showIf?: { field: string; equals: string } // only show this field when the named field's value equals this
+  newStep?: boolean // this field starts a new step in a multi-step form
 }
 export const MAX_FORM_OPTIONS = 12
 export const MAX_FORM_FIELDS = 12
