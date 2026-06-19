@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -167,6 +167,10 @@ export default function CanvasEditor({
   const [guidesX, setGuidesX] = useState<number[]>(initial?.guidesX ?? [])
   const [guidesY, setGuidesY] = useState<number[]>(initial?.guidesY ?? [])
   const [showRulers, setShowRulers] = useState(!!(initial?.guidesX?.length || initial?.guidesY?.length))
+  // Global text styles (Heading/Body/…): a text element links via styleRef; editing a
+  // style re-syncs every linked element here, so the public renderer never changes.
+  const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
+  const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -257,7 +261,31 @@ export default function CanvasEditor({
     dirty.current = true
     setSaved(false)
   }
-  const update = (id: string, patch: Partial<CanvasElement>) => { snapshot(); setEls(p => p.map(e => (e.id === id ? { ...e, ...patch } : e))); touch() }
+  // Typography properties a global text style governs (also what auto-detaches a link).
+  const SYNCED_TYPO: (keyof CanvasElement)[] = ['fontSize', 'fontFamily', 'weight', 'italic', 'lineHeight', 'letterSpacing', 'color']
+  const update = (id: string, patch: Partial<CanvasElement>) => {
+    snapshot()
+    setEls(p => p.map(e => {
+      if (e.id !== id) return e
+      // Hand-editing a style-governed prop unlinks the element (so the change sticks).
+      const detach = e.styleRef && !('styleRef' in patch) && SYNCED_TYPO.some(k => k in patch)
+      return { ...e, ...patch, ...(detach ? { styleRef: undefined } : {}) }
+    }))
+    touch()
+  }
+  // Link a text element to a global style (copies the style's look + sets styleRef).
+  const applyStyle = (id: string, key: TextStyleKey) => {
+    const s = textStyles[key] || defaultTextStyles()[key]
+    update(id, { styleRef: key, fontSize: s.fontSize, fontFamily: s.fontFamily, weight: s.weight, italic: s.italic, lineHeight: s.lineHeight, letterSpacing: s.letterSpacing, color: s.color })
+  }
+  // Edit a global style and re-sync every element linked to it (the "set once" magic).
+  const editStyle = (key: TextStyleKey, patch: Partial<TextStyleProps>) => {
+    snapshot(true)
+    const next = { ...(textStyles[key] || defaultTextStyles()[key]), ...patch }
+    setTextStyles(prev => ({ ...prev, [key]: next }))
+    setEls(prev => prev.map(e => (e.styleRef === key ? { ...e, fontSize: next.fontSize, fontFamily: next.fontFamily, weight: next.weight, italic: next.italic, lineHeight: next.lineHeight, letterSpacing: next.letterSpacing, color: next.color } : e)))
+    touch()
+  }
   const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id).map(e => (e.anchorTo === id ? { ...e, anchorTo: undefined } : e))); setSelectedIds([]); touch() }
   const layer = (id: string, dir: 1 | -1) => {
     snapshot(true)
@@ -1136,7 +1164,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY])
+  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1214,6 +1242,7 @@ export default function CanvasEditor({
     fontSystem: fontSys || undefined,
     guidesX: guidesX.length ? guidesX : undefined,
     guidesY: guidesY.length ? guidesY : undefined,
+    textStyles,
   })
   // Load a whole PageCanvas into the editor state (used by draft recovery).
   const loadCanvas = (c: PageCanvas) => {
@@ -1231,6 +1260,7 @@ export default function CanvasEditor({
     setFontSys(c.fontSystem || fontSystem)
     setGuidesX(c.guidesX || [])
     setGuidesY(c.guidesY || [])
+    setTextStyles(c.textStyles ?? defaultTextStyles())
     setShowRulers(v => v || !!(c.guidesX?.length || c.guidesY?.length))
     setSelectedIds([])
     setEditingId('')
@@ -1638,6 +1668,57 @@ export default function CanvasEditor({
         </div>
 
         <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Text styles</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">Set Heading, Body and the rest once — every text you&rsquo;ve linked to a style updates together. Link a text from its own panel.</p>
+          <div className="space-y-1">
+            {TEXT_STYLE_KEYS.map(key => {
+              const s = textStyles[key] || defaultTextStyles()[key]
+              const open = styleOpen === key
+              const usedBy = els.filter(e => e.styleRef === key).length
+              return (
+                <div key={key} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
+                  <button type="button" onClick={() => setStyleOpen(open ? '' : key)} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left">
+                    <span style={{ fontFamily: fontVar(s.fontFamily), fontSize: Math.min(s.fontSize, 20), fontWeight: s.weight ?? 400, fontStyle: s.italic ? 'italic' : undefined, color: '#2a2a2a', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{TEXT_STYLE_LABELS[key]}</span>
+                    <span className="font-body text-ash/40 text-[10px] shrink-0">{usedBy > 0 ? `${usedBy} linked ` : ''}{open ? '▴' : '▾'}</span>
+                  </button>
+                  {open && (
+                    <div className="px-2.5 pb-2.5 pt-1 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                      <div className="flex items-center gap-2">
+                        <span style={labelCss}>Size</span>
+                        <input type="range" min={10} max={120} value={s.fontSize} onChange={e => editStyle(key, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
+                        <span style={{ fontSize: 11, color: '#666', width: 26 }}>{s.fontSize}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <select value={s.fontFamily || 'display'} onChange={e => editStyle(key, { fontFamily: e.target.value })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                          <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                          {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
+                        </select>
+                        <select value={s.weight ?? 400} onChange={e => editStyle(key, { weight: Number(e.target.value) })} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
+                          <option value={300}>Light</option><option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={900}>Black</option>
+                        </select>
+                        <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? accent : '#888', width: 22 }}>I</button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span style={labelCss}>Colour</span>
+                        {colorField(s.color, v => editStyle(key, { color: v }), '#111111')}
+                        <span style={labelCss}>Lines</span>
+                        <input type="range" min={0.8} max={2.4} step={0.05} value={s.lineHeight ?? 1.3} onChange={e => editStyle(key, { lineHeight: Number(e.target.value) })} style={{ flex: 1 }} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span style={labelCss}>Spacing</span>
+                        <input type="range" min={-5} max={30} value={s.letterSpacing ?? 0} onChange={e => editStyle(key, { letterSpacing: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Letter spacing" />
+                        <span style={{ fontSize: 11, color: '#666', width: 24 }}>{s.letterSpacing ?? 0}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
         <div className="space-y-1.5">
           <p style={labelCss}>Page background</p>
           <div className="flex items-center gap-2 mt-1.5">
@@ -1794,16 +1875,18 @@ export default function CanvasEditor({
                   >{aiBusy ? '…' : '✨ AI'}</button>
                 </div>
                 {sel.type === 'text' && (
-                  <div className="flex flex-wrap gap-1">
-                    {([
-                      ['Heading', { fontSize: 48, fontFamily: 'display', italic: true, bold: false, weight: undefined, lineHeight: 1.1, letterSpacing: 0 }],
-                      ['Subhead', { fontSize: 28, fontFamily: 'display', italic: false, bold: false, weight: undefined, lineHeight: 1.2, letterSpacing: 0 }],
-                      ['Body', { fontSize: 18, fontFamily: 'body', italic: false, bold: false, weight: undefined, lineHeight: 1.5, letterSpacing: 0 }],
-                      ['Caption', { fontSize: 13, fontFamily: 'label', italic: false, bold: false, weight: undefined, lineHeight: 1.3, letterSpacing: 2 }],
-                      ['Quote', { fontSize: 26, fontFamily: 'display', italic: true, bold: false, weight: undefined, lineHeight: 1.4, letterSpacing: 0 }],
-                    ] as [string, Partial<CanvasElement>][]).map(([lbl, st]) => (
-                      <button key={lbl} type="button" onClick={() => update(sel.id, st)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1 rounded-sm">{lbl}</button>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1">
+                      {TEXT_STYLE_KEYS.map(key => {
+                        const on = sel.styleRef === key
+                        return (
+                          <button key={key} type="button" onClick={() => applyStyle(sel.id, key)} title={`Apply the ${TEXT_STYLE_LABELS[key]} style`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: on ? accent : 'rgba(0,0,0,0.18)', background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{TEXT_STYLE_LABELS[key]}</button>
+                        )
+                      })}
+                    </div>
+                    {sel.styleRef && (
+                      <p className="font-body text-ash/50 text-[11px] mt-1">Linked to the <b className="text-ash">{TEXT_STYLE_LABELS[sel.styleRef as TextStyleKey]}</b> style — edit it under <b>Design → Text styles</b> to change every linked text. <button type="button" onClick={() => update(sel.id, { styleRef: undefined })} className="text-gold hover:text-goldLight underline">Unlink</button></p>
+                    )}
                   </div>
                 )}
                 <div className="flex items-center gap-2">

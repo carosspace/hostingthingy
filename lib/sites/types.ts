@@ -126,6 +126,38 @@ export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String
 
 export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed'
 
+// Global text styles: define Heading/Body/etc. once and apply to many text elements.
+// A text element references a style via `styleRef`; editing the style re-syncs every
+// element that uses it (the sync happens in the editor, so the renderer is unchanged —
+// elements always carry their own resolved typography).
+export interface TextStyleProps {
+  fontSize: number
+  fontFamily?: string // 'display' | 'body' | 'label' | 'custom:<id>'
+  weight?: number
+  italic?: boolean
+  lineHeight?: number
+  letterSpacing?: number
+  color?: string
+}
+export const TEXT_STYLE_KEYS = ['heading', 'subheading', 'body', 'caption', 'quote'] as const
+export type TextStyleKey = (typeof TEXT_STYLE_KEYS)[number]
+export const TEXT_STYLE_LABELS: Record<TextStyleKey, string> = {
+  heading: 'Heading',
+  subheading: 'Subheading',
+  body: 'Body',
+  caption: 'Caption',
+  quote: 'Quote',
+}
+export function defaultTextStyles(): Record<TextStyleKey, TextStyleProps> {
+  return {
+    heading: { fontSize: 48, fontFamily: 'display', italic: true, lineHeight: 1.1, letterSpacing: 0 },
+    subheading: { fontSize: 28, fontFamily: 'display', lineHeight: 1.2 },
+    body: { fontSize: 18, fontFamily: 'body', lineHeight: 1.5 },
+    caption: { fontSize: 13, fontFamily: 'label', lineHeight: 1.3, letterSpacing: 2 },
+    quote: { fontSize: 26, fontFamily: 'display', italic: true, lineHeight: 1.4 },
+  }
+}
+
 // How a page-menu element lays out its links.
 export type MenuStyle = 'plain' | 'underline' | 'pills' | 'boxed' | 'stacked'
 export const MENU_STYLES: MenuStyle[] = ['plain', 'underline', 'pills', 'boxed', 'stacked']
@@ -248,6 +280,7 @@ export interface CanvasElement {
   letterSpacing?: number // design px (can be negative)
   lineHeight?: number // unitless multiplier (0.8-4)
   dropCap?: boolean // enlarge the first letter of a text block
+  styleRef?: string // a global text-style key (TEXT_STYLE_KEYS); editing that style re-syncs this element
   href?: string
   ctaType?: CtaType
   newTab?: boolean // open this element's link in a new browser tab
@@ -316,6 +349,7 @@ export interface PageCanvas {
   fontSystem?: string // a font-bundle key (lib/sites/fonts) applied to this page's title/body/label fonts
   guidesX?: number[] // editor-only vertical guide lines (design px x); elements snap to them. Never rendered on the public page.
   guidesY?: number[] // editor-only horizontal guide lines (design px y)
+  textStyles?: Record<string, TextStyleProps> // global text styles (Heading/Body/…) for this page
 }
 
 // The most images a page's upload library can hold.

@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, type TextStyleProps } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import type {
@@ -916,6 +916,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       letterSpacing: e?.letterSpacing === undefined || e?.letterSpacing === null ? undefined : num(e?.letterSpacing, -20, 200, 0),
       lineHeight: lineH(e?.lineHeight),
       dropCap: type === 'text' && e?.dropCap ? true : undefined,
+      styleRef: allowComponent && type === 'text' && TEXT_STYLE_KEYS.includes(String(e?.styleRef) as (typeof TEXT_STYLE_KEYS)[number]) ? String(e?.styleRef) : undefined,
       href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
       ctaType,
       newTab: e?.newTab ? true : undefined,
@@ -945,6 +946,27 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       parallax: num(e?.parallax, -5, 5, 0) || undefined,
       componentId: type === 'component' && /^[a-z0-9]{1,20}$/i.test(String(e?.componentId ?? '')) ? String(e?.componentId).trim() : undefined,
     }
+  }
+  // Global text styles: keep only known keys, sanitise each property like a text element.
+  const textStylesOf = (v: unknown): Record<string, TextStyleProps> | undefined => {
+    if (!v || typeof v !== 'object') return undefined
+    const src = v as Record<string, unknown>
+    const out: Record<string, TextStyleProps> = {}
+    for (const key of TEXT_STYLE_KEYS) {
+      const s = src[key] as Record<string, unknown> | undefined
+      if (!s || typeof s !== 'object') continue
+      const ff = String(s.fontFamily ?? '').trim()
+      out[key] = {
+        fontSize: num(s.fontSize, 6, 400, 24),
+        fontFamily: ['display', 'body', 'label'].includes(ff) || /^custom:[a-z0-9]{1,12}$/i.test(ff) ? ff : undefined,
+        weight: s.weight ? num(s.weight, 100, 900, 400) : undefined,
+        italic: s.italic ? true : undefined,
+        lineHeight: lineH(s.lineHeight),
+        letterSpacing: s.letterSpacing === undefined || s.letterSpacing === null ? undefined : num(s.letterSpacing, -20, 200, 0),
+        color: color(s.color),
+      }
+    }
+    return Object.keys(out).length ? out : undefined
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => sanitizeElement(e, i, true))
@@ -990,6 +1012,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     fontSystem: FONT_SYSTEM_KEYS.includes(String(c.fontSystem ?? '')) ? String(c.fontSystem) : undefined,
     guidesX: guideList(c.guidesX, 0, 4000),
     guidesY: guideList(c.guidesY, 0, 40000),
+    textStyles: textStylesOf(c.textStyles),
   }
 }
 
