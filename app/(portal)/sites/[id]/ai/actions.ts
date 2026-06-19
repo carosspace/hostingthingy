@@ -93,6 +93,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     fontSystem: getFontSystem(payload.fontKey).key,
     brand: existing?.brand,
     brandVoice: existing?.brandVoice, // never drop the owner's brand voice on an AI regenerate
+    pageTransition: existing?.pageTransition, // nor the page-transition setting
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription || description.slice(0, 160) || undefined,
     headline: home.headline,

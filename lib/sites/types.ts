@@ -217,6 +217,10 @@ export interface Gradient {
   kind?: GradientKind // linear (default), radial, or conic
   stops?: GradientStop[] // 2-6 colour stops; overrides from/to when present
 }
+// A gentle whole-page enter animation played when a visitor lands on / navigates to a page.
+export type PageTransitionKind = 'fade' | 'slide' | 'none'
+export const PAGE_TRANSITION_KINDS: PageTransitionKind[] = ['fade', 'slide', 'none']
+
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'soft-light'
 export const BLEND_MODES: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'soft-light']
 
@@ -472,6 +476,7 @@ export interface SiteContent {
   fontSystem?: string
   brand?: string
   brandVoice?: string // a short description of how this brand sounds; fed to every AI copy/review prompt
+  pageTransition?: PageTransitionKind // a gentle enter animation applied to every published page
   logoImage?: string // a logo shown in the header instead of the brand text
   headerLogoPos?: 0 | 1 | 2 // which header zone the logo sits in (0 left, 1 centre, 2 right) when a custom header bar is used
   faviconImage?: string // the little icon shown in the browser tab

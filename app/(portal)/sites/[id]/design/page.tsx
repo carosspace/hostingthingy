@@ -248,6 +248,7 @@ export default async function DesignPage({
             contactEmail={c?.contactEmail ?? ''}
             navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
             brandVoice={c?.brandVoice ?? ''}
+            pageTransition={c?.pageTransition ?? 'none'}
             initial={current.canvas}
           />
         </div>

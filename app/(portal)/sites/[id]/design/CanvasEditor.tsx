@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -9,7 +9,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -82,6 +82,7 @@ export default function CanvasEditor({
   contactEmail,
   navPages,
   brandVoice: initialBrandVoice = '',
+  pageTransition: initialPageTransition = 'none',
   initial,
 }: {
   siteId: string
@@ -94,6 +95,7 @@ export default function CanvasEditor({
   contactEmail: string
   navPages: { slug: string; label: string }[]
   brandVoice?: string
+  pageTransition?: PageTransitionKind
   initial: PageCanvas | null
 }) {
   const t = THEMES[theme] ?? THEMES.sand
@@ -182,6 +184,7 @@ export default function CanvasEditor({
   const [brandVoice, setBrandVoice] = useState(initialBrandVoice) // site-wide voice fed to the AI
   const [voiceSaved, setVoiceSaved] = useState(false) // brief tick after a save
   const savedBrandVoice = useRef(initialBrandVoice) // last persisted value, to avoid redundant saves
+  const [pageTransition, setPageTransition] = useState<PageTransitionKind>(initialPageTransition) // site-wide enter animation
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1024,6 +1027,13 @@ export default function CanvasEditor({
     }
   }
 
+  // Set the site-wide page-transition style (fire-and-forget; it's a site-level setting,
+  // separate from the per-page canvas save).
+  const changePageTransition = (kind: PageTransitionKind) => {
+    setPageTransition(kind)
+    void setPageTransitionAction(siteId, kind)
+  }
+
   // One-click "motion personality": cascade coherent reveal + hover + stagger onto the
   // content elements (in top-to-bottom order), or clear all motion with 'none'.
   const applyMood = (mood: 'calm' | 'playful' | 'energetic' | 'none') => {
@@ -1780,6 +1790,20 @@ export default function CanvasEditor({
           </div>
           <textarea value={brandVoice} onChange={e => setBrandVoice(e.target.value)} onBlur={saveBrandVoice} rows={3} maxLength={600} placeholder="e.g. Warm, grounded and a little poetic. Speaks to overwhelmed founders. Calm, never hype-y; short sentences; British spelling." style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'vertical', marginTop: 6 }} />
           <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">Used across this whole site — every AI rewrite, copy suggestion &amp; design review will sound like you.</p>
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Page transitions</p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            {([['fade', 'Fade'], ['slide', 'Slide up'], ['none', 'Off']] as [PageTransitionKind, string][]).map(([k, lbl]) => {
+              const on = pageTransition === k
+              return (
+                <button key={k} type="button" onClick={() => changePageTransition(k)} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm" style={{ border: `1px solid ${on ? accent : 'rgba(0,0,0,0.15)'}`, background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+              )
+            })}
+          </div>
+          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A gentle animation as each page loads — applied across the whole site.</p>
         </div>
 
         <div className="h-px bg-gold/15" />

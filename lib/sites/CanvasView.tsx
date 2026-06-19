@@ -233,7 +233,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       <CanvasMotion />
       <CanvasLightbox />
     </div>
-    {canvas.popup?.text && <Popup popup={canvas.popup} safeHref={safeHref} />}
+    {canvas.popup?.text && <Popup popup={canvas.popup} safeHref={safeHref} paletteVars={paletteVars} />}
     </>
   )
 }

@@ -4,6 +4,7 @@ import { fontVars } from '@/lib/sites/fonts'
 import { socialIcon } from '@/lib/sites/socialIcons'
 import { embedSrc } from '@/lib/sites/embed'
 import { CanvasView } from '@/lib/sites/CanvasView'
+import { PageTransition } from './PageTransition'
 import Reveal from './Reveal'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
@@ -224,6 +225,7 @@ export default function PublicPage({
         )}
       </header>
 
+      <PageTransition kind={content?.pageTransition}>
       {page.canvas && !page.canvasHidden && page.canvas.elements.length > 0 ? (
         <main className={`flex-1 ${contentPad}`} style={page.canvas.fontSystem ? (fontVars(page.canvas.fontSystem) as CSSProperties) : undefined}>
           <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={visiblePages.map(p => ({ slug: p.slug, label: p.navLabel || p.title }))} />
@@ -480,6 +482,7 @@ export default function PublicPage({
           </p>
         </main>
       )}
+      </PageTransition>
 
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
         {footerBar.has && (

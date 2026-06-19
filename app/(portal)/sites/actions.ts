@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, type TextStyleProps, type FormField, type FormFieldType } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import type {
@@ -355,6 +355,19 @@ export async function setBrandVoiceAction(siteId: string, voice: string): Promis
   return { ok: true }
 }
 
+// Save the site-wide page-transition style (a gentle enter animation on every page).
+// Spread-preserves all other content, like setBrandVoiceAction.
+export async function setPageTransitionAction(siteId: string, kind: string): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(siteId)
+  if (!site) return { ok: false }
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  const pageTransition = (PAGE_TRANSITION_KINDS.includes(kind as PageTransitionKind) && kind !== 'none' ? kind : undefined) as PageTransitionKind | undefined
+  await saveSiteContent(siteId, { ...existing, pageTransition })
+  return { ok: true }
+}
+
 // The in-editor assistant: rewrite the current page from an instruction. Returns
 // the revised page so the editor can apply it to the live preview (no save yet).
 export async function aiPageAction(args: {
@@ -430,6 +443,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     fontSystem: existing?.fontSystem,
     brand: existing?.brand,
     brandVoice: existing?.brandVoice, // set in the visual editor; never drop on a content save
+    pageTransition: existing?.pageTransition,
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription,
     ...homeFields,
@@ -609,6 +623,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,
     brandVoice: existing?.brandVoice, // edited via setBrandVoiceAction; preserve across visual-editor saves
+    pageTransition: existing?.pageTransition, // edited via setPageTransitionAction; preserve across saves
     logoImage: String(parsed.logoImage ?? '').trim() || undefined,
     headerLogoPos: ([0, 1, 2].includes(Number(parsed.headerLogoPos)) ? Number(parsed.headerLogoPos) : undefined) as 0 | 1 | 2 | undefined,
     faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,

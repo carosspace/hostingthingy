@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { SitePopup } from './types'
 
 // A one-time modal on a published page: appears after a delay, dismissible, and shown
@@ -10,7 +11,7 @@ function hash(s: string): string {
   return (h >>> 0).toString(36)
 }
 
-export function Popup({ popup, safeHref }: { popup: SitePopup; safeHref: (h: string) => string | null }) {
+export function Popup({ popup, safeHref, paletteVars }: { popup: SitePopup; safeHref: (h: string) => string | null; paletteVars?: CSSProperties }) {
   const key = 'cvpopup:' + hash(popup.text + '|' + (popup.title || ''))
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -35,12 +36,14 @@ export function Popup({ popup, safeHref }: { popup: SitePopup; safeHref: (h: str
   if (!show) return null
 
   const href = popup.ctaHref ? safeHref(popup.ctaHref.trim()) : null
-  return (
+  // Portal to <body> so a page-transition transform on an ancestor can never become the
+  // containing block for this fixed overlay (which would offset it during the animation).
+  return createPortal(
     <div
       onClick={close}
       role="dialog"
       aria-modal="true"
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      style={{ ...paletteVars, position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -61,6 +64,7 @@ export function Popup({ popup, safeHref }: { popup: SitePopup; safeHref: (h: str
           </a>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
