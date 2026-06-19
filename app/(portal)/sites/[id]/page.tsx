@@ -116,9 +116,7 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
       <section className="border border-gold/15 rounded-sm p-6">
         <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Custom domain</p>
         <p className="font-body text-ash/60 text-xs mb-4">
-          {site.domain
-            ? `${site.domain} will point here once real hosting is connected.`
-            : 'Use your own web address (e.g. yourname.com). It hooks up for real when hosting goes live.'}
+          Use your own web address (e.g. <span className="text-ash">yourname.com</span>). Add it below, point your DNS, and it serves this site with automatic HTTPS.
         </p>
         <form action={setDomainAction} className="flex flex-col sm:flex-row gap-3">
           <input type="hidden" name="id" value={site.id} />
@@ -132,6 +130,17 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
             Save
           </button>
         </form>
+        {site.domain && (
+          <div className="mt-5 border-t border-gold/10 pt-4">
+            <p className="font-body text-parchment text-sm mb-2">Point <b>{site.domain}</b> here:</p>
+            <ol className="font-body text-ash/70 text-xs space-y-1.5 list-decimal list-inside">
+              <li>In your domain registrar&rsquo;s DNS settings, remove any existing redirect/parking records on <code className="text-gold/70">@</code> and <code className="text-gold/70">www</code>.</li>
+              <li>Add an <b className="text-ash">A record</b> — Host <code className="text-gold/70">@</code>, Value <code className="text-gold/70">62.238.38.156</code>.</li>
+              <li>Add an <b className="text-ash">A record</b> — Host <code className="text-gold/70">www</code>, Value <code className="text-gold/70">62.238.38.156</code>.</li>
+            </ol>
+            <p className="font-body text-ash/50 text-[11px] mt-2">DNS changes can take a few minutes to a couple of hours. HTTPS turns on automatically once the domain resolves here.</p>
+          </div>
+        )}
       </section>
 
       <section className="flex flex-wrap items-center gap-3">

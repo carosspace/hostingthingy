@@ -130,9 +130,16 @@ export async function setDomainAction(formData: FormData): Promise<void> {
   const id = String(formData.get('id') ?? '')
   if (!id) return
 
-  // Normalise: strip protocol/whitespace, lowercase.
+  // Normalise: strip protocol/path/whitespace + a leading www, lowercase.
   const raw = String(formData.get('domain') ?? '').trim().toLowerCase()
-  const domain = raw.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null
+  let domain: string | null = raw.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '') || null
+
+  if (domain) {
+    const validFqdn = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain)
+    // Block the platform's own host/subdomains so a site can't hijack them.
+    const isPlatform = domain === 'app.animatemple.com' || domain.endsWith('.animatemple.com')
+    if (!validFqdn || isPlatform) domain = null
+  }
 
   try {
     await setSiteDomain(id, domain)
