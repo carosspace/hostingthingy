@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -171,6 +171,7 @@ export default function CanvasEditor({
   // style re-syncs every linked element here, so the public renderer never changes.
   const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
   const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
+  const [banner, setBanner] = useState<SiteBanner | null>(initial?.banner ?? null) // optional announcement bar above the page
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1164,7 +1165,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles])
+  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1243,6 +1244,7 @@ export default function CanvasEditor({
     guidesX: guidesX.length ? guidesX : undefined,
     guidesY: guidesY.length ? guidesY : undefined,
     textStyles,
+    banner: banner && banner.text.trim() ? banner : undefined,
   })
   // Load a whole PageCanvas into the editor state (used by draft recovery).
   const loadCanvas = (c: PageCanvas) => {
@@ -1261,6 +1263,7 @@ export default function CanvasEditor({
     setGuidesX(c.guidesX || [])
     setGuidesY(c.guidesY || [])
     setTextStyles(c.textStyles ?? defaultTextStyles())
+    setBanner(c.banner ?? null)
     setShowRulers(v => v || !!(c.guidesX?.length || c.guidesY?.length))
     setSelectedIds([])
     setEditingId('')
@@ -1645,6 +1648,27 @@ export default function CanvasEditor({
               )
             })}
           </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <div className="flex items-center justify-between">
+            <p style={labelCss}>Announcement bar</p>
+            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? accent : 'rgba(0,0,0,0.15)'}`, background: banner ? accent : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
+          </div>
+          {banner && (
+            <div className="mt-1.5 space-y-1.5">
+              <input value={banner.text} onChange={e => { setBanner({ ...banner, text: e.target.value }); touch() }} placeholder="Your announcement…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Bar</span>
+                {colorField(banner.bg, v => { setBanner({ ...banner, bg: v }); touch() }, '#141414')}
+                <span style={labelCss}>Text</span>
+                {colorField(banner.color, v => { setBanner({ ...banner, color: v }); touch() }, '#ffffff')}
+              </div>
+              <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
+              <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
+            </div>
+          )}
         </div>
 
         <div className="h-px bg-gold/15" />
@@ -2428,6 +2452,12 @@ export default function CanvasEditor({
             )}
           <div ref={viewportRef} onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
           <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSys), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
+            {banner && banner.text.trim() && (
+              <div style={{ background: banner.bg || '#141414', color: banner.color || '#ffffff', fontSize: 13, lineHeight: 1.3, padding: '8px 12px', textAlign: 'center', position: 'relative' }}>
+                {banner.text}
+                <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.7, fontSize: 16 }}>×</span>
+              </div>
+            )}
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}

@@ -6,6 +6,7 @@ import Carousel from './Carousel'
 import { canvasIcon } from './icons'
 import { ContactForm } from './ContactForm'
 import { embedSrc } from './embed'
+import { Banner } from './Banner'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -199,6 +200,8 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
   const desktopH = Math.max(200, layout.totalH, canvas.h)
 
   return (
+    <>
+      {canvas.banner?.text && <Banner banner={canvas.banner} safeHref={safeHref} />}
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       {canvas.fonts && canvas.fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(canvas.fonts) }} />}
       {/* Desktop / tablet: the full canvas */}
@@ -229,6 +232,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       <CanvasMotion />
       <CanvasLightbox />
     </div>
+    </>
   )
 }
 

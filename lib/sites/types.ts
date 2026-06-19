@@ -373,6 +373,16 @@ export interface PageCanvas {
   guidesX?: number[] // editor-only vertical guide lines (design px x); elements snap to them. Never rendered on the public page.
   guidesY?: number[] // editor-only horizontal guide lines (design px y)
   textStyles?: Record<string, TextStyleProps> // global text styles (Heading/Body/…) for this page
+  banner?: SiteBanner // a dismissible announcement bar shown above the page
+}
+
+// A thin announcement bar at the very top of a published page (e.g. "Free shipping
+// this week"). Dismissible per visitor; reappears when the text changes.
+export interface SiteBanner {
+  text: string
+  bg?: string
+  color?: string
+  href?: string // optional click-through
 }
 
 // The most images a page's upload library can hold.

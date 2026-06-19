@@ -1021,6 +1021,12 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     guidesX: guideList(c.guidesX, 0, 4000),
     guidesY: guideList(c.guidesY, 0, 40000),
     textStyles: textStylesOf(c.textStyles),
+    banner: (() => {
+      const b = c.banner as Record<string, unknown> | undefined
+      const text = String(b?.text ?? '').trim().slice(0, 200)
+      if (!text) return undefined
+      return { text, bg: color(b?.bg), color: color(b?.color), href: safeStoredHref(String(b?.href ?? '')) || undefined }
+    })(),
   }
 }
 
