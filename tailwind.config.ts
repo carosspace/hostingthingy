@@ -11,13 +11,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm sand & clay — soft, light, inviting (replaces the old dark/gold).
-        background: "#f6f0e6", // warm cream page background
+        // Clean, calm workspace — neutral surfaces + a single sage accent (the chrome
+        // stays quiet so the user's own design is the colourful part). Token names kept
+        // ('gold'/'parchment'/'ash') so existing classes pick up the new palette.
+        background: "#f4f5f3", // light neutral page background
         surface: "#ffffff", // cards, inputs, panels
-        parchment: "#3a2e20", // primary text (warm deep brown)
-        gold: "#a85c36", // accent (soft clay/terracotta)
-        goldLight: "#c67b4d", // accent hover (lighter clay)
-        ash: "#786652", // muted text (warm taupe)
+        parchment: "#2b2f33", // primary text (slate ink)
+        gold: "#67905d", // accent (sage green)
+        goldLight: "#79a36b", // accent hover (lighter sage)
+        ash: "#8a8f98", // muted text (neutral grey)
       },
       fontFamily: {
         // Resolve through generic vars so a site can swap its typography by setting

@@ -101,6 +101,7 @@ export default function CanvasEditor({
   initial: PageCanvas | null
 }) {
   const t = THEMES[theme] ?? THEMES.sand
+  const ui = '#67905d' // editor-chrome accent (sage); mirrors the tailwind 'gold' token. Stays the same whatever the user's own brand colour is.
   const [els, setEls] = useState<CanvasElement[]>(initial?.elements ?? [])
   const [bg, setBg] = useState(initial?.bg ?? '')
   const [bgGrad, setBgGrad] = useState<Gradient | null>(initial?.bgGradient ?? null)
@@ -1723,7 +1724,7 @@ export default function CanvasEditor({
     if (e.shiftKey) toggleGroupInSelection([id])
     else setSelectedIds(withGroup([id]))
   }
-  const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : accent, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
+  const layerBtn = (onSel: boolean, disabled: boolean): CSSProperties => ({ fontSize: 11, width: 17, height: 17, lineHeight: '15px', textAlign: 'center', borderRadius: 3, color: onSel ? '#fff' : ui, opacity: disabled ? 0.25 : 1, flexShrink: 0 })
   const swatch: CSSProperties = swatchCss
   // A colour value resolved for display: a brand token shows its current swatch colour.
   const resolveCol = (v?: string) => { if (v && isBrandToken(v)) { return palette[Number(v.slice(-2, -1))] || '#888888' } return v || '' }
@@ -1746,7 +1747,7 @@ export default function CanvasEditor({
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <span style={labelCss}>Gradient</span>
-          <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? accent : 'rgba(0,0,0,0.15)'}`, background: g ? accent : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
+          <button type="button" onClick={() => onChange(g ? null : { from: accent, to: '#1a1612', angle: 90 })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${g ? ui : 'rgba(0,0,0,0.15)'}`, background: g ? ui : 'transparent', color: g ? '#fff' : '#666' }}>{g ? 'On' : 'Off'}</button>
         </div>
         {g && (() => {
           const stops = gradStopsOf(g)
@@ -1767,7 +1768,7 @@ export default function CanvasEditor({
                 )}
                 <div className="flex items-center gap-1 ml-auto">
                   {(['linear', 'radial', 'conic'] as const).map(k => (
-                    <button key={k} type="button" title={k} onClick={() => onChange({ ...g, kind: k === 'linear' ? undefined : k })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 6px', borderRadius: 3, border: `1px solid ${(g.kind || 'linear') === k ? accent : 'rgba(0,0,0,0.15)'}`, background: (g.kind || 'linear') === k ? accent : 'transparent', color: (g.kind || 'linear') === k ? '#fff' : '#666' }}>{k[0]}</button>
+                    <button key={k} type="button" title={k} onClick={() => onChange({ ...g, kind: k === 'linear' ? undefined : k })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5, padding: '3px 6px', borderRadius: 3, border: `1px solid ${(g.kind || 'linear') === k ? ui : 'rgba(0,0,0,0.15)'}`, background: (g.kind || 'linear') === k ? ui : 'transparent', color: (g.kind || 'linear') === k ? '#fff' : '#666' }}>{k[0]}</button>
                   ))}
                 </div>
               </div>
@@ -1787,7 +1788,7 @@ export default function CanvasEditor({
                   <div className="flex items-center gap-1.5">
                     <span style={labelCss}>Direction</span>
                     {([['↓', 180], ['↑', 0], ['→', 90], ['←', 270], ['↘', 135], ['↗', 45]] as [string, number][]).map(([sym, ang]) => (
-                      <button key={ang} type="button" title={ang === 180 ? 'Top → bottom' : ang === 0 ? 'Bottom → top' : `${ang}°`} onClick={() => onChange({ ...g, angle: ang })} style={{ width: 22, height: 22, fontSize: 13, lineHeight: '20px', textAlign: 'center', borderRadius: 3, border: `1px solid ${g.angle === ang ? accent : 'rgba(0,0,0,0.18)'}`, background: g.angle === ang ? accent : 'transparent', color: g.angle === ang ? '#fff' : '#555' }}>{sym}</button>
+                      <button key={ang} type="button" title={ang === 180 ? 'Top → bottom' : ang === 0 ? 'Bottom → top' : `${ang}°`} onClick={() => onChange({ ...g, angle: ang })} style={{ width: 22, height: 22, fontSize: 13, lineHeight: '20px', textAlign: 'center', borderRadius: 3, border: `1px solid ${g.angle === ang ? accent : 'rgba(0,0,0,0.18)'}`, background: g.angle === ang ? ui : 'transparent', color: g.angle === ang ? '#fff' : '#555' }}>{sym}</button>
                     ))}
                   </div>
                   <div className="flex items-center gap-2">
@@ -1815,7 +1816,7 @@ export default function CanvasEditor({
             return (
               <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
                 className="flex flex-col items-center justify-center gap-1 rounded-xl transition-colors"
-                style={{ width: 50, height: 52, border: 'none', background: on ? accent : '#ffffff', color: on ? '#fff' : '#6b7280', boxShadow: on ? 'none' : '0 1px 2px rgba(17,17,26,0.05)' }}>
+                style={{ width: 50, height: 52, border: 'none', background: on ? ui : '#ffffff', color: on ? '#fff' : '#6b7280', boxShadow: on ? 'none' : '0 1px 2px rgba(17,17,26,0.05)' }}>
                 <span style={{ fontSize: 17, lineHeight: 1, fontWeight: key === 'text' ? 700 : 400 }}>{icon}</span>
                 <span style={{ fontSize: 8.5, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</span>
               </button>
@@ -1832,7 +1833,7 @@ export default function CanvasEditor({
             <button type="button" onClick={() => setFocusMode(true)} title="Hide this panel (or double-click the canvas)" style={{ fontSize: 16, lineHeight: 1, color: '#b6bbc4', width: 20 }} className="hover:text-gold">⟨</button>
           </div>
         </div>
-        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} style={{ background: saved ? '#1f9d6b' : accent }} className="text-white hover:brightness-110 text-[12px] font-semibold tracking-wide px-4 py-2.5 rounded-xl disabled:opacity-50 transition">
+        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} style={{ background: saved ? '#1f9d6b' : ui }} className="text-white hover:brightness-110 text-[12px] font-semibold tracking-wide px-4 py-2.5 rounded-xl disabled:opacity-50 transition">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
         {saveError && (
@@ -1849,7 +1850,7 @@ export default function CanvasEditor({
         )}
         {/* Write-with-AI + switch to the block editor */}
         <div className="flex items-center gap-1.5">
-          <button type="button" onClick={() => setAiPageOpen(o => !o)} title="Write this page with AI" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border px-2 py-1.5 rounded-sm" style={{ borderColor: aiPageOpen ? accent : 'rgba(168,92,54,0.35)', background: aiPageOpen ? accent : 'transparent', color: aiPageOpen ? '#fff' : accent }}>✨ AI</button>
+          <button type="button" onClick={() => setAiPageOpen(o => !o)} title="Write this page with AI" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border px-2 py-1.5 rounded-sm" style={{ borderColor: aiPageOpen ? ui : 'rgba(103,144,93,0.4)', background: aiPageOpen ? ui : 'transparent', color: aiPageOpen ? '#fff' : ui }}>✨ AI</button>
           <form action={clearCanvasAction} className="flex-1">
             <input type="hidden" name="id" value={siteId} />
             <input type="hidden" name="pageSlug" value={pageSlug} />
@@ -1868,7 +1869,7 @@ export default function CanvasEditor({
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
           <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
-          <button type="button" onClick={() => setShowGrid(g => { const n = !g; try { localStorage.setItem('cveditor:showGrid', n ? '1' : '0') } catch { /* ignore */ } return n })} title={showGrid ? 'Grid on — elements snap to it' : 'Snap to grid'} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? accent : 'rgba(0,0,0,0.2)', background: showGrid ? accent : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
+          <button type="button" onClick={() => setShowGrid(g => { const n = !g; try { localStorage.setItem('cveditor:showGrid', n ? '1' : '0') } catch { /* ignore */ } return n })} title={showGrid ? 'Grid on — elements snap to it' : 'Snap to grid'} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? ui : 'rgba(0,0,0,0.2)', background: showGrid ? ui : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
           {showGrid && (
             <select value={gridSize} onChange={e => { const v = Number(e.target.value); setGridSize(v); try { localStorage.setItem('cveditor:gridSize', String(v)) } catch { /* ignore */ } }} title="Grid size" className="rounded-sm border" style={{ fontSize: 10, padding: '2px 3px', borderColor: 'rgba(0,0,0,0.2)', color: '#666', background: '#fff' }}>
               {GRID_SIZES.map(g => <option key={g} value={g}>{g}px</option>)}
@@ -2039,7 +2040,7 @@ export default function CanvasEditor({
             {([['fade', 'Fade'], ['slide', 'Slide up'], ['none', 'Off']] as [PageTransitionKind, string][]).map(([k, lbl]) => {
               const on = pageTransition === k
               return (
-                <button key={k} type="button" onClick={() => changePageTransition(k)} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm" style={{ border: `1px solid ${on ? accent : 'rgba(0,0,0,0.15)'}`, background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+                <button key={k} type="button" onClick={() => changePageTransition(k)} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm" style={{ border: `1px solid ${on ? ui : 'rgba(0,0,0,0.15)'}`, background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
               )
             })}
           </div>
@@ -2054,7 +2055,7 @@ export default function CanvasEditor({
             {FONT_SYSTEMS.map(f => {
               const on = fontSys === f.key
               return (
-                <button key={f.key} type="button" onClick={() => { setFontSys(f.key); touch() }} title={f.name} style={{ ...fontVars(f.key), textAlign: 'left', padding: '6px 9px', borderRadius: 5, border: on ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff' } as CSSProperties}>
+                <button key={f.key} type="button" onClick={() => { setFontSys(f.key); touch() }} title={f.name} style={{ ...fontVars(f.key), textAlign: 'left', padding: '6px 9px', borderRadius: 5, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff' } as CSSProperties}>
                   <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, color: '#222', display: 'block', lineHeight: 1.15 }}>Aa</span>
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#777', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                 </button>
@@ -2067,7 +2068,7 @@ export default function CanvasEditor({
         <div>
           <div className="flex items-center justify-between">
             <p style={labelCss}>Announcement bar</p>
-            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? accent : 'rgba(0,0,0,0.15)'}`, background: banner ? accent : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
+            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? ui : 'rgba(0,0,0,0.15)'}`, background: banner ? ui : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
           </div>
           {banner && (
             <div className="mt-1.5 space-y-1.5">
@@ -2088,7 +2089,7 @@ export default function CanvasEditor({
         <div>
           <div className="flex items-center justify-between">
             <p style={labelCss}>Popup</p>
-            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? accent : 'rgba(0,0,0,0.15)'}`, background: popup ? accent : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
+            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? ui : 'rgba(0,0,0,0.15)'}`, background: popup ? ui : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
           </div>
           {popup && (
             <div className="mt-1.5 space-y-1.5">
@@ -2119,7 +2120,7 @@ export default function CanvasEditor({
           <p style={labelCss}>Page width</p>
           <div className="flex items-center gap-1.5 mt-1.5">
             {(['full', 'contained'] as const).map(w => (
-              <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? accent : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? accent : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
+              <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? ui : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? ui : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
             ))}
           </div>
         </div>
@@ -2165,7 +2166,7 @@ export default function CanvasEditor({
                         <select value={s.weight ?? 400} onChange={e => editStyle(key, { weight: Number(e.target.value) })} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
                           <option value={300}>Light</option><option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={900}>Black</option>
                         </select>
-                        <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? accent : '#888', width: 22 }}>I</button>
+                        <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? ui : '#888', width: 22 }}>I</button>
                       </div>
                       <div className="flex items-center gap-2">
                         <span style={labelCss}>Colour</span>
@@ -2274,7 +2275,7 @@ export default function CanvasEditor({
                     key={el.id}
                     onClick={e => selectFromList(e, el.id)}
                     className="flex items-center gap-1 px-1.5 py-1 rounded-sm cursor-pointer"
-                    style={{ background: isSel ? accent : 'transparent', color: isSel ? '#fff' : '#5a513f' }}
+                    style={{ background: isSel ? ui : 'transparent', color: isSel ? '#fff' : '#5a513f' }}
                   >
                     <span style={{ fontSize: 11, width: 13, textAlign: 'center', opacity: 0.7 }}>{elIcon(el)}</span>
                     <span style={{ fontSize: 11, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontStyle: rowFaded ? 'italic' : undefined, opacity: rowFaded ? 0.55 : 1 }}>{elName(el)}</span>
@@ -2297,7 +2298,7 @@ export default function CanvasEditor({
               <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
-                {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
+                {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
                 <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicate(sel.id)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Bring forward" onClick={() => layer(sel.id, 1)} style={{ fontSize: 13, color: accent }}>▲</button>
                 <button type="button" title="Send back" onClick={() => layer(sel.id, -1)} style={{ fontSize: 13, color: accent }}>▼</button>
@@ -2319,7 +2320,7 @@ export default function CanvasEditor({
                 <input type="number" min={8} value={Math.round(gw(sel))} onChange={e => { const w = Math.max(8, Number(e.target.value) || 8); const h = lockRatio ? Math.max(8, Math.round(w * (gh(sel) / Math.max(1, gw(sel))))) : gh(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
                 <span style={{ fontSize: 11, color: '#999' }}>×</span>
                 <input type="number" min={8} value={Math.round(gh(sel))} onChange={e => { const h = Math.max(8, Number(e.target.value) || 8); const w = lockRatio ? Math.max(8, Math.round(h * (gw(sel) / Math.max(1, gh(sel))))) : gw(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
-                <button type="button" title={lockRatio ? 'Proportions locked' : 'Lock proportions'} onClick={() => setLockRatio(v => !v)} style={{ fontSize: 12, color: lockRatio ? accent : '#999', width: 24 }}>{lockRatio ? '🔒' : '🔓'}</button>
+                <button type="button" title={lockRatio ? 'Proportions locked' : 'Lock proportions'} onClick={() => setLockRatio(v => !v)} style={{ fontSize: 12, color: lockRatio ? ui : '#999', width: 24 }}>{lockRatio ? '🔒' : '🔓'}</button>
               </div>
             )}
 
@@ -2358,7 +2359,7 @@ export default function CanvasEditor({
                       {TEXT_STYLE_KEYS.map(key => {
                         const on = sel.styleRef === key
                         return (
-                          <button key={key} type="button" onClick={() => applyStyle(sel.id, key)} title={`Apply the ${TEXT_STYLE_LABELS[key]} style`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: on ? accent : 'rgba(0,0,0,0.18)', background: on ? accent : 'transparent', color: on ? '#fff' : '#666' }}>{TEXT_STYLE_LABELS[key]}</button>
+                          <button key={key} type="button" onClick={() => applyStyle(sel.id, key)} title={`Apply the ${TEXT_STYLE_LABELS[key]} style`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: on ? accent : 'rgba(0,0,0,0.18)', background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{TEXT_STYLE_LABELS[key]}</button>
                         )
                       })}
                     </div>
@@ -2386,8 +2387,8 @@ export default function CanvasEditor({
                   )}
                   {(() => { const ew = sel.weight ?? (sel.bold ? 700 : 400); return (
                     <>
-                      <button type="button" title="Bold" onClick={() => update(sel.id, { weight: ew >= 700 ? 400 : 700, bold: undefined })} style={{ fontWeight: 700, fontSize: 13, color: ew >= 700 ? accent : '#888', width: 24 }}>B</button>
-                      <button type="button" title="Italic" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? accent : '#888', width: 24 }}>I</button>
+                      <button type="button" title="Bold" onClick={() => update(sel.id, { weight: ew >= 700 ? 400 : 700, bold: undefined })} style={{ fontWeight: 700, fontSize: 13, color: ew >= 700 ? ui : '#888', width: 24 }}>B</button>
+                      <button type="button" title="Italic" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? ui : '#888', width: 24 }}>I</button>
                       <select value={ew} onChange={e => update(sel.id, { weight: Number(e.target.value), bold: undefined })} title="Font weight" style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
                         <option value={300}>Light</option>
                         <option value={400}>Regular</option>
@@ -2432,7 +2433,7 @@ export default function CanvasEditor({
                 <div className="flex items-center gap-1.5">
                   <span style={labelCss}>Align</span>
                   {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
-                    <button key={a} type="button" title={a} onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 10px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
+                    <button key={a} type="button" title={a} onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 10px', borderRadius: 3, border: `1px solid ${sel.align === a ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? ui : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
                 </div>
                 <div className="flex items-center gap-2">
@@ -2463,11 +2464,11 @@ export default function CanvasEditor({
                       <input type="range" min={0.8} max={3} step={0.05} value={sel.lineHeight ?? 1.25} onChange={e => update(sel.id, { lineHeight: Number(e.target.value) })} style={{ flex: 1 }} title="Line height" />
                       <span style={{ fontSize: 11, color: '#666', width: 28 }}>{(sel.lineHeight ?? 1.25).toFixed(2)}</span>
                     </div>
-                    <button type="button" onClick={() => update(sel.id, { dropCap: !sel.dropCap })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.dropCap ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.dropCap ? accent : 'transparent', color: sel.dropCap ? '#fff' : '#666' }}>Drop cap {sel.dropCap ? 'on' : 'off'}</button>
+                    <button type="button" onClick={() => update(sel.id, { dropCap: !sel.dropCap })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.dropCap ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.dropCap ? ui : 'transparent', color: sel.dropCap ? '#fff' : '#666' }}>Drop cap {sel.dropCap ? 'on' : 'off'}</button>
                     <div>
                       <div className="flex items-center justify-between">
                         <span style={labelCss}>Gradient text</span>
-                        <button type="button" onClick={() => update(sel.id, { gradient: sel.gradient ? undefined : { kind: 'linear', from: sel.color && sel.color.startsWith('#') ? sel.color : '#a85c36', to: '#5b2c9a', angle: 90 } })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.gradient ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.gradient ? accent : 'transparent', color: sel.gradient ? '#fff' : '#666' }}>{sel.gradient ? 'on' : 'off'}</button>
+                        <button type="button" onClick={() => update(sel.id, { gradient: sel.gradient ? undefined : { kind: 'linear', from: sel.color && sel.color.startsWith('#') ? sel.color : '#a85c36', to: '#5b2c9a', angle: 90 } })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.gradient ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.gradient ? ui : 'transparent', color: sel.gradient ? '#fff' : '#666' }}>{sel.gradient ? 'on' : 'off'}</button>
                       </div>
                       {sel.gradient && <div className="mt-1.5">{gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}</div>}
                     </div>
@@ -2483,7 +2484,7 @@ export default function CanvasEditor({
                       <option value="link">Custom link</option>
                     </select>
                     {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={{ ...inputCss, width: 130 }} />}
-                    {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
+                    {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? ui : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                   </div>
                 )}
               </>
@@ -2502,7 +2503,7 @@ export default function CanvasEditor({
                   </select>
                 </div>
                 {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={inputCss} />}
-                {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ alignSelf: 'flex-start', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
+                {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ alignSelf: 'flex-start', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? ui : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                 {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
@@ -2535,7 +2536,7 @@ export default function CanvasEditor({
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
-                <button type="button" onClick={() => update(sel.id, { lightbox: !sel.lightbox })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.lightbox ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.lightbox ? accent : 'transparent', color: sel.lightbox ? '#fff' : '#666' }}>Click to enlarge {sel.lightbox ? 'on' : 'off'}</button>
+                <button type="button" onClick={() => update(sel.id, { lightbox: !sel.lightbox })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.lightbox ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.lightbox ? ui : 'transparent', color: sel.lightbox ? '#fff' : '#666' }}>Click to enlarge {sel.lightbox ? 'on' : 'off'}</button>
                 {(() => {
                   const A = sel.adjust || {}
                   const setA = (patch: Partial<ImageAdjust>) => update(sel.id, { adjust: { ...A, ...patch } })
@@ -2603,14 +2604,14 @@ export default function CanvasEditor({
                   <span style={labelCss}>Colour</span>
                   {colorField(sel.color, v => update(sel.id, { color: v }), accent)}
                   {(['left', 'center', 'right'] as SiteAlign[]).map(a => (
-                    <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? accent : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
+                    <button key={a} type="button" onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: `1px solid ${sel.align === a ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? ui : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
                 </div>
                 <div>
                   <span style={labelCss}>Menu style</span>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                     {([['plain', 'Plain'], ['underline', 'Underline'], ['pills', 'Pills'], ['boxed', 'Boxed'], ['stacked', 'Stacked ↕']] as [MenuStyle, string][]).map(([k, lbl]) => (
-                      <button key={k} type="button" onClick={() => update(sel.id, { menuStyle: k })} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm border" style={{ borderColor: (sel.menuStyle || 'plain') === k ? accent : 'rgba(0,0,0,0.15)', background: (sel.menuStyle || 'plain') === k ? accent : 'transparent', color: (sel.menuStyle || 'plain') === k ? '#fff' : '#666' }}>{lbl}</button>
+                      <button key={k} type="button" onClick={() => update(sel.id, { menuStyle: k })} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm border" style={{ borderColor: (sel.menuStyle || 'plain') === k ? ui : 'rgba(0,0,0,0.15)', background: (sel.menuStyle || 'plain') === k ? ui : 'transparent', color: (sel.menuStyle || 'plain') === k ? '#fff' : '#666' }}>{lbl}</button>
                     ))}
                   </div>
                 </div>
@@ -2621,7 +2622,7 @@ export default function CanvasEditor({
               <>
                 <div className="flex flex-wrap gap-1.5">
                   {SHAPE_KINDS.map(k => (
-                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { shape: k })} style={{ width: 42, height: 28, padding: 2, borderRadius: 3, border: sel.shape === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.2)', background: '#fff' }}>
+                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { shape: k })} style={{ width: 42, height: 28, padding: 2, borderRadius: 3, border: sel.shape === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff' }}>
                       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(k)} style={{ fill: accent }} /></svg>
                     </button>
                   ))}
@@ -2648,12 +2649,12 @@ export default function CanvasEditor({
                     <option value="booking">Booking page</option>
                   </select>
                   {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://instagram.com/…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />}
-                  {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? accent : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
+                  {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? ui : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                 </div>
                 <p style={labelCss}>Pick an icon</p>
                 <div className="flex flex-wrap gap-1" style={{ maxHeight: 170, overflowY: 'auto' }}>
                   {ICON_GROUPS.flatMap(g => g.keys).map(k => (
-                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
+                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
                   ))}
                 </div>
               </>
@@ -2697,7 +2698,7 @@ export default function CanvasEditor({
                           const ctrlField = f.showIf ? fl.find(x => x.id === f.showIf!.field) : undefined
                           return (
                             <div key={i} className="rounded-sm" style={{ padding: '1px 0' }}>
-                              {i > 0 && f.newStep && <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: accent, borderTop: `1px dashed ${accent}66`, paddingTop: 3, marginTop: 3, marginBottom: 2 }}>New step ↓</div>}
+                              {i > 0 && f.newStep && <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: ui, borderTop: `1px dashed ${ui}66`, paddingTop: 3, marginTop: 3, marginBottom: 2 }}>New step ↓</div>}
                               <div className="flex items-center gap-1">
                                 <input value={f.label} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ ...inputCss, fontSize: 12, flex: 1, padding: '4px 6px' }} />
                                 <select value={f.type} onChange={e => {
@@ -2708,8 +2709,8 @@ export default function CanvasEditor({
                                 }} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
                                   {FORM_FIELD_TYPES.map(t => <option key={t} value={t}>{FORM_FIELD_LABELS[t]}</option>)}
                                 </select>
-                                <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? accent : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
-                                {i > 0 && <button type="button" title={f.newStep ? 'Starts a new step' : 'Start a new step here'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, newStep: !x.newStep } : x)))} style={{ fontSize: 12, color: f.newStep ? accent : '#cbb', width: 16 }}>⤓</button>}
+                                <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? ui : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
+                                {i > 0 && <button type="button" title={f.newStep ? 'Starts a new step' : 'Start a new step here'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, newStep: !x.newStep } : x)))} style={{ fontSize: 12, color: f.newStep ? ui : '#cbb', width: 16 }}>⤓</button>}
                                 {fl.length > 1 && <button type="button" title="Remove field" onClick={() => { const rid = f.id; setFields(fl.filter((_, j) => j !== i).map(x => (x.showIf?.field === rid ? { ...x, showIf: undefined } : x))) }} style={{ fontSize: 13, color: '#b3402f', width: 16 }}>×</button>}
                               </div>
                               {f.type === 'select' && (
@@ -2851,7 +2852,7 @@ export default function CanvasEditor({
             <div className="flex items-center justify-between">
               <span style={labelCss}>{selectedIds.length} selected</span>
               <div className="flex items-center gap-2">
-                {hasStyle && <button type="button" title="Paste style onto all (Ctrl+Shift+V)" onClick={() => pasteStyle(selectedIds)} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste style</button>}
+                {hasStyle && <button type="button" title="Paste style onto all (Ctrl+Shift+V)" onClick={() => pasteStyle(selectedIds)} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste style</button>}
                 <button type="button" title="Duplicate (Ctrl+D)" onClick={() => duplicateMany(selectedIds)} style={{ fontSize: 13, color: accent }}>⧉</button>
                 <button type="button" title="Delete (Del)" onClick={() => removeMany(selectedIds)} style={{ fontSize: 12, color: '#b3402f' }}>✕</button>
               </div>
@@ -2903,7 +2904,7 @@ export default function CanvasEditor({
         {!editingComp && (
         <div className="flex items-center justify-center gap-2 mb-3">
           {([['desktop', '🖥 Desktop'], ['mobile', '📱 Phone']] as const).map(([d, lbl]) => (
-            <button key={d} type="button" onClick={() => { setDevice(d); setSelectedIds([]); setEditingId('') }} className="font-label text-[10px] tracking-[1px] uppercase px-3.5 py-1.5 rounded-sm border" style={{ borderColor: device === d ? accent : 'rgba(0,0,0,0.15)', background: device === d ? accent : 'transparent', color: device === d ? '#fff' : '#888' }}>{lbl}</button>
+            <button key={d} type="button" onClick={() => { setDevice(d); setSelectedIds([]); setEditingId('') }} className="font-label text-[10px] tracking-[1px] uppercase px-3.5 py-1.5 rounded-sm border" style={{ borderColor: device === d ? ui : 'rgba(0,0,0,0.15)', background: device === d ? ui : 'transparent', color: device === d ? '#fff' : '#888' }}>{lbl}</button>
           ))}
         </div>
         )}
@@ -2944,7 +2945,7 @@ export default function CanvasEditor({
                 <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="font-label text-[10px] tracking-[1px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 54, height: 24 }}>{Math.round(zoom * 100)}%</button>
                 <button type="button" onClick={() => setZoomClamped(zoom + 0.1)} title="Zoom in" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>+</button>
                 {!editingMobile && <button type="button" onClick={fitToScreen} title="Fit the whole page on screen" className="font-label text-[9px] tracking-[1px] uppercase text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>⤢ Fit</button>}
-                {!editingMobile && <button type="button" onClick={() => setShowRulers(v => !v)} title="Rulers & guides — click a ruler to drop a guide elements snap to" className="font-label text-[9px] tracking-[1px] uppercase rounded-sm border" style={{ height: 24, padding: '0 8px', borderColor: showRulers ? accent : 'rgba(0,0,0,0.2)', background: showRulers ? accent : 'transparent', color: showRulers ? '#fff' : '#a98', }}>📐 Rulers</button>}
+                {!editingMobile && <button type="button" onClick={() => setShowRulers(v => !v)} title="Rulers & guides — click a ruler to drop a guide elements snap to" className="font-label text-[9px] tracking-[1px] uppercase rounded-sm border" style={{ height: 24, padding: '0 8px', borderColor: showRulers ? ui : 'rgba(0,0,0,0.2)', background: showRulers ? ui : 'transparent', color: showRulers ? '#fff' : '#a98', }}>📐 Rulers</button>}
                 {!editingMobile && showRulers && (guidesX.length > 0 || guidesY.length > 0) && <button type="button" onClick={() => { setGuidesX([]); setGuidesY([]); touch() }} title="Remove all guides" className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 border border-gold/20 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>Clear</button>}
               </div>
             )}
@@ -2985,13 +2986,13 @@ export default function CanvasEditor({
                     onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!selectedIds.includes(el.id)) setSelectedIds(withGroup([el.id])); setCtxMenu({ x: e.clientX, y: e.clientY }) }}
                     onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
-                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${accent}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
+                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${ui}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
                   >
                     {elInner(el)}
                     {selectedId === el.id && !el.locked && (
                       <div
                         onPointerDown={e => startDrag(e, el, 'resize')}
-                        style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 3, background: accent, border: '2px solid #fff', cursor: 'nwse-resize', touchAction: 'none', zIndex: 2 }}
+                        style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 3, background: ui, border: '2px solid #fff', cursor: 'nwse-resize', touchAction: 'none', zIndex: 2 }}
                       />
                     )}
                   </div>
