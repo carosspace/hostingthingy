@@ -2246,6 +2246,15 @@ export default function CanvasEditor({
               </div>
             )}
 
+            {!sel.locked && ['image', 'box', 'carousel', 'embed', 'icon', 'shape'].includes(sel.type) && (
+              <div className="flex items-center gap-1 flex-wrap" title="Snap to an aspect ratio (keeps the width)">
+                <span style={labelCss}>Ratio</span>
+                {([['1:1', 1, 1], ['4:3', 4, 3], ['3:4', 3, 4], ['16:9', 16, 9], ['9:16', 9, 16]] as [string, number, number][]).map(([lbl, rw, rh]) => (
+                  <button key={lbl} type="button" onClick={() => { const w = Math.round(gw(sel)); update(sel.id, patchWH(w, Math.max(8, Math.round((w * rh) / rw)))) }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1 rounded-sm">{lbl}</button>
+                ))}
+              </div>
+            )}
+
             {(sel.type === 'text' || sel.type === 'button') && (
               <>
                 <textarea value={sel.text || ''} onChange={e => update(sel.id, { text: e.target.value })} rows={2} placeholder="Type here…" style={{ ...inputCss, resize: 'none' }} />
