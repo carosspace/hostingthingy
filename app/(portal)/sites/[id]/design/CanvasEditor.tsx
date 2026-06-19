@@ -14,8 +14,8 @@ import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
-const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
-const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
+const inputCss: CSSProperties = { background: '#fff', color: '#1f2430', border: '1px solid #e6e6e9', borderRadius: 8, fontSize: 13, padding: '7px 10px', width: '100%' }
+const labelCss: CSSProperties = { fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600, color: '#9aa0ab' }
 const swatchCss: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
 
 // Resolve a typed colour — a hex (#abc / #aabbcc) or a CSS colour name like "tomato"
@@ -146,6 +146,7 @@ export default function CanvasEditor({
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay (also snaps when on)
   const [gridSize, setGridSize] = useState(20) // grid cell size in design px
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
+  const [focusMode, setFocusMode] = useState(false) // hide the side panel to give the canvas the whole width
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -1803,31 +1804,35 @@ export default function CanvasEditor({
   }
 
   return (
-    <div className="lg:flex lg:gap-5 lg:items-start bg-white rounded-xl p-3 md:p-4 shadow-sm lg:w-[92vw] lg:ml-[calc(50%-46vw)]">
+    <div className="lg:flex lg:gap-4 lg:items-start rounded-2xl p-3 md:p-4 lg:w-[92vw] lg:ml-[calc(50%-46vw)]" style={{ background: '#f4f4f7' }}>
       {fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(fonts) }} />}
-      {/* LEFT: a Canva-style icon rail + the active tool panel */}
-      <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2 mb-4 lg:mb-0">
-        <div className="flex flex-col gap-1 shrink-0">
-          {([['design', '🎨', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '☁', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
+      {/* LEFT: a Canva-style icon rail + the active tool panel (hidden in focus mode) */}
+      {!focusMode && (
+      <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2.5 mb-4 lg:mb-0">
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {([['design', '◍', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '⤒', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
             const on = lib && panelTab === key
             return (
               <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
-                className="flex flex-col items-center justify-center gap-0.5 rounded-md transition-colors"
-                style={{ width: 52, height: 54, border: '1px solid', borderColor: on ? accent : 'rgba(0,0,0,0.08)', background: on ? 'rgba(168,92,54,0.10)' : 'transparent', color: on ? accent : '#8a7c63' }}>
-                <span style={{ fontSize: 16, lineHeight: 1, fontWeight: key === 'text' ? 700 : 400 }}>{icon}</span>
-                <span style={{ fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase' }}>{lbl}</span>
+                className="flex flex-col items-center justify-center gap-1 rounded-xl transition-colors"
+                style={{ width: 50, height: 52, border: 'none', background: on ? accent : '#ffffff', color: on ? '#fff' : '#6b7280', boxShadow: on ? 'none' : '0 1px 2px rgba(17,17,26,0.05)' }}>
+                <span style={{ fontSize: 17, lineHeight: 1, fontWeight: key === 'text' ? 700 : 400 }}>{icon}</span>
+                <span style={{ fontSize: 8.5, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 600 }}>{lbl}</span>
               </button>
             )
           })}
         </div>
-        <div className="lg:w-[290px] lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-sm border border-gold/15 px-4 py-4 flex flex-col gap-4" style={{ background: 'rgba(246,240,230,0.97)' }}>
+        <div className="lg:w-[284px] lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-2xl px-4 py-4 flex flex-col gap-4" style={{ background: '#ffffff', border: '1px solid #ececef', boxShadow: '0 1px 2px rgba(17,17,26,0.04), 0 14px 34px -16px rgba(17,17,26,0.22)' }}>
         <div className="flex items-center justify-between">
-          <span className="font-label text-[11px] tracking-[3px] uppercase text-gold">{lib ? ({ design: 'Design', text: 'Text', elements: 'Add', uploads: 'Uploads', layers: 'Layers' } as const)[panelTab] : 'Selected'}</span>
-          {siteStatus === 'live' && (
-            <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-gold hover:text-goldLight">View ↗</a>
-          )}
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#2a2e3a', letterSpacing: 0.2 }}>{lib ? ({ design: 'Design', text: 'Text', elements: 'Add', uploads: 'Uploads', layers: 'Layers' } as const)[panelTab] : 'Selected'}</span>
+          <div className="flex items-center gap-2.5">
+            {siteStatus === 'live' && (
+              <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: '#9aa0ab' }} className="hover:text-gold">View ↗</a>
+            )}
+            <button type="button" onClick={() => setFocusMode(true)} title="Hide this panel (or double-click the canvas)" style={{ fontSize: 16, lineHeight: 1, color: '#b6bbc4', width: 20 }} className="hover:text-gold">⟨</button>
+          </div>
         </div>
-        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2.5 rounded-sm disabled:opacity-50">
+        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} style={{ background: saved ? '#1f9d6b' : accent }} className="text-white hover:brightness-110 text-[12px] font-semibold tracking-wide px-4 py-2.5 rounded-xl disabled:opacity-50 transition">
           {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
         </button>
         {saveError && (
@@ -2878,9 +2883,13 @@ export default function CanvasEditor({
         ) : null)}
       </div>
       </div>
+      )}
 
       {/* CANVAS */}
       <div className="flex-1 min-w-0">
+        {focusMode && (
+          <button type="button" onClick={() => setFocusMode(false)} title="Show the editing panel (or double-click the canvas)" className="mb-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold transition hover:brightness-95" style={{ background: '#fff', color: '#4b5563', border: '1px solid #e6e6e9', boxShadow: '0 1px 2px rgba(17,17,26,0.06)' }}>⟩&nbsp; Show panel</button>
+        )}
         {editingComp && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-sm px-3.5 py-2.5" style={{ background: '#fbf3da', border: '1px solid rgba(154,125,46,0.4)' }}>
             <span className="font-body text-[12px]" style={{ color: '#7a5c0e' }}>✎ Editing <b>{components.find(c => c.id === editingComp.id)?.name || 'component'}</b> — rearrange these elements, then save to update every instance.</span>
@@ -2950,6 +2959,7 @@ export default function CanvasEditor({
             <div
               ref={canvasRef}
               onPointerDown={bgPointerDown}
+              onDoubleClick={e => { if (e.target === e.currentTarget) setFocusMode(f => !f) }}
               onContextMenu={e => { if (e.target === e.currentTarget) { e.preventDefault(); setSelectedIds([]); setCtxMenu({ x: e.clientX, y: e.clientY }) } }}
               onDragOver={e => { if (dragUploadSrc.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' } }}
               onDrop={onCanvasDrop}
