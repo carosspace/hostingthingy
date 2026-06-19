@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, type TextStyleProps } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, type TextStyleProps, type FormField, type FormFieldType } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import type {
@@ -932,6 +932,14 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
+      fields: type === 'form' && Array.isArray(e?.fields)
+        ? ((e.fields as Record<string, unknown>[]).slice(0, 12).map((f, fi): FormField => ({
+            id: /^[a-z0-9_]{1,16}$/i.test(String(f?.id ?? '')) ? String(f?.id) : 'f' + fi,
+            label: String(f?.label ?? 'Field').slice(0, 60) || 'Field',
+            type: FORM_FIELD_TYPES.includes(String(f?.type) as FormFieldType) ? (String(f?.type) as FormFieldType) : 'text',
+            required: f?.required ? true : undefined,
+          })))
+        : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' || type === 'text' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,

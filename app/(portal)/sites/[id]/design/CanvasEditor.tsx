@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -1362,11 +1362,12 @@ export default function CanvasEditor({
     if (el.type === 'form') {
       const r = cqv(Math.max(0, (el.radius ?? 10) - 2))
       const fieldStyle: CSSProperties = { width: '100%', padding: `${cqv(9)} ${cqv(11)}`, borderRadius: r, border: '1px solid rgba(0,0,0,0.16)', background: 'rgba(255,255,255,0.86)', color: 'rgba(0,0,0,0.42)', fontSize: cqv(15), marginBottom: cqv(8), boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap' }
+      const list = el.fields && el.fields.length ? el.fields : defaultFormFields()
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none', fontFamily: fontVar(el.fontFamily), overflow: 'hidden' }}>
-          <div style={fieldStyle}>Your name</div>
-          <div style={fieldStyle}>Email</div>
-          <div style={{ ...fieldStyle, flex: 1, minHeight: cqv(36), marginBottom: cqv(8) }}>Message</div>
+          {list.map((f, i) => (
+            <div key={i} style={f.type === 'textarea' ? { ...fieldStyle, flex: 1, minHeight: cqv(36) } : fieldStyle}>{f.label}{f.required ? ' *' : ''}</div>
+          ))}
           <div style={{ padding: `${cqv(9)} ${cqv(16)}`, borderRadius: r, background: el.fill || accent, color: '#fff', fontSize: cqv(15), fontWeight: 600, textAlign: 'center' }}>{el.text || 'Send message'}</div>
         </div>
       )
@@ -2207,7 +2208,31 @@ export default function CanvasEditor({
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={40} value={sel.radius ?? 10} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
-                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Visitors send you <b>Name · Email · Message</b>. Replies arrive in <b>Messages</b> in your dashboard — no email setup needed.</p>
+                {(() => {
+                  const fl = sel.fields && sel.fields.length ? sel.fields : defaultFormFields()
+                  const setFields = (next: typeof fl) => update(sel.id, { fields: next })
+                  return (
+                    <div>
+                      <span style={labelCss}>Fields</span>
+                      <div className="space-y-1 mt-1">
+                        {fl.map((f, i) => (
+                          <div key={i} className="flex items-center gap-1">
+                            <input value={f.label} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} style={{ ...inputCss, fontSize: 12, flex: 1, padding: '4px 6px' }} />
+                            <select value={f.type} onChange={e => setFields(fl.map((x, j) => (j === i ? { ...x, type: e.target.value as FormFieldType } : x)))} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
+                              {FORM_FIELD_TYPES.map(t => <option key={t} value={t}>{FORM_FIELD_LABELS[t]}</option>)}
+                            </select>
+                            <button type="button" title={f.required ? 'Required' : 'Optional'} onClick={() => setFields(fl.map((x, j) => (j === i ? { ...x, required: !x.required } : x)))} style={{ fontSize: 12, color: f.required ? accent : '#bbb', width: 18 }}>{f.required ? '✸' : '○'}</button>
+                            {fl.length > 1 && <button type="button" title="Remove field" onClick={() => setFields(fl.filter((_, j) => j !== i))} style={{ fontSize: 13, color: '#b3402f', width: 16 }}>×</button>}
+                          </div>
+                        ))}
+                      </div>
+                      {fl.length < 12 && (
+                        <button type="button" onClick={() => setFields([...fl, { id: 'f' + (idc.current++).toString(36), label: 'New field', type: 'text' }])} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm mt-1.5">+ Add field</button>
+                      )}
+                    </div>
+                  )
+                })()}
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>✸ = required. The <b>Email</b> field fills the sender&rsquo;s address; everything lands in <b>Messages</b> in your dashboard — no email setup needed.</p>
               </>
             )}
             {sel.type === 'box' && (

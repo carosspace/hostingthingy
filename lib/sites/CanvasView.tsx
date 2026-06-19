@@ -91,6 +91,7 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         radius={el.radius ?? 10}
         fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined}
         textColor={el.color || '#1a1612'}
+        fields={el.fields}
       />
     )
   if (el.type === 'component') {
@@ -286,7 +287,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'form') {
           node = (
             <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, minHeight: 260, opacity: o }}>
-              <ContactForm slug={siteSlug} accent={el.fill || accent} label={el.text || 'Send message'} radius={el.radius ?? 10} fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined} textColor={el.color || '#1a1612'} />
+              <ContactForm slug={siteSlug} accent={el.fill || accent} label={el.text || 'Send message'} radius={el.radius ?? 10} fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined} textColor={el.color || '#1a1612'} fields={el.fields} />
             </div>
           )
         } else if (el.type === 'embed') {

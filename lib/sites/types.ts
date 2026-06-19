@@ -139,6 +139,27 @@ export interface TextStyleProps {
   letterSpacing?: number
   color?: string
 }
+// Configurable contact-form fields. Submissions still map to the existing messages
+// schema (an email field → email, a text field → name, all fields → the body), so no
+// DB change is needed.
+export type FormFieldType = 'text' | 'email' | 'textarea' | 'tel'
+export const FORM_FIELD_TYPES: FormFieldType[] = ['text', 'email', 'textarea', 'tel']
+export const FORM_FIELD_LABELS: Record<FormFieldType, string> = { text: 'Short text', email: 'Email', textarea: 'Long text', tel: 'Phone' }
+export interface FormField {
+  id: string
+  label: string
+  type: FormFieldType
+  required?: boolean
+}
+export const MAX_FORM_FIELDS = 12
+export function defaultFormFields(): FormField[] {
+  return [
+    { id: 'name', label: 'Your name', type: 'text' },
+    { id: 'email', label: 'Email', type: 'email', required: true },
+    { id: 'message', label: 'Message', type: 'textarea', required: true },
+  ]
+}
+
 export const TEXT_STYLE_KEYS = ['heading', 'subheading', 'body', 'caption', 'quote'] as const
 export type TextStyleKey = (typeof TEXT_STYLE_KEYS)[number]
 export const TEXT_STYLE_LABELS: Record<TextStyleKey, string> = {
@@ -302,6 +323,8 @@ export interface CanvasElement {
   menuStyle?: MenuStyle
   // embed (video / map): a pasted YouTube/Vimeo/Maps URL; render resolves it to a safe iframe
   embedUrl?: string
+  // form: the fields a visitor fills in (falls back to Name/Email/Message)
+  fields?: FormField[]
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)
