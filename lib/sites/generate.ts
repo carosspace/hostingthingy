@@ -125,13 +125,22 @@ export async function aiSection(opts: {
 
 // Rewrite (or write) ONE piece of free-text copy from a plain-language instruction —
 // used to edit a single text element on the free canvas with AI.
+// A one-line voice instruction appended to copy/review prompts when the owner has set
+// a brand voice. Sliced for safety; empty string when no voice is configured.
+function voiceLine(brandVoice?: string): string {
+  const v = (brandVoice ?? '').trim().slice(0, 600)
+  return v ? `\n\nWrite in this brand's voice — match its tone, rhythm and vocabulary: ${v}` : ''
+}
+
 export async function aiText(opts: {
   siteName: string
   instruction: string
   text: string
+  brandVoice?: string
 }): Promise<{ text: string }> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const isNew = !opts.text.trim()
+  const voice = voiceLine(opts.brandVoice)
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 700,
@@ -151,8 +160,8 @@ export async function aiText(opts: {
       {
         role: 'user',
         content: isNew
-          ? `For the website "${opts.siteName}", write a short piece of copy.\n\nWhat it should say: ${opts.instruction}\n\nWarm, clear, professional. Return ONLY the text — no quotes, no preamble, no markdown.`
-          : `For the website "${opts.siteName}", rewrite this text.\n\nInstruction: ${opts.instruction}\n\nCurrent text:\n${opts.text}\n\nKeep it warm, clear and professional, and roughly the same length unless the instruction says otherwise. Preserve line breaks where they make sense. Return ONLY the new text — no quotes, no preamble, no markdown.`,
+          ? `For the website "${opts.siteName}", write a short piece of copy.\n\nWhat it should say: ${opts.instruction}\n\nWarm, clear, professional. Return ONLY the text — no quotes, no preamble, no markdown.${voice}`
+          : `For the website "${opts.siteName}", rewrite this text.\n\nInstruction: ${opts.instruction}\n\nCurrent text:\n${opts.text}\n\nKeep it warm, clear and professional, and roughly the same length unless the instruction says otherwise. Preserve line breaks where they make sense. Return ONLY the new text — no quotes, no preamble, no markdown.${voice}`,
       },
     ],
   })
@@ -232,7 +241,7 @@ export interface DesignCritique {
 const CRITIQUE_AREAS: CritiqueArea[] = ['Hierarchy', 'Contrast', 'Spacing', 'Copy', 'Colour', 'Accessibility', 'Mobile']
 const CRITIQUE_SEVS: CritiqueSeverity[] = ['praise', 'tip', 'fix']
 
-export async function aiCritiqueDesign(opts: { siteName: string; summary: string }): Promise<DesignCritique> {
+export async function aiCritiqueDesign(opts: { siteName: string; summary: string; brandVoice?: string }): Promise<DesignCritique> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
@@ -276,7 +285,7 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
     messages: [
       {
         role: 'user',
-        content: `Brand: ${opts.siteName}\n\nHere is the current one-page design (positions and sizes are in design pixels on a desktop canvas):\n\n${opts.summary}\n\nReview it warmly and specifically.`,
+        content: `Brand: ${opts.siteName}${voiceLine(opts.brandVoice) ? `\nBrand voice: ${opts.brandVoice!.trim().slice(0, 600)}` : ''}\n\nHere is the current one-page design (positions and sizes are in design pixels on a desktop canvas):\n\n${opts.summary}\n\nReview it warmly and specifically${opts.brandVoice ? ', and judge whether the copy actually sounds like the brand voice above' : ''}.`,
       },
     ],
   })
@@ -310,6 +319,7 @@ export async function aiRewritePage(opts: {
   headline: string
   subheadline: string
   sections: { heading: string; body: string }[]
+  brandVoice?: string
 }): Promise<GeneratedPage> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const current =
@@ -345,7 +355,7 @@ export async function aiRewritePage(opts: {
     messages: [
       {
         role: 'user',
-        content: `Revise this website page for "${opts.siteName}".\n\nInstruction: ${opts.instruction}\n\nCurrent page:\n${current}\n\nApply the instruction, keep what works, and return the FULL revised page (headline, subheadline, and all sections). Warm, clear, professional.`,
+        content: `Revise this website page for "${opts.siteName}".\n\nInstruction: ${opts.instruction}\n\nCurrent page:\n${current}\n\nApply the instruction, keep what works, and return the FULL revised page (headline, subheadline, and all sections). Warm, clear, professional.${voiceLine(opts.brandVoice)}`,
       },
     ],
   })

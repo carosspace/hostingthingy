@@ -92,6 +92,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     accentColor: style.accentColor,
     fontSystem: getFontSystem(payload.fontKey).key,
     brand: existing?.brand,
+    brandVoice: existing?.brandVoice, // never drop the owner's brand voice on an AI regenerate
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription || description.slice(0, 160) || undefined,
     headline: home.headline,

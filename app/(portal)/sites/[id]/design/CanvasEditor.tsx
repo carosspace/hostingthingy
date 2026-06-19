@@ -9,7 +9,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -81,6 +81,7 @@ export default function CanvasEditor({
   fontSystem,
   contactEmail,
   navPages,
+  brandVoice: initialBrandVoice = '',
   initial,
 }: {
   siteId: string
@@ -92,6 +93,7 @@ export default function CanvasEditor({
   fontSystem: string
   contactEmail: string
   navPages: { slug: string; label: string }[]
+  brandVoice?: string
   initial: PageCanvas | null
 }) {
   const t = THEMES[theme] ?? THEMES.sand
@@ -177,6 +179,9 @@ export default function CanvasEditor({
   const [critique, setCritique] = useState<DesignCritique | null>(null) // AI design review result
   const [critiquing, setCritiquing] = useState(false)
   const [critiqueErr, setCritiqueErr] = useState('')
+  const [brandVoice, setBrandVoice] = useState(initialBrandVoice) // site-wide voice fed to the AI
+  const [voiceSaved, setVoiceSaved] = useState(false) // brief tick after a save
+  const savedBrandVoice = useRef(initialBrandVoice) // last persisted value, to avoid redundant saves
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1007,6 +1012,18 @@ export default function CanvasEditor({
     }
   }
 
+  // Persist the site-wide brand voice (on blur). Skips a no-op save and shows a brief tick.
+  const saveBrandVoice = async () => {
+    const v = brandVoice.trim()
+    if (v === savedBrandVoice.current.trim()) return
+    const res = await setBrandVoiceAction(siteId, v)
+    if (res.ok) {
+      savedBrandVoice.current = v
+      setVoiceSaved(true)
+      setTimeout(() => setVoiceSaved(false), 1800)
+    }
+  }
+
   // One-click "motion personality": cascade coherent reveal + hover + stagger onto the
   // content elements (in top-to-bottom order), or clear all motion with 'none'.
   const applyMood = (mood: 'calm' | 'playful' | 'energetic' | 'none') => {
@@ -1753,6 +1770,16 @@ export default function CanvasEditor({
               <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
             </div>
           )}
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <div className="flex items-center justify-between">
+            <p style={labelCss}>Brand voice</p>
+            {voiceSaved && <span className="font-label text-[9px] tracking-[1px] uppercase text-gold/70">✓ Saved</span>}
+          </div>
+          <textarea value={brandVoice} onChange={e => setBrandVoice(e.target.value)} onBlur={saveBrandVoice} rows={3} maxLength={600} placeholder="e.g. Warm, grounded and a little poetic. Speaks to overwhelmed founders. Calm, never hype-y; short sentences; British spelling." style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'vertical', marginTop: 6 }} />
+          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">Used across this whole site — every AI rewrite, copy suggestion &amp; design review will sound like you.</p>
         </div>
 
         <div className="h-px bg-gold/15" />

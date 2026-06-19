@@ -302,6 +302,7 @@ export async function aiTextAction(args: {
       siteName: site.name,
       instruction: args.instruction || 'Improve the writing — clearer, warmer and more professional, same meaning.',
       text: args.text,
+      brandVoice: site.content?.brandVoice,
     })
   } catch {
     return fallback
@@ -334,10 +335,24 @@ export async function critiqueDesignAction(args: { siteId: string; summary: stri
   const summary = String(args.summary ?? '').trim()
   if (!summary) return { error: 'empty' }
   try {
-    return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000) })
+    return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000), brandVoice: site.content?.brandVoice })
   } catch {
     return { error: 'failed' }
   }
+}
+
+// Save the site-wide brand voice (a short description of how the brand sounds). Loads
+// the full content and writes it back with the spread intact, so nothing else — pages,
+// saved designs, settings — is dropped. Used by the editor's Brand-voice field.
+export async function setBrandVoiceAction(siteId: string, voice: string): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(siteId)
+  if (!site) return { ok: false }
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  const brandVoice = String(voice ?? '').trim().slice(0, 600) || undefined
+  await saveSiteContent(siteId, { ...existing, brandVoice })
+  return { ok: true }
 }
 
 // The in-editor assistant: rewrite the current page from an instruction. Returns
@@ -360,6 +375,7 @@ export async function aiPageAction(args: {
       headline: args.headline,
       subheadline: args.subheadline,
       sections: args.sections,
+      brandVoice: site.content?.brandVoice,
     })
   } catch {
     return null
@@ -413,6 +429,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     layout: existing?.layout,
     fontSystem: existing?.fontSystem,
     brand: existing?.brand,
+    brandVoice: existing?.brandVoice, // set in the visual editor; never drop on a content save
     seoTitle: existing?.seoTitle,
     seoDescription: existing?.seoDescription,
     ...homeFields,
@@ -591,6 +608,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     layout,
     fontSystem: String(parsed.fontSystem ?? '').trim() || undefined,
     brand: String(parsed.brand ?? '').trim() || undefined,
+    brandVoice: existing?.brandVoice, // edited via setBrandVoiceAction; preserve across visual-editor saves
     logoImage: String(parsed.logoImage ?? '').trim() || undefined,
     headerLogoPos: ([0, 1, 2].includes(Number(parsed.headerLogoPos)) ? Number(parsed.headerLogoPos) : undefined) as 0 | 1 | 2 | undefined,
     faviconImage: String(parsed.faviconImage ?? '').trim() || undefined,

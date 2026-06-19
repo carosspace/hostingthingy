@@ -471,6 +471,7 @@ export interface SiteContent {
   layout?: SiteLayout
   fontSystem?: string
   brand?: string
+  brandVoice?: string // a short description of how this brand sounds; fed to every AI copy/review prompt
   logoImage?: string // a logo shown in the header instead of the brand text
   headerLogoPos?: 0 | 1 | 2 // which header zone the logo sits in (0 left, 1 centre, 2 right) when a custom header bar is used
   faviconImage?: string // the little icon shown in the browser tab
