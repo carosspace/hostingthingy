@@ -1840,8 +1840,8 @@ export default function CanvasEditor({
           <p className="font-body text-[11px] leading-relaxed rounded-sm px-2.5 py-2" style={{ color: '#8a2b1d', background: '#fbe9e6', border: '1px solid rgba(179,64,47,0.3)' }}>{saveError}</p>
         )}
         {draftAt && (
-          <div className="rounded-sm px-2.5 py-2 flex flex-col gap-1.5" style={{ background: '#fef7e6', border: '1px solid rgba(154,125,46,0.45)' }}>
-            <span className="font-body text-[11px] leading-relaxed" style={{ color: '#7a5c0e' }}>You have unsaved changes from a previous session.</span>
+          <div className="rounded-lg px-2.5 py-2 flex flex-col gap-1.5" style={{ background: '#f3f6f1', border: '1px solid #d9e4d3' }}>
+            <span className="font-body text-[11px] leading-relaxed" style={{ color: '#4b5a45' }}>You have unsaved changes from a previous session.</span>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => { if (draftCanvas.current) { snapshot(true); loadCanvas(draftCanvas.current); touch() } setDraftAt(null) }} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-1.5 rounded-sm">↩ Restore them</button>
               <button type="button" onClick={() => { try { localStorage.removeItem(draftKey) } catch { /* ignore */ } setDraftAt(null) }} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2 py-1.5">Discard</button>
@@ -2198,7 +2198,7 @@ export default function CanvasEditor({
           </div>
           {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
           <div className="flex flex-wrap gap-1.5">
-            {([{ c: '#ffffff' }, { c: '#faf7f2' }, { c: '#f1ece3' }, { c: '#1a1612' }, { c: accent }, { g: { from: accent, to: '#1a1612', angle: 180 } }, { g: { from: '#ffffff', to: '#efe9dd', angle: 180 } }, { g: { from: accent, to: '#ffffff', angle: 180 } }, { g: { from: '#fbeaf0', to: '#e4f0fb', angle: 135, stops: [{ color: '#fbeaf0', at: 0 }, { color: '#f3ecfa', at: 50 }, { color: '#e4f0fb', at: 100 }] } }, { g: { from: '#fce9d8', to: '#e7f3ea', angle: 160, stops: [{ color: '#fce9d8', at: 0 }, { color: '#f7e3ec', at: 45 }, { color: '#e7f3ea', at: 100 }] } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
+            {([{ c: '#ffffff' }, { c: '#000000' }, { c: '#f5f5f4' }, { c: '#e7e7e4' }, { c: '#1f2430' }, { g: { from: '#fbeaf0', to: '#e4f0fb', angle: 135, stops: [{ color: '#fbeaf0', at: 0 }, { color: '#f3ecfa', at: 50 }, { color: '#e4f0fb', at: 100 }] } }, { g: { from: '#fce9d8', to: '#e7f3ea', angle: 160, stops: [{ color: '#fce9d8', at: 0 }, { color: '#f7e3ec', at: 45 }, { color: '#e7f3ea', at: 100 }] } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
               <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
             ))}
           </div>
@@ -2892,8 +2892,8 @@ export default function CanvasEditor({
           <button type="button" onClick={() => setFocusMode(false)} title="Show the editing panel (or double-click the canvas)" className="mb-3 inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-semibold transition hover:brightness-95" style={{ background: '#fff', color: '#4b5563', border: '1px solid #e6e6e9', boxShadow: '0 1px 2px rgba(17,17,26,0.06)' }}>⟩&nbsp; Show panel</button>
         )}
         {editingComp && (
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-sm px-3.5 py-2.5" style={{ background: '#fbf3da', border: '1px solid rgba(154,125,46,0.4)' }}>
-            <span className="font-body text-[12px]" style={{ color: '#7a5c0e' }}>✎ Editing <b>{components.find(c => c.id === editingComp.id)?.name || 'component'}</b> — rearrange these elements, then save to update every instance.</span>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg px-3.5 py-2.5" style={{ background: '#f3f6f1', border: '1px solid #d9e4d3' }}>
+            <span className="font-body text-[12px]" style={{ color: '#4b5a45' }}>✎ Editing <b>{components.find(c => c.id === editingComp.id)?.name || 'component'}</b> — rearrange these elements, then save to update every instance.</span>
             <div className="flex items-center gap-2">
               <button type="button" onClick={cancelEditComponent} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2.5 py-1.5">Cancel</button>
               <button type="button" onClick={finishEditComponent} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:opacity-90 px-3 py-1.5 rounded-sm">✓ Save to all instances</button>
@@ -2999,8 +2999,8 @@ export default function CanvasEditor({
                 )
               })}
               {!editingMobile && els.some(e => e.pin === 'footer') && (
-                <div style={{ position: 'absolute', left: 0, top: cqv(bodyBottom), width: '100%', height: 0, borderTop: '1px dashed rgba(154,125,46,0.5)', pointerEvents: 'none', zIndex: 4 }}>
-                  <span style={{ position: 'absolute', left: 6, top: 3, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(154,125,46,0.8)' }}>Footer — pinned to the bottom</span>
+                <div style={{ position: 'absolute', left: 0, top: cqv(bodyBottom), width: '100%', height: 0, borderTop: '1px dashed rgba(103,144,93,0.55)', pointerEvents: 'none', zIndex: 4 }}>
+                  <span style={{ position: 'absolute', left: 6, top: 3, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(103,144,93,0.85)' }}>Footer — pinned to the bottom</span>
                 </div>
               )}
               {guides.x !== null && <div style={{ position: 'absolute', left: cqv(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
