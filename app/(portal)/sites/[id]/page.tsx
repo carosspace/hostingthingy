@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
 import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction } from '../actions'
+import { cfConfigured, cfGetHostname, cfCnameTarget, isOwnZone, type CfHostname } from '@/lib/sites/cloudflare'
 import SavedDesigns from './SavedDesigns'
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +32,19 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         </Link>
       </div>
     )
+  }
+
+  // Custom-domain HTTPS: third-party domains go through Cloudflare for SaaS (when
+  // configured); the platform's own zone (animatemple.com) is served directly.
+  const ownZone = !!site.domain && isOwnZone(site.domain)
+  const cfMode = cfConfigured() && !!site.domain && !ownZone
+  let cf: CfHostname | null = null
+  if (cfMode && site.domain) {
+    try {
+      cf = await cfGetHostname(site.domain)
+    } catch {
+      cf = null
+    }
   }
 
   const st = STATUS[site.status]
@@ -130,7 +144,22 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
             Save
           </button>
         </form>
-        {site.domain && (
+        {site.domain && cfMode && (
+          <div className="mt-5 border-t border-gold/10 pt-4">
+            <p className="font-body text-parchment text-sm mb-2">Point <b>{site.domain}</b> here:</p>
+            <ol className="font-body text-ash/70 text-xs space-y-1.5 list-decimal list-inside">
+              <li>At your domain&rsquo;s DNS provider, add a <b className="text-ash">CNAME</b> record — Name <code className="text-gold/70">@</code> (your domain), Target <code className="text-gold/70">{cfCnameTarget()}</code>.</li>
+              <li>Add a <b className="text-ash">CNAME</b> for <code className="text-gold/70">www</code> → <code className="text-gold/70">{cfCnameTarget()}</code> as well.</li>
+            </ol>
+            {(() => {
+              const live = cf?.status === 'active' && cf?.sslStatus === 'active'
+              const label = !cf ? 'Waiting for your DNS…' : live ? '✓ Live with HTTPS' : cf.sslStatus === 'active' ? 'Almost there…' : 'Issuing your HTTPS certificate…'
+              return <p className="font-body text-[12px] mt-3" style={{ color: live ? '#3f7d4f' : '#9a7d2e' }}>{label}</p>
+            })()}
+            <p className="font-body text-ash/50 text-[11px] mt-1">HTTPS turns on automatically once the CNAME resolves (usually a few minutes). Refresh to update the status.</p>
+          </div>
+        )}
+        {site.domain && !cfMode && (
           <div className="mt-5 border-t border-gold/10 pt-4">
             <p className="font-body text-parchment text-sm mb-2">Point <b>{site.domain}</b> here:</p>
             <ol className="font-body text-ash/70 text-xs space-y-1.5 list-decimal list-inside">

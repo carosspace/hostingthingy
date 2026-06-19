@@ -9,6 +9,7 @@ import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
+import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
@@ -162,8 +163,16 @@ export async function setDomainAction(formData: FormData): Promise<void> {
 
   try {
     await setSiteDomain(id, domain)
+    // Cloudflare for SaaS: give a customer's OWN domain edge HTTPS. Skipped for the
+    // platform's own zone (animatemple.com is served directly via Traefik) and a no-op
+    // until CF_SAAS_* env is configured. Fail-safe — never blocks the save.
+    if (cfConfigured()) {
+      if (prev && prev !== domain && !isOwnZone(prev)) await cfDeleteHostname(prev)
+      if (domain && !isOwnZone(domain)) await cfCreateHostname(domain)
+    }
   } catch {
-    // The `domain` column may not exist yet (migration 002 not run).
+    // The `domain` column may not exist yet (migration 002 not run), or a CF hiccup —
+    // the domain is still saved either way.
   }
 
   revalidatePath(`/sites/${id}`)
