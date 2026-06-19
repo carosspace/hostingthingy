@@ -124,7 +124,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed'
 
 // How a page-menu element lays out its links.
 export type MenuStyle = 'plain' | 'underline' | 'pills' | 'boxed' | 'stacked'
@@ -267,6 +267,8 @@ export interface CanvasElement {
   icon?: string
   // page menu
   menuStyle?: MenuStyle
+  // embed (video / map): a pasted YouTube/Vimeo/Maps URL; render resolves it to a safe iframe
+  embedUrl?: string
   // box / button / image shared
   fill?: string
   gradient?: Gradient // a two-stop fill gradient (overrides fill on box/button)

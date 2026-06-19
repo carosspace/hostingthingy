@@ -11,6 +11,7 @@ import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
 import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction } from '../../actions'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
+import { embedSrc } from '@/lib/sites/embed'
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
 const inputCss: CSSProperties = { background: 'rgba(255,255,255,0.7)', color: '#222', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, fontSize: 13, padding: '6px 8px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }
@@ -634,6 +635,7 @@ export default function CanvasEditor({
     button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: '#111111', ctaType: 'none', radius: 6, fontFamily: 'label' },
     contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: '#111111', ctaType: 'email', radius: 6, fontFamily: 'label' },
     form: { type: 'form', w: 360, h: 360, text: 'Send message', fill: '#111111', color: '#1a1612', radius: 10, fontFamily: 'body' },
+    embed: { type: 'embed', w: 480, h: 270, radius: 6 },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
@@ -909,6 +911,24 @@ export default function CanvasEditor({
     } finally {
       setAltBusy(false)
     }
+  }
+
+  // One-click "motion personality": cascade coherent reveal + hover + stagger onto the
+  // content elements (in top-to-bottom order), or clear all motion with 'none'.
+  const applyMood = (mood: 'calm' | 'playful' | 'energetic' | 'none') => {
+    snapshot(true)
+    const CONTENT = ['text', 'button', 'image', 'carousel', 'icon', 'form', 'embed']
+    const order = els.filter(e => CONTENT.includes(e.type)).slice().sort((a, b) => a.y - b.y).map(e => e.id)
+    setEls(prev => prev.map((e): CanvasElement => {
+      if (mood === 'none') return { ...e, reveal: undefined, revealDelay: undefined, hover: undefined }
+      if (!CONTENT.includes(e.type)) return e
+      const idx = Math.max(0, order.indexOf(e.id))
+      const tappable = e.type === 'button' || e.type === 'image' || e.type === 'icon'
+      if (mood === 'calm') return { ...e, reveal: 'fade', revealDelay: Math.min(idx * 120, 1000) || undefined, hover: undefined }
+      if (mood === 'playful') return { ...e, reveal: idx % 2 ? 'up' : 'zoom', revealDelay: Math.min(idx * 90, 900) || undefined, hover: tappable ? 'grow' : undefined }
+      return { ...e, reveal: 'up', revealDelay: Math.min(idx * 60, 700) || undefined, hover: tappable ? 'lift' : undefined }
+    }))
+    touch()
   }
 
   // Drag / resize via window-level pointer tracking (works for mouse + touch).
@@ -1271,6 +1291,15 @@ export default function CanvasEditor({
         </div>
       )
     }
+    if (el.type === 'embed') {
+      const ok = !!(el.embedUrl && embedSrc(el.embedUrl))
+      return (
+        <div style={{ width: '100%', height: '100%', background: '#0e0e12', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: cqv(6), borderRadius: cqv(el.radius || 0), pointerEvents: 'none' }}>
+          <span style={{ fontSize: cqv(34) }}>▶</span>
+          <span style={{ fontSize: cqv(13), opacity: 0.7 }}>{ok ? 'Video / map' : 'Paste a video or map link'}</span>
+        </div>
+      )
+    }
     if (el.type === 'form') {
       const r = cqv(Math.max(0, (el.radius ?? 10) - 2))
       const fieldStyle: CSSProperties = { width: '100%', padding: `${cqv(9)} ${cqv(11)}`, borderRadius: r, border: '1px solid rgba(0,0,0,0.16)', background: 'rgba(255,255,255,0.86)', color: 'rgba(0,0,0,0.42)', fontSize: cqv(15), marginBottom: cqv(8), boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap' }
@@ -1325,7 +1354,7 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
@@ -1336,6 +1365,7 @@ export default function CanvasEditor({
     if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
     if (el.type === 'form') return 'Contact form'
+    if (el.type === 'embed') return 'Video / Map'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
     return 'Box'
@@ -1489,7 +1519,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['contact', 'Email button']] as [string, string][]).map(([key, lbl]) => (
+                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['contact', 'Email button']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
@@ -1563,6 +1593,17 @@ export default function CanvasEditor({
           <div className="flex items-center gap-1.5 mt-1.5">
             {(['full', 'contained'] as const).map(w => (
               <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? accent : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? accent : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-px bg-gold/15" />
+        <div>
+          <p style={labelCss}>Movement</p>
+          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">One click sets how the whole page comes alive as visitors scroll. You can still fine-tune any element under its Motion settings.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {([['calm', 'Calm'], ['playful', 'Playful'], ['energetic', 'Energetic'], ['none', 'None']] as ['calm' | 'playful' | 'energetic' | 'none', string][]).map(([k, lbl]) => (
+              <button key={k} type="button" onClick={() => applyMood(k)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{lbl}</button>
             ))}
           </div>
         </div>
@@ -1674,7 +1715,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${accent}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -2025,6 +2066,17 @@ export default function CanvasEditor({
                     <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${accent}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
                   ))}
                 </div>
+              </>
+            )}
+            {sel.type === 'embed' && (
+              <>
+                <input value={sel.embedUrl || ''} onChange={e => update(sel.id, { embedUrl: e.target.value })} placeholder="Paste a YouTube, Vimeo or Google Maps link" style={{ ...inputCss, fontSize: 12 }} />
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Round</span>
+                  <input type="range" min={0} max={40} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
+                </div>
+                {sel.embedUrl && !embedSrc(sel.embedUrl) && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>That link isn&rsquo;t recognised. Use a YouTube, Vimeo or Google Maps link.</p>}
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>The video or map shows on your live site. In the editor you&rsquo;ll see a placeholder so it stays easy to move.</p>
               </>
             )}
             {sel.type === 'form' && (

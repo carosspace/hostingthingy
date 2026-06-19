@@ -5,6 +5,7 @@ import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
 import { canvasIcon } from './icons'
 import { ContactForm } from './ContactForm'
+import { embedSrc } from './embed'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -67,6 +68,19 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
     const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
     return ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
+  }
+  if (el.type === 'embed') {
+    const src = el.embedUrl ? embedSrc(el.embedUrl) : null
+    return src ? (
+      <iframe
+        src={src}
+        title="Embedded media"
+        loading="lazy"
+        sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+        allow="fullscreen; encrypted-media; picture-in-picture"
+        style={{ width: '100%', height: '100%', border: 0, borderRadius: cqf(el.radius || 0), display: 'block' }}
+      />
+    ) : null
   }
   if (el.type === 'form')
     return (
@@ -275,6 +289,13 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
               <ContactForm slug={siteSlug} accent={el.fill || accent} label={el.text || 'Send message'} radius={el.radius ?? 10} fontFamily={el.fontFamily ? fontVar(el.fontFamily) : undefined} textColor={el.color || '#1a1612'} />
             </div>
           )
+        } else if (el.type === 'embed') {
+          const src = el.embedUrl ? embedSrc(el.embedUrl) : null
+          node = src ? (
+            <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>
+              <iframe src={src} title="Embedded media" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" allow="fullscreen; encrypted-media; picture-in-picture" style={{ width: '100%', height: '100%', border: 0, borderRadius: el.radius || 0, display: 'block' }} />
+            </div>
+          ) : null
         } else if (el.type === 'menu') {
           const ms = el.menuStyle || 'plain'
           const mcol = el.color || accent

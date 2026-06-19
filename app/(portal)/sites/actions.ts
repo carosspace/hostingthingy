@@ -841,7 +841,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -895,6 +895,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
+      embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
       fill: color(e?.fill),
       gradient: type === 'box' || type === 'button' || type === 'text' ? grad(e?.gradient) : undefined,
       radius: num(e?.radius, 0, 400, 0) || undefined,

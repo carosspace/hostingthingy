@@ -2,6 +2,7 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social, type SectionItem } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { socialIcon } from '@/lib/sites/socialIcons'
+import { embedSrc } from '@/lib/sites/embed'
 import { CanvasView } from '@/lib/sites/CanvasView'
 import Reveal from './Reveal'
 
@@ -10,25 +11,6 @@ function safeHref(href: string): string | null {
   const v = (href || '').trim()
   if (/^(https?:|mailto:|tel:)/i.test(v)) return v
   if (/^\/(?!\/)/.test(v)) return v // same-origin relative path, but not //evil.com
-  return null
-}
-
-// Turn a pasted media link into a safe iframe src — only known providers, rebuilt from
-// a fixed host, never the raw pasted string.
-function embedSrc(url: string): string | null {
-  const u = (url || '').trim()
-  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/)
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}`
-  const vm = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-  if (vm) return `https://player.vimeo.com/video/${vm[1]}`
-  try {
-    const parsed = new URL(u)
-    if (parsed.protocol === 'https:' && /^((www|maps)\.)?google\.[a-z.]+$/.test(parsed.hostname) && parsed.pathname.startsWith('/maps')) {
-      return parsed.href.includes('output=embed') ? parsed.href : parsed.href + (parsed.search ? '&' : '?') + 'output=embed'
-    }
-  } catch {
-    // not a valid absolute URL
-  }
   return null
 }
 
