@@ -242,6 +242,7 @@ export interface CanvasElement {
   color?: string
   align?: SiteAlign
   bold?: boolean
+  weight?: number // explicit font-weight (100-900); when set it overrides bold
   italic?: boolean
   fontFamily?: string // 'display' | 'body' | 'label', or 'custom:<fontId>' for an uploaded font
   letterSpacing?: number // design px (can be negative)

@@ -125,6 +125,16 @@ export default function CanvasEditor({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null) // right-click menu position
   const [showTemplates, setShowTemplates] = useState(false) // template gallery modal
   const setZoomClamped = (z: number) => setZoom(Math.min(3, Math.max(0.25, Math.round(z * 100) / 100)))
+  // Zoom so the whole (often tall) page fits the viewport height; never past 100%.
+  const fitToScreen = () => {
+    const vp = viewportRef.current
+    if (!vp || editingMobile) { setZoom(1); return }
+    const W = vp.clientWidth
+    const H = vp.clientHeight
+    const tall = canvasLayout(elsRef.current).totalH
+    if (!W || !H || !tall) { setZoom(1); return }
+    setZoomClamped(Math.min(1, (H * CANVAS_W) / (W * tall)))
+  }
   const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
@@ -135,6 +145,8 @@ export default function CanvasEditor({
   const draftCanvas = useRef<PageCanvas | null>(null)
   const draftKey = `cvdraft:${siteId}:${pageSlug}`
   const canvasRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null) // the scrollable canvas viewport (for fit-to-screen)
+  const [lockRatio, setLockRatio] = useState(false) // keep proportions when typing a new width/height
   const dragRef = useRef<Drag>(null)
   const idc = useRef(
     (initial?.elements ?? []).reduce((m, e) => {
@@ -178,6 +190,7 @@ export default function CanvasEditor({
   const gw = (e: CanvasElement) => (editingMobile ? e.mw ?? Math.round(e.w * MR) : e.w)
   const gh = (e: CanvasElement) => (editingMobile ? e.mh ?? Math.round(e.h * MR) : e.h)
   const patchXY = (x: number, y: number): Partial<CanvasElement> => (editingMobile ? { mx: x, my: y } : { x, y })
+  const patchWH = (w: number, h: number): Partial<CanvasElement> => (editingMobile ? { mw: Math.max(8, Math.round(w)), mh: Math.max(8, Math.round(h)) } : { w: Math.max(8, Math.round(w)), h: Math.max(8, Math.round(h)) })
   const patchX = (x: number): Partial<CanvasElement> => (editingMobile ? { mx: x } : { x })
   const patchY = (y: number): Partial<CanvasElement> => (editingMobile ? { my: y } : { y })
   // Write a DISPLAYED y back into the element's own frame (footer y is band-local on
@@ -263,7 +276,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'cursor', 'adjust', 'lightbox']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'weight', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'cursor', 'adjust', 'lightbox']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -1287,11 +1300,14 @@ export default function CanvasEditor({
           justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
           fontFamily: fontVar(el.fontFamily),
           fontSize: cqv((editingMobile && el.mFontSize) || el.fontSize || 24),
-          color: isBtn ? '#fff' : el.color || t.text,
+          color: isBtn ? '#fff' : !isBtn && el.gradient && !editing ? 'transparent' : el.color || t.text,
           background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
+          backgroundImage: !isBtn && el.gradient && !editing ? gradientCss(el.gradient) : undefined,
+          WebkitBackgroundClip: !isBtn && el.gradient && !editing ? 'text' : undefined,
+          backgroundClip: !isBtn && el.gradient && !editing ? 'text' : undefined,
           borderRadius: isBtn ? cqv(el.radius ?? 6) : undefined,
           boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
-          fontWeight: el.bold ? 700 : 400,
+          fontWeight: el.weight ?? (el.bold ? 700 : 400),
           fontStyle: el.italic ? 'italic' : undefined,
           letterSpacing: el.letterSpacing ? cqv(el.letterSpacing) : undefined,
           textAlign: el.align || (isBtn ? 'center' : 'left'),
@@ -1677,6 +1693,16 @@ export default function CanvasEditor({
             {sel.pin === 'footer' && !editingMobile && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>📌 Pinned to the bottom — it stays at the very end of the page as you add content above.</p>}
             {editingMobile && sel.mHidden && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>🚫 Hidden on phones — it still shows on desktop.</p>}
 
+            {!sel.locked && (
+              <div className="flex items-center gap-1.5" title="Exact size in pixels">
+                <span style={labelCss}>Size</span>
+                <input type="number" min={8} value={Math.round(gw(sel))} onChange={e => { const w = Math.max(8, Number(e.target.value) || 8); const h = lockRatio ? Math.max(8, Math.round(w * (gh(sel) / Math.max(1, gw(sel))))) : gh(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
+                <span style={{ fontSize: 11, color: '#999' }}>×</span>
+                <input type="number" min={8} value={Math.round(gh(sel))} onChange={e => { const h = Math.max(8, Number(e.target.value) || 8); const w = lockRatio ? Math.max(8, Math.round(h * (gw(sel) / Math.max(1, gh(sel))))) : gw(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
+                <button type="button" title={lockRatio ? 'Proportions locked' : 'Lock proportions'} onClick={() => setLockRatio(v => !v)} style={{ fontSize: 12, color: lockRatio ? accent : '#999', width: 24 }}>{lockRatio ? '🔒' : '🔓'}</button>
+              </div>
+            )}
+
             {(sel.type === 'text' || sel.type === 'button') && (
               <>
                 <textarea value={sel.text || ''} onChange={e => update(sel.id, { text: e.target.value })} rows={2} placeholder="Type here…" style={{ ...inputCss, resize: 'none' }} />
@@ -1700,11 +1726,11 @@ export default function CanvasEditor({
                 {sel.type === 'text' && (
                   <div className="flex flex-wrap gap-1">
                     {([
-                      ['Heading', { fontSize: 48, fontFamily: 'display', italic: true, bold: false, lineHeight: 1.1, letterSpacing: 0 }],
-                      ['Subhead', { fontSize: 28, fontFamily: 'display', italic: false, bold: false, lineHeight: 1.2, letterSpacing: 0 }],
-                      ['Body', { fontSize: 18, fontFamily: 'body', italic: false, bold: false, lineHeight: 1.5, letterSpacing: 0 }],
-                      ['Caption', { fontSize: 13, fontFamily: 'label', italic: false, bold: false, lineHeight: 1.3, letterSpacing: 2 }],
-                      ['Quote', { fontSize: 26, fontFamily: 'display', italic: true, bold: false, lineHeight: 1.4, letterSpacing: 0 }],
+                      ['Heading', { fontSize: 48, fontFamily: 'display', italic: true, bold: false, weight: undefined, lineHeight: 1.1, letterSpacing: 0 }],
+                      ['Subhead', { fontSize: 28, fontFamily: 'display', italic: false, bold: false, weight: undefined, lineHeight: 1.2, letterSpacing: 0 }],
+                      ['Body', { fontSize: 18, fontFamily: 'body', italic: false, bold: false, weight: undefined, lineHeight: 1.5, letterSpacing: 0 }],
+                      ['Caption', { fontSize: 13, fontFamily: 'label', italic: false, bold: false, weight: undefined, lineHeight: 1.3, letterSpacing: 2 }],
+                      ['Quote', { fontSize: 26, fontFamily: 'display', italic: true, bold: false, weight: undefined, lineHeight: 1.4, letterSpacing: 0 }],
                     ] as [string, Partial<CanvasElement>][]).map(([lbl, st]) => (
                       <button key={lbl} type="button" onClick={() => update(sel.id, st)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1 rounded-sm">{lbl}</button>
                     ))}
@@ -1727,8 +1753,21 @@ export default function CanvasEditor({
                       {colorField(sel.color, v => update(sel.id, { color: v }), '#111111')}
                     </>
                   )}
-                  <button type="button" onClick={() => update(sel.id, { bold: !sel.bold })} style={{ fontWeight: 700, fontSize: 13, color: sel.bold ? accent : '#888', width: 24 }}>B</button>
-                  <button type="button" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? accent : '#888', width: 24 }}>I</button>
+                  {(() => { const ew = sel.weight ?? (sel.bold ? 700 : 400); return (
+                    <>
+                      <button type="button" title="Bold" onClick={() => update(sel.id, { weight: ew >= 700 ? 400 : 700, bold: undefined })} style={{ fontWeight: 700, fontSize: 13, color: ew >= 700 ? accent : '#888', width: 24 }}>B</button>
+                      <button type="button" title="Italic" onClick={() => update(sel.id, { italic: !sel.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: sel.italic ? accent : '#888', width: 24 }}>I</button>
+                      <select value={ew} onChange={e => update(sel.id, { weight: Number(e.target.value), bold: undefined })} title="Font weight" style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
+                        <option value={300}>Light</option>
+                        <option value={400}>Regular</option>
+                        <option value={500}>Medium</option>
+                        <option value={600}>Semibold</option>
+                        <option value={700}>Bold</option>
+                        <option value={800}>Extra</option>
+                        <option value={900}>Black</option>
+                      </select>
+                    </>
+                  ) })()}
                 </div>
                 {(() => {
                   // Gentle WCAG contrast hint: text vs the box/page behind it; button label (white) vs the button fill.
@@ -1739,6 +1778,7 @@ export default function CanvasEditor({
                     fg = '#ffffff'
                     bgc = resolveColor(sel.fill || accent, palette)
                   } else {
+                    if (sel.gradient) return null
                     fg = resolveColor(sel.color, palette) || '#1a1612'
                     const cx = sel.x + sel.w / 2
                     const cy = sel.y + sel.h / 2
@@ -1793,6 +1833,13 @@ export default function CanvasEditor({
                       <span style={{ fontSize: 11, color: '#666', width: 28 }}>{(sel.lineHeight ?? 1.25).toFixed(2)}</span>
                     </div>
                     <button type="button" onClick={() => update(sel.id, { dropCap: !sel.dropCap })} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, alignSelf: 'flex-start', padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.dropCap ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.dropCap ? accent : 'transparent', color: sel.dropCap ? '#fff' : '#666' }}>Drop cap {sel.dropCap ? 'on' : 'off'}</button>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span style={labelCss}>Gradient text</span>
+                        <button type="button" onClick={() => update(sel.id, { gradient: sel.gradient ? undefined : { kind: 'linear', from: sel.color && sel.color.startsWith('#') ? sel.color : '#a85c36', to: '#5b2c9a', angle: 90 } })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.gradient ? accent : 'rgba(0,0,0,0.15)'}`, background: sel.gradient ? accent : 'transparent', color: sel.gradient ? '#fff' : '#666' }}>{sel.gradient ? 'on' : 'off'}</button>
+                      </div>
+                      {sel.gradient && <div className="mt-1.5">{gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}</div>}
+                    </div>
                   </>
                 )}
                 {sel.type === 'text' && (
@@ -2185,9 +2232,10 @@ export default function CanvasEditor({
                 <button type="button" onClick={() => setZoomClamped(zoom - 0.1)} title="Zoom out" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>−</button>
                 <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="font-label text-[10px] tracking-[1px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 54, height: 24 }}>{Math.round(zoom * 100)}%</button>
                 <button type="button" onClick={() => setZoomClamped(zoom + 0.1)} title="Zoom in" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>+</button>
+                {!editingMobile && <button type="button" onClick={fitToScreen} title="Fit the whole page on screen" className="font-label text-[9px] tracking-[1px] uppercase text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>⤢ Fit</button>}
               </div>
             )}
-          <div onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
+          <div ref={viewportRef} onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
           <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSys), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
             <div
               ref={canvasRef}

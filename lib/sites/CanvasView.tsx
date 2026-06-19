@@ -124,11 +124,14 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
         fontFamily: fontVar(el.fontFamily),
         fontSize: cqf(fontSize),
-        color: isBtn ? '#ffffff' : el.color || '#1a1612',
+        color: isBtn ? '#ffffff' : !isBtn && el.gradient ? 'transparent' : el.color || '#1a1612',
         background: isBtn ? gradientCss(el.gradient) || el.fill || ctx.accent : undefined,
+        backgroundImage: !isBtn && el.gradient ? gradientCss(el.gradient) : undefined,
+        WebkitBackgroundClip: !isBtn && el.gradient ? 'text' : undefined,
+        backgroundClip: !isBtn && el.gradient ? 'text' : undefined,
         borderRadius: isBtn ? cqf(el.radius ?? 6) : undefined,
         boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
-        fontWeight: el.bold ? 700 : 400,
+        fontWeight: el.weight ?? (el.bold ? 700 : 400),
         fontStyle: el.italic ? 'italic' : undefined,
         letterSpacing: el.letterSpacing ? cqf(el.letterSpacing) : undefined,
         textAlign: el.align || (isBtn ? 'center' : 'left'),
@@ -263,7 +266,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
         } else if (el.type === 'button') {
           const h = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
           const btn = (
-            <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
+            <span style={{ display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), fontWeight: el.weight ?? (el.bold ? 700 : 400), opacity: o, boxShadow: shadowCss(el.shadow) }}>{el.text}</span>
           )
           node = <div style={{ textAlign: el.align || 'left' }}>{h ? <a href={h} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined}>{btn}</a> : btn}</div>
         } else if (el.type === 'form') {
@@ -289,7 +292,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           )
         } else {
           const txt = (
-            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 24, 48), color: el.color || '#1a1612', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
+            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 24, 48), color: el.gradient ? 'transparent' : el.color || '#1a1612', backgroundImage: el.gradient ? gradientCss(el.gradient) : undefined, WebkitBackgroundClip: el.gradient ? 'text' : undefined, backgroundClip: el.gradient ? 'text' : undefined, fontWeight: el.weight ?? (el.bold ? 700 : 400), fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
               {el.text}
             </div>
           )
