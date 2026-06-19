@@ -71,6 +71,8 @@ type Drag =
   | { kind: 'marquee'; px: number; py: number; scale: number; m: boolean; ox: number; oy: number }
   | null
 
+const GRID_SIZES = [8, 10, 16, 20, 24, 32, 40, 50] // selectable snap-grid cell sizes (design px)
+
 export default function CanvasEditor({
   siteId,
   siteSlug,
@@ -141,7 +143,8 @@ export default function CanvasEditor({
     if (!W || !H || !tall) { setZoom(1); return }
     setZoomClamped(Math.min(1, (H * CANVAS_W) / (W * tall)))
   }
-  const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay
+  const [showGrid, setShowGrid] = useState(false) // editor-only alignment grid overlay (also snaps when on)
+  const [gridSize, setGridSize] = useState(20) // grid cell size in design px
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
   const [saving, setSaving] = useState(false)
@@ -191,6 +194,20 @@ export default function CanvasEditor({
   guidesYRef.current = guidesY
   const showRulersRef = useRef(showRulers)
   showRulersRef.current = showRulers
+  const gridSnapRef = useRef(showGrid) // grid on ⟹ snap-to-grid (read inside the pointer loop)
+  gridSnapRef.current = showGrid
+  const gridSizeRef = useRef(gridSize)
+  gridSizeRef.current = gridSize
+  // Remember the grid preference per browser (loaded after mount so SSR/first paint match).
+  useEffect(() => {
+    try {
+      const sz = Number(localStorage.getItem('cveditor:gridSize'))
+      if (GRID_SIZES.includes(sz)) setGridSize(sz)
+      if (localStorage.getItem('cveditor:showGrid') === '1') setShowGrid(true)
+    } catch {
+      /* ignore */
+    }
+  }, [])
   // History captures elements, palette AND components together so a single action
   // (removing a brand swatch, or deleting a component + its instances) undoes
   // atomically and never strands a token or an orphaned instance.
@@ -1083,8 +1100,10 @@ export default function CanvasEditor({
       if (d.kind === 'resize') {
         let nw = Math.max(24, Math.round(d.w + dx))
         let nh = Math.max(20, Math.round(d.h + dy))
-        // Hold Shift to keep the element's proportions (no distortion).
+        // Hold Shift to keep the element's proportions (no distortion); otherwise snap to
+        // the grid when it's on.
         if (e.shiftKey && d.ar > 0) { nh = Math.max(20, Math.round(nw / d.ar)) }
+        else if (gridSnapRef.current) { const g = gridSizeRef.current; nw = Math.max(24, Math.round(nw / g) * g); nh = Math.max(20, Math.round(nh / g) * g) }
         setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, ...(d.m ? { mw: nw, mh: nh } : { w: nw, h: nh }) })))
         return
       }
@@ -1112,25 +1131,32 @@ export default function CanvasEditor({
         if (me) {
           let nx = Math.round(s0.x + dx)
           let ny = Math.max(0, Math.round(s0.y + dy))
-          const allOthers = elsRef.current.filter(el => el.id !== s0.id)
-          const T = 8
-          // X-snap is universal — x is one shared frame for body and footer elements.
-          const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...allOthers.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
-          const mxs = [nx, nx + aw(me) / 2, nx + aw(me)]
-          for (const line of vlines) {
-            const hit = mxs.findIndex(m => Math.abs(m - line) <= T)
-            if (hit >= 0) { nx += line - mxs[hit]; gxLine = line; break }
-          }
-          // Y-snap: on the phone artboard everything shares the my frame; on the desktop
-          // artboard a footer element's y is band-local, so only same-frame targets snap
-          // and footer-y-snap is skipped (its guide would render in the wrong place).
-          const yOthers = d.m ? allOthers : allOthers.filter(el => (el.pin ?? '') === (me.pin ?? ''))
-          if (d.m || me.pin !== 'footer') {
-            const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...yOthers.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])]
-            const mys = [ny, ny + ah(me) / 2, ny + ah(me)]
-            for (const line of hlines) {
-              const hit = mys.findIndex(m => Math.abs(m - line) <= T)
-              if (hit >= 0) { ny = Math.max(0, ny + line - mys[hit]); gyLine = line; break }
+          if (gridSnapRef.current) {
+            // Snap-to-grid replaces edge/guide snapping while the grid is on.
+            const g = gridSizeRef.current
+            nx = Math.round(nx / g) * g
+            ny = Math.max(0, Math.round(ny / g) * g)
+          } else {
+            const allOthers = elsRef.current.filter(el => el.id !== s0.id)
+            const T = 8
+            // X-snap is universal — x is one shared frame for body and footer elements.
+            const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...allOthers.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
+            const mxs = [nx, nx + aw(me) / 2, nx + aw(me)]
+            for (const line of vlines) {
+              const hit = mxs.findIndex(m => Math.abs(m - line) <= T)
+              if (hit >= 0) { nx += line - mxs[hit]; gxLine = line; break }
+            }
+            // Y-snap: on the phone artboard everything shares the my frame; on the desktop
+            // artboard a footer element's y is band-local, so only same-frame targets snap
+            // and footer-y-snap is skipped (its guide would render in the wrong place).
+            const yOthers = d.m ? allOthers : allOthers.filter(el => (el.pin ?? '') === (me.pin ?? ''))
+            if (d.m || me.pin !== 'footer') {
+              const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...yOthers.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])]
+              const mys = [ny, ny + ah(me) / 2, ny + ah(me)]
+              for (const line of hlines) {
+                const hit = mys.findIndex(m => Math.abs(m - line) <= T)
+                if (hit >= 0) { ny = Math.max(0, ny + line - mys[hit]); gyLine = line; break }
+              }
             }
           }
           sdx = nx - s0.x
@@ -1150,14 +1176,21 @@ export default function CanvasEditor({
         const sy = (s: { id: string; y: number }) => { const e = elMap.get(s.id); return e && e.pin === 'footer' && !d.m ? bb + s.y : s.y }
         const gMinX = Math.min(...d.starts.map(s => s.x)), gMaxX = Math.max(...d.starts.map(s => s.x + wOf(s.id)))
         const gMinY = Math.min(...d.starts.map(s => sy(s))), gMaxY = Math.max(...d.starts.map(s => sy(s) + hOf(s.id)))
-        const others = elsRef.current.filter(e => !selSet.has(e.id))
-        const oy = (e: CanvasElement) => (e.pin === 'footer' && !d.m ? bb + ay(e) : ay(e))
-        const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...others.flatMap(e => [ax(e), ax(e) + aw(e) / 2, ax(e) + aw(e)])]
-        const gxs = [gMinX + dx, (gMinX + gMaxX) / 2 + dx, gMaxX + dx]
-        for (const line of vlines) { const hit = gxs.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdx = dx + (line - gxs[hit]); gxLine = line; break } }
-        const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...others.flatMap(e => [oy(e), oy(e) + ah(e) / 2, oy(e) + ah(e)])]
-        const gys = [gMinY + dy, (gMinY + gMaxY) / 2 + dy, gMaxY + dy]
-        for (const line of hlines) { const hit = gys.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdy = dy + (line - gys[hit]); gyLine = line; break } }
+        if (gridSnapRef.current) {
+          // Align the group's top-left corner to the grid; the group keeps its shape.
+          const g = gridSizeRef.current
+          sdx = Math.round((gMinX + dx) / g) * g - gMinX
+          sdy = Math.round((gMinY + dy) / g) * g - gMinY
+        } else {
+          const others = elsRef.current.filter(e => !selSet.has(e.id))
+          const oy = (e: CanvasElement) => (e.pin === 'footer' && !d.m ? bb + ay(e) : ay(e))
+          const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...others.flatMap(e => [ax(e), ax(e) + aw(e) / 2, ax(e) + aw(e)])]
+          const gxs = [gMinX + dx, (gMinX + gMaxX) / 2 + dx, gMaxX + dx]
+          for (const line of vlines) { const hit = gxs.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdx = dx + (line - gxs[hit]); gxLine = line; break } }
+          const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...others.flatMap(e => [oy(e), oy(e) + ah(e) / 2, oy(e) + ah(e)])]
+          const gys = [gMinY + dy, (gMinY + gMaxY) / 2 + dy, gMaxY + dy]
+          for (const line of hlines) { const hit = gys.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdy = dy + (line - gys[hit]); gyLine = line; break } }
+        }
       }
       setGuides({ x: gxLine, y: gyLine })
       const startMap = new Map(d.starts.map(s => [s.id, s]))
@@ -1204,12 +1237,19 @@ export default function CanvasEditor({
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length) { e.preventDefault(); removeMany(selectedIds); return }
       if (selectedIds.length && e.key.startsWith('Arrow')) {
         e.preventDefault()
-        const s = e.shiftKey ? 10 : 1
+        // With the grid on, arrows step by one cell and land on the grid; otherwise 1px (10 with Shift).
+        const g = gridSnapRef.current ? gridSizeRef.current : 0
+        const s = g || (e.shiftKey ? 10 : 1)
         const dx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0
         const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0
         snapshot()
         const set = new Set(selectedIds)
-        setEls(p => p.map(el => (set.has(el.id) && !el.locked ? { ...el, ...patchXY(gx(el) + dx, Math.max(0, gy(el) + dy)) } : el)))
+        setEls(p => p.map(el => {
+          if (!(set.has(el.id) && !el.locked)) return el
+          let nx = gx(el) + dx, ny = Math.max(0, gy(el) + dy)
+          if (g) { nx = Math.round(nx / g) * g; ny = Math.max(0, Math.round(ny / g) * g) }
+          return { ...el, ...patchXY(nx, ny) }
+        }))
         touch()
       }
     }
@@ -1661,7 +1701,12 @@ export default function CanvasEditor({
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
           <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
-          <button type="button" onClick={() => setShowGrid(g => !g)} title="Toggle alignment grid" className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? accent : 'rgba(0,0,0,0.2)', background: showGrid ? accent : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
+          <button type="button" onClick={() => setShowGrid(g => { const n = !g; try { localStorage.setItem('cveditor:showGrid', n ? '1' : '0') } catch { /* ignore */ } return n })} title={showGrid ? 'Grid on — elements snap to it' : 'Snap to grid'} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1.5 rounded-sm border" style={{ borderColor: showGrid ? accent : 'rgba(0,0,0,0.2)', background: showGrid ? accent : 'transparent', color: showGrid ? '#fff' : '#888' }}>▦</button>
+          {showGrid && (
+            <select value={gridSize} onChange={e => { const v = Number(e.target.value); setGridSize(v); try { localStorage.setItem('cveditor:gridSize', String(v)) } catch { /* ignore */ } }} title="Grid size" className="rounded-sm border" style={{ fontSize: 10, padding: '2px 3px', borderColor: 'rgba(0,0,0,0.2)', color: '#666', background: '#fff' }}>
+              {GRID_SIZES.map(g => <option key={g} value={g}>{g}px</option>)}
+            </select>
+          )}
         </div>
 
         {lib && panelTab === 'text' && (
@@ -2719,7 +2764,7 @@ export default function CanvasEditor({
               } as CSSProperties}
             >
               {bgVideo.trim() && <video src={bgVideo.trim()} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />}
-              {showGrid && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)}), repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(50)})` }} />}
+              {showGrid && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(gridSize)}), repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(gridSize)})` }} />}
               {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
                 const elHidden = el.hidden || (editingMobile && el.mHidden)
                 return (
