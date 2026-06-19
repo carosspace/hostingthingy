@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, type GeneratedPage, type DesignCritique } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -336,6 +336,19 @@ export async function critiqueDesignAction(args: { siteId: string; summary: stri
   if (!summary) return { error: 'empty' }
   try {
     return await aiCritiqueDesign({ siteName: site.name, summary: summary.slice(0, 20_000), brandVoice: site.content?.brandVoice })
+  } catch {
+    return { error: 'failed' }
+  }
+}
+
+// Suggest a cohesive brand palette via Claude (uses the saved brand voice for tone).
+export async function suggestPaletteAction(siteId: string): Promise<{ colors: string[] } | { error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'auth' }
+  const site = await getSite(siteId)
+  if (!site) return { error: 'notfound' }
+  try {
+    return await aiPalette({ siteName: site.name, brandVoice: site.content?.brandVoice })
   } catch {
     return { error: 'failed' }
   }

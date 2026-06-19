@@ -9,7 +9,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -188,6 +188,7 @@ export default function CanvasEditor({
   const [voiceSaved, setVoiceSaved] = useState(false) // brief tick after a save
   const savedBrandVoice = useRef(initialBrandVoice) // last persisted value, to avoid redundant saves
   const [pageTransition, setPageTransition] = useState<PageTransitionKind>(initialPageTransition) // site-wide enter animation
+  const [paletteBusy, setPaletteBusy] = useState(false) // AI palette suggestion in flight
   const guidesXRef = useRef(guidesX)
   guidesXRef.current = guidesX
   const guidesYRef = useRef(guidesY)
@@ -1092,6 +1093,21 @@ export default function CanvasEditor({
       savedBrandVoice.current = v
       setVoiceSaved(true)
       setTimeout(() => setVoiceSaved(false), 1800)
+    }
+  }
+
+  // Ask Claude for a cohesive brand palette and drop it into the swatches (undoable).
+  const suggestPalette = async () => {
+    if (paletteBusy) return
+    setPaletteBusy(true)
+    try {
+      const res = await suggestPaletteAction(siteId)
+      if ('colors' in res && res.colors.length) { snapshot(true); setPalette(res.colors.slice(0, MAX_PALETTE)); touch() }
+      else alert('Couldn’t suggest a palette — please try again.')
+    } catch {
+      alert('Couldn’t suggest a palette — please try again.')
+    } finally {
+      setPaletteBusy(false)
     }
   }
 
@@ -2090,6 +2106,7 @@ export default function CanvasEditor({
             {palette.length < MAX_PALETTE && (
               <button type="button" onClick={() => { snapshot(true); setPalette(p => [...p, accent]); touch() }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Colour</button>
             )}
+            <button type="button" onClick={suggestPalette} disabled={paletteBusy} title="Let AI suggest a cohesive palette" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{paletteBusy ? 'Mixing…' : '✦ Suggest'}</button>
           </div>
           <p style={{ ...labelCss, marginTop: 10 }}>Brand fonts</p>
           <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Upload your own fonts (.woff2/.woff/.ttf/.otf), then pick them in any text or button.</p>

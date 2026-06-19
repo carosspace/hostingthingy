@@ -305,6 +305,45 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
   }
 }
 
+// Suggest a small, cohesive brand colour palette tuned to the site + its brand voice.
+export async function aiPalette(opts: { siteName: string; brandVoice?: string }): Promise<{ colors: string[] }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 400,
+    system:
+      'You are a brand colour expert for conscious, soulful wellness and coaching brands. You design small, cohesive, ' +
+      'tasteful palettes — calm, warm and grounded, never harsh or neon. A good palette has a deep anchor colour, one or ' +
+      'two mid brand hues, and a soft light tint, with enough contrast between text and background colours to stay readable.',
+    tools: [
+      {
+        name: 'set_palette',
+        description: 'Provide a cohesive brand colour palette.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            colors: { type: 'array', description: '4-5 harmonious #rrggbb hex colours that work together, ordered anchor/dark first to light last.', items: { type: 'string' } },
+          },
+          required: ['colors'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'set_palette' },
+    messages: [
+      {
+        role: 'user',
+        content: `Design a cohesive brand colour palette for "${opts.siteName}".${voiceLine(opts.brandVoice) ? ` The brand voice: ${opts.brandVoice!.trim().slice(0, 600)}.` : ''} Return 4-5 harmonious hex colours suited to this brand.`,
+      },
+    ],
+  })
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a palette. Please try again.')
+  const input = block.input as { colors?: string[] }
+  const colors = (input.colors ?? []).map(c => String(c).trim()).filter(c => /^#[0-9a-f]{6}$/i.test(c)).slice(0, 6)
+  if (colors.length < 2) throw new Error('The palette was not usable. Please try again.')
+  return { colors }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string
