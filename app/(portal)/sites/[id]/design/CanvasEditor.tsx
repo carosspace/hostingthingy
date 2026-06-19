@@ -162,6 +162,17 @@ export default function CanvasEditor({
   paletteRef.current = palette
   const componentsRef = useRef(components)
   componentsRef.current = components
+  // Ruler guides (editor-only; never rendered on the public page). Refs keep the live
+  // pointer-drag snap reading the current values without re-binding the move handler.
+  const [guidesX, setGuidesX] = useState<number[]>(initial?.guidesX ?? [])
+  const [guidesY, setGuidesY] = useState<number[]>(initial?.guidesY ?? [])
+  const [showRulers, setShowRulers] = useState(!!(initial?.guidesX?.length || initial?.guidesY?.length))
+  const guidesXRef = useRef(guidesX)
+  guidesXRef.current = guidesX
+  const guidesYRef = useRef(guidesY)
+  guidesYRef.current = guidesY
+  const showRulersRef = useRef(showRulers)
+  showRulersRef.current = showRulers
   // History captures elements, palette AND components together so a single action
   // (removing a brand swatch, or deleting a component + its instances) undoes
   // atomically and never strands a token or an orphaned instance.
@@ -931,6 +942,19 @@ export default function CanvasEditor({
     touch()
   }
 
+  // Add a ruler guide (deduped, in range, capped). axis 'x' = vertical line, 'y' = horizontal.
+  const addGuide = (axis: 'x' | 'y', pos: number) => {
+    const max = axis === 'x' ? CANVAS_W : Math.min(desktopH, 40000) // 40000 = the gate's guidesY cap
+    const p = Math.max(0, Math.min(max, Math.round(pos)))
+    const setter = axis === 'x' ? setGuidesX : setGuidesY
+    setter(prev => (prev.length >= 24 || prev.some(g => Math.abs(g - p) < 2) ? prev : [...prev, p].sort((a, b) => a - b)))
+    touch()
+  }
+  const removeGuide = (axis: 'x' | 'y', i: number) => {
+    ;(axis === 'x' ? setGuidesX : setGuidesY)(prev => prev.filter((_, j) => j !== i))
+    touch()
+  }
+
   // Drag / resize via window-level pointer tracking (works for mouse + touch).
   useEffect(() => {
     const move = (e: PointerEvent) => {
@@ -981,7 +1005,7 @@ export default function CanvasEditor({
           const allOthers = elsRef.current.filter(el => el.id !== s0.id)
           const T = 8
           // X-snap is universal — x is one shared frame for body and footer elements.
-          const vlines = [W / 2, ...allOthers.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
+          const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...allOthers.flatMap(el => [ax(el), ax(el) + aw(el) / 2, ax(el) + aw(el)])]
           const mxs = [nx, nx + aw(me) / 2, nx + aw(me)]
           for (const line of vlines) {
             const hit = mxs.findIndex(m => Math.abs(m - line) <= T)
@@ -992,7 +1016,7 @@ export default function CanvasEditor({
           // and footer-y-snap is skipped (its guide would render in the wrong place).
           const yOthers = d.m ? allOthers : allOthers.filter(el => (el.pin ?? '') === (me.pin ?? ''))
           if (d.m || me.pin !== 'footer') {
-            const hlines = yOthers.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])
+            const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...yOthers.flatMap(el => [ay(el), ay(el) + ah(el) / 2, ay(el) + ah(el)])]
             const mys = [ny, ny + ah(me) / 2, ny + ah(me)]
             for (const line of hlines) {
               const hit = mys.findIndex(m => Math.abs(m - line) <= T)
@@ -1018,10 +1042,10 @@ export default function CanvasEditor({
         const gMinY = Math.min(...d.starts.map(s => sy(s))), gMaxY = Math.max(...d.starts.map(s => sy(s) + hOf(s.id)))
         const others = elsRef.current.filter(e => !selSet.has(e.id))
         const oy = (e: CanvasElement) => (e.pin === 'footer' && !d.m ? bb + ay(e) : ay(e))
-        const vlines = [W / 2, ...others.flatMap(e => [ax(e), ax(e) + aw(e) / 2, ax(e) + aw(e)])]
+        const vlines = [W / 2, ...(!d.m && showRulersRef.current ? guidesXRef.current : []), ...others.flatMap(e => [ax(e), ax(e) + aw(e) / 2, ax(e) + aw(e)])]
         const gxs = [gMinX + dx, (gMinX + gMaxX) / 2 + dx, gMaxX + dx]
         for (const line of vlines) { const hit = gxs.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdx = dx + (line - gxs[hit]); gxLine = line; break } }
-        const hlines = others.flatMap(e => [oy(e), oy(e) + ah(e) / 2, oy(e) + ah(e)])
+        const hlines = [...(!d.m && showRulersRef.current ? guidesYRef.current : []), ...others.flatMap(e => [oy(e), oy(e) + ah(e) / 2, oy(e) + ah(e)])]
         const gys = [gMinY + dy, (gMinY + gMaxY) / 2 + dy, gMaxY + dy]
         for (const line of hlines) { const hit = gys.findIndex(m => Math.abs(m - line) <= T); if (hit >= 0) { sdy = dy + (line - gys[hit]); gyLine = line; break } }
       }
@@ -1112,7 +1136,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys])
+  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1188,6 +1212,8 @@ export default function CanvasEditor({
     components: components.length ? components : undefined,
     uploads: uploads.length ? uploads : undefined,
     fontSystem: fontSys || undefined,
+    guidesX: guidesX.length ? guidesX : undefined,
+    guidesY: guidesY.length ? guidesY : undefined,
   })
   // Load a whole PageCanvas into the editor state (used by draft recovery).
   const loadCanvas = (c: PageCanvas) => {
@@ -1203,6 +1229,9 @@ export default function CanvasEditor({
     setComponents(c.components || [])
     setUploads(c.uploads || [])
     setFontSys(c.fontSystem || fontSystem)
+    setGuidesX(c.guidesX || [])
+    setGuidesY(c.guidesY || [])
+    setShowRulers(v => v || !!(c.guidesX?.length || c.guidesY?.length))
     setSelectedIds([])
     setEditingId('')
     const maxId = (c.elements || []).reduce((m, e) => { const n = parseInt(String(e.id).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? Math.max(m, n) : m }, 0)
@@ -2285,6 +2314,8 @@ export default function CanvasEditor({
                 <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="font-label text-[10px] tracking-[1px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 54, height: 24 }}>{Math.round(zoom * 100)}%</button>
                 <button type="button" onClick={() => setZoomClamped(zoom + 0.1)} title="Zoom in" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>+</button>
                 {!editingMobile && <button type="button" onClick={fitToScreen} title="Fit the whole page on screen" className="font-label text-[9px] tracking-[1px] uppercase text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>⤢ Fit</button>}
+                {!editingMobile && <button type="button" onClick={() => setShowRulers(v => !v)} title="Rulers & guides — click a ruler to drop a guide elements snap to" className="font-label text-[9px] tracking-[1px] uppercase rounded-sm border" style={{ height: 24, padding: '0 8px', borderColor: showRulers ? accent : 'rgba(0,0,0,0.2)', background: showRulers ? accent : 'transparent', color: showRulers ? '#fff' : '#a98', }}>📐 Rulers</button>}
+                {!editingMobile && showRulers && (guidesX.length > 0 || guidesY.length > 0) && <button type="button" onClick={() => { setGuidesX([]); setGuidesY([]); touch() }} title="Remove all guides" className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 border border-gold/20 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>Clear</button>}
               </div>
             )}
           <div ref={viewportRef} onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
@@ -2337,6 +2368,39 @@ export default function CanvasEditor({
               {guides.x !== null && <div style={{ position: 'absolute', left: cqv(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
               {guides.y !== null && <div style={{ position: 'absolute', top: cqv(guides.y), left: 0, height: 1, width: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
+              {showRulers && !editingMobile && (
+                <>
+                  {/* persistent guide lines (snap targets; editor-only, never published) */}
+                  {guidesX.map((g, i) => (
+                    <div key={`gx${i}`} style={{ position: 'absolute', left: cqv(g), top: 0, width: 1, height: '100%', background: '#12b5c9', opacity: 0.75, pointerEvents: 'none', zIndex: 7 }} />
+                  ))}
+                  {guidesY.map((g, i) => (
+                    <div key={`gy${i}`} style={{ position: 'absolute', top: cqv(g), left: 0, height: 1, width: '100%', background: '#12b5c9', opacity: 0.75, pointerEvents: 'none', zIndex: 7 }} />
+                  ))}
+                  {/* top ruler — click to drop a vertical guide; ◆ removes one */}
+                  <div
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => { const r = e.currentTarget.getBoundingClientRect(); if (r.width) addGuide('x', ((e.clientX - r.left) / r.width) * CANVAS_W) }}
+                    title="Click to drop a vertical guide"
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 16, background: 'rgba(24,22,30,0.6)', backgroundImage: `repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 1px, transparent 1px ${cqv(50)})`, cursor: 'crosshair', zIndex: 40 }}
+                  >
+                    {guidesX.map((g, i) => (
+                      <button key={`nx${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('x', i) }} title="Remove this guide" style={{ position: 'absolute', left: cqv(g), top: 0, transform: 'translateX(-50%)', width: 14, height: 16, lineHeight: '15px', padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
+                    ))}
+                  </div>
+                  {/* left ruler — click to drop a horizontal guide */}
+                  <div
+                    onPointerDown={e => e.stopPropagation()}
+                    onClick={e => { const r = e.currentTarget.getBoundingClientRect(); if (r.height) addGuide('y', ((e.clientY - r.top) / r.height) * desktopH) }}
+                    title="Click to drop a horizontal guide"
+                    style={{ position: 'absolute', top: 0, left: 0, width: 16, height: '100%', background: 'rgba(24,22,30,0.6)', backgroundImage: `repeating-linear-gradient(0deg, rgba(255,255,255,0.22) 0 1px, transparent 1px ${cqv(50)})`, cursor: 'crosshair', zIndex: 40 }}
+                  >
+                    {guidesY.map((g, i) => (
+                      <button key={`ny${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('y', i) }} title="Remove this guide" style={{ position: 'absolute', top: cqv(g), left: 0, transform: 'translateY(-50%)', width: 16, height: 14, lineHeight: '14px', padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           </div>

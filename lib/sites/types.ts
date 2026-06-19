@@ -314,10 +314,14 @@ export interface PageCanvas {
   components?: SiteComponent[] // reusable components placed via 'component' elements
   uploads?: string[] // an asset library of uploaded logos/images (data URLs) to drag onto the canvas
   fontSystem?: string // a font-bundle key (lib/sites/fonts) applied to this page's title/body/label fonts
+  guidesX?: number[] // editor-only vertical guide lines (design px x); elements snap to them. Never rendered on the public page.
+  guidesY?: number[] // editor-only horizontal guide lines (design px y)
 }
 
 // The most images a page's upload library can hold.
 export const MAX_UPLOADS = 24
+// The most ruler guides a page can hold (per axis).
+export const MAX_GUIDES = 24
 
 // Where the body content ends and where footer-pinned elements anchor. The body
 // height grows continuously with the content; footer-pinned elements (pin:'footer')

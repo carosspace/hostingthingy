@@ -953,7 +953,22 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       ? ((c.uploads as unknown[]).map(dataOrHttp).filter(Boolean) as string[]).slice(0, 24)
       : undefined,
     fontSystem: FONT_SYSTEM_KEYS.includes(String(c.fontSystem ?? '')) ? String(c.fontSystem) : undefined,
+    guidesX: guideList(c.guidesX, 0, 4000),
+    guidesY: guideList(c.guidesY, 0, 40000),
   }
+}
+
+// Editor-only ruler guides: a short list of in-range, de-duplicated integer positions.
+function guideList(v: unknown, min: number, max: number): number[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out = Array.from(
+    new Set(
+      (v as unknown[])
+        .map(n => Math.round(Number(n)))
+        .filter(n => Number.isFinite(n) && n >= min && n <= max)
+    )
+  ).slice(0, 24)
+  return out.length ? out : undefined
 }
 
 // A plain https URL (no quotes/parens/spaces) — for a background video source.
