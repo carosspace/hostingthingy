@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
@@ -38,29 +39,119 @@ function normalizeColor(input: string): string | null {
   return /^#[0-9a-f]{6}$/.test(b) ? b : null // canvas returns rgba() for translucent — store opaque hex only
 }
 
-// A colour control: native picker + brand-swatch chips + a text box that accepts a
-// CSS name or hex (Canva-style). Stores a hex, or a var(--brand-N) token via a chip.
+// HSV <-> hex helpers for the colour picker's spectrum.
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n))
+function hexToHsv(hex: string): { h: number; s: number; v: number } {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim())
+  if (!m) return { h: 0, s: 0, v: 0 }
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+  let h = 0
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60; if (h < 0) h += 360
+  }
+  return { h, s: max ? d / max : 0, v: max }
+}
+function hsvToHex(h: number, s: number, v: number): string {
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c
+  let r = 0, g = 0, b = 0
+  if (h < 60) { r = c; g = x } else if (h < 120) { r = x; g = c } else if (h < 180) { g = c; b = x }
+  else if (h < 240) { g = x; b = c } else if (h < 300) { r = x; b = c } else { r = c; b = x }
+  const to = (u: number) => Math.round((u + m) * 255).toString(16).padStart(2, '0')
+  return '#' + to(r) + to(g) + to(b)
+}
+const DEFAULT_SOLIDS = ['#000000', '#3f3f46', '#71717a', '#a1a1aa', '#d4d4d8', '#ffffff', '#e24b4a', '#ef9f27', '#f4d03f', '#5fa85a', '#1d9e75', '#378add', '#5b5bd6', '#9b59b6', '#d4537e']
+
+// A Canva-style colour control: a swatch button + hex box inline; clicking the swatch
+// opens a floating picker with an HSV spectrum, an eyedropper, the brand palette
+// ("colours in this design") and a row of default solids. Stores a hex, or a
+// var(--brand-N) token when a brand swatch is chosen.
 function ColorField({ value, onChange, fallback, palette }: { value?: string; onChange: (v: string) => void; fallback: string; palette: string[] }) {
   const resolved = value && isBrandToken(value) ? (palette[Number(value.slice(-2, -1))] || '#888888') : (value || '')
+  const current = resolved && /^#[0-9a-f]{6}$/i.test(resolved) ? resolved : fallback
   const [text, setText] = useState(resolved)
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const [hsv, setHsv] = useState(() => hexToHsv(current))
+  const wrapRef = useRef<HTMLSpanElement>(null)
+  const popRef = useRef<HTMLDivElement>(null)
   useEffect(() => { setText(resolved) }, [resolved])
-  const commit = () => { const c = normalizeColor(text); if (c) onChange(c); else setText(resolved) }
+
+  const openPicker = () => {
+    setHsv(hexToHsv(current))
+    const r = wrapRef.current?.getBoundingClientRect()
+    if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 240)), top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 320)) })
+    setOpen(true)
+  }
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: globalThis.MouseEvent) => {
+      const t = e.target as Node
+      if (!wrapRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false)
+    }
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  const pick = (hex: string) => { onChange(hex); setHsv(hexToHsv(hex)) }
+  const setH = (h: number) => { const n = { ...hsv, h }; setHsv(n); onChange(hsvToHex(n.h, n.s, n.v)) }
+  const setSV = (s: number, v: number) => { const n = { ...hsv, s, v }; setHsv(n); onChange(hsvToHex(n.h, n.s, n.v)) }
+  const svMove = (e: RPointerEvent) => { const r = e.currentTarget.getBoundingClientRect(); setSV(clamp01((e.clientX - r.left) / r.width), clamp01(1 - (e.clientY - r.top) / r.height)) }
+  const hueMove = (e: RPointerEvent) => { const r = e.currentTarget.getBoundingClientRect(); setH(clamp01((e.clientX - r.left) / r.width) * 360) }
+  const commitText = () => { const c = normalizeColor(text); if (c) pick(c); else setText(resolved) }
+  const eyeOk = typeof window !== 'undefined' && 'EyeDropper' in window
+  const swatch = (c: string, on: boolean, fn: () => void, key: string | number) => (
+    <button key={key} type="button" title={c} onClick={fn} style={{ width: 22, height: 22, borderRadius: 5, background: c, cursor: 'pointer', border: on ? '2px solid #2b2f33' : '1px solid rgba(0,0,0,0.18)', padding: 0 }} />
+  )
+
   return (
-    <span className="inline-flex items-center gap-1">
-      <input type="color" value={(resolved && /^#[0-9a-f]{6}$/i.test(resolved) ? resolved : fallback)} onChange={e => onChange(e.target.value)} style={swatchCss} />
+    <span ref={wrapRef} className="inline-flex items-center gap-1.5">
+      <button type="button" onClick={openPicker} title="Pick a colour" style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid rgba(0,0,0,0.18)', background: current, cursor: 'pointer', padding: 0 }} />
       <input
         value={text}
         onChange={e => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => { if (e.key === 'Enter') { commit(); (e.currentTarget as HTMLInputElement).blur() } }}
-        placeholder="name / #hex"
+        onBlur={commitText}
+        onKeyDown={e => { if (e.key === 'Enter') { commitText(); (e.currentTarget as HTMLInputElement).blur() } }}
+        placeholder="#hex / name"
         spellCheck={false}
-        style={{ width: 74, background: 'rgba(255,255,255,0.8)', color: '#222', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 4, fontSize: 11, padding: '4px 5px', fontFamily: 'monospace' }}
+        style={{ width: 78, background: '#fff', color: '#1f2430', border: '1px solid #e6e6e9', borderRadius: 6, fontSize: 11, padding: '5px 6px', fontFamily: 'monospace' }}
         title="Type a colour name (e.g. tomato) or hex (#ff6347)"
       />
-      {palette.map((c, i) => (
-        <button key={i} type="button" title={`Brand ${i + 1}`} onClick={() => onChange(brandVar(i))} style={{ width: 15, height: 15, borderRadius: 3, background: c, cursor: 'pointer', border: value === brandVar(i) ? '2px solid #222' : '1px solid rgba(0,0,0,0.25)', padding: 0 }} />
-      ))}
+      {open && pos && createPortal(
+        <div ref={popRef} style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 9999, width: 230, background: '#fff', border: '1px solid #e6e6e9', borderRadius: 14, boxShadow: '0 10px 40px -8px rgba(17,17,26,0.28)', padding: 12 }}>
+          <div className="flex items-center gap-1.5" style={{ marginBottom: 10 }}>
+            <input value={text} onChange={e => setText(e.target.value)} onBlur={commitText} onKeyDown={e => { if (e.key === 'Enter') commitText() }} placeholder="Try “blue” or “#00c4cc”" spellCheck={false} style={{ flex: 1, minWidth: 0, background: '#fff', color: '#1f2430', border: '1px solid #e6e6e9', borderRadius: 8, fontSize: 12, padding: '6px 8px' }} />
+            {eyeOk && (
+              <button type="button" title="Pick a colour from the screen" onClick={async () => { try { const ED = (window as unknown as { EyeDropper: new () => { open: () => Promise<{ sRGBHex: string }> } }).EyeDropper; const res = await new ED().open(); if (res?.sRGBHex) pick(res.sRGBHex) } catch { /* cancelled */ } }} style={{ width: 30, height: 30, flex: 'none', borderRadius: 8, border: '1px solid #e6e6e9', background: '#fff', color: '#555', fontSize: 15 }}>⛏</button>
+            )}
+          </div>
+          <div onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); svMove(e) }} onPointerMove={e => { if (e.buttons) svMove(e) }} style={{ position: 'relative', width: '100%', height: 132, borderRadius: 8, cursor: 'crosshair', touchAction: 'none', background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), hsl(${hsv.h}, 100%, 50%)` }}>
+            <div style={{ position: 'absolute', left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%`, transform: 'translate(-50%,-50%)', width: 13, height: 13, borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.35)', pointerEvents: 'none' }} />
+          </div>
+          <div onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); hueMove(e) }} onPointerMove={e => { if (e.buttons) hueMove(e) }} style={{ position: 'relative', width: '100%', height: 12, borderRadius: 6, marginTop: 10, cursor: 'ew-resize', touchAction: 'none', background: 'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)' }}>
+            <div style={{ position: 'absolute', left: `${(hsv.h / 360) * 100}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 15, height: 15, borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(0,0,0,0.35)', background: `hsl(${hsv.h}, 100%, 50%)`, pointerEvents: 'none' }} />
+          </div>
+          {palette.length > 0 && (
+            <>
+              <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Colours in this design</div>
+              <div className="flex flex-wrap gap-1.5">
+                {palette.map((c, i) => swatch(c, value === brandVar(i), () => { onChange(brandVar(i)); setHsv(hexToHsv(c || '#888888')) }, 'p' + i))}
+              </div>
+            </>
+          )}
+          <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Default colours</div>
+          <div className="flex flex-wrap gap-1.5">
+            {DEFAULT_SOLIDS.map(c => swatch(c, resolved.toLowerCase() === c, () => pick(c), c))}
+          </div>
+        </div>,
+        document.body
+      )}
     </span>
   )
 }
