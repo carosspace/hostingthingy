@@ -367,6 +367,9 @@ export default function CanvasEditor({
   const history = useRef<Snap[]>([])
   const future = useRef<Snap[]>([])
   const clip = useRef<CanvasElement[]>([])
+  // Hydrate the copy/paste clipboard from localStorage so it survives switching pages (each
+  // page is a full re-mount). Shared across the owner's sites, like the saved-blocks library.
+  useEffect(() => { try { const raw = localStorage.getItem('cvclip'); const arr = raw ? JSON.parse(raw) : null; if (Array.isArray(arr)) clip.current = arr } catch { /* ignore */ } }, [])
   const styleClip = useRef<Partial<CanvasElement> | null>(null) // format painter: copied style
   const lastSnap = useRef(0)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
@@ -578,7 +581,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Copy / paste (shared by the keyboard shortcuts and the right-click menu) ---
-  const copySelection = (ids: string[]) => { const set = new Set(ids); clip.current = elsRef.current.filter(x => set.has(x.id)) }
+  const copySelection = (ids: string[]) => { const set = new Set(ids); clip.current = elsRef.current.filter(x => set.has(x.id)); try { localStorage.setItem('cvclip', JSON.stringify(clip.current)) } catch { /* too big / unavailable — same-page paste still works via the ref */ } }
   const pasteClipboard = () => {
     if (!clip.current.length) return
     snapshot(true)
