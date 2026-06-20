@@ -1,3 +1,5 @@
+import { type CSSProperties } from 'react'
+
 export type SiteStatus = 'queued' | 'building' | 'live' | 'failed' | 'stopped'
 
 export type SiteAlign = 'left' | 'center' | 'right'
@@ -490,6 +492,40 @@ export function canvasLayout(elements: CanvasElement[], minBody = 900) {
   const footerEls = elements.filter(e => e.pin === 'footer')
   const footerExtent = footerEls.length ? Math.max(0, ...footerEls.map(e => e.y + e.h)) + 40 : 0
   return { bodyBottom, totalH: bodyBottom + footerExtent, hasFooter: footerEls.length > 0 }
+}
+
+// Flow Groups render helpers — the ONE place that maps a FlowConfig to CSS, used by all three
+// render paths (CanvasView desktop + MobileStack + the editor) so they can never disagree.
+// `cqf` is the caller's design-px→unit function (cqw on the page, cqv in the editor).
+const FLEX_ALIGN = { start: 'flex-start', center: 'center', end: 'flex-end', stretch: 'stretch', between: 'space-between' } as const
+export function flowContainerStyle(flow: FlowConfig, cqf: (px: number) => string): CSSProperties {
+  return {
+    display: 'flex',
+    flexDirection: flow.dir === 'col' ? 'column' : 'row',
+    gap: cqf(flow.gap),
+    padding: `${cqf(flow.padY)} ${cqf(flow.padX)}`,
+    alignItems: FLEX_ALIGN[flow.align],
+    justifyContent: FLEX_ALIGN[flow.justify],
+    flexWrap: flow.wrap ? 'wrap' : 'nowrap',
+    width: '100%',
+    height: '100%',
+    boxSizing: 'border-box',
+    overflow: 'hidden',
+  }
+}
+export function flowItemStyle(child: { w: number; h: number }, flow: FlowConfig, cqf: (px: number) => string): CSSProperties {
+  const row = flow.dir !== 'col'
+  const stretch = flow.align === 'stretch'
+  return {
+    flex: 'none',
+    position: 'relative',
+    width: row ? cqf(child.w) : stretch ? '100%' : cqf(child.w),
+    height: row ? (stretch ? '100%' : cqf(child.h)) : cqf(child.h),
+  }
+}
+// The ordered children of a group: every element whose parentId is this group's id, in array order.
+export function flowChildren(group: CanvasElement, all: CanvasElement[]): CanvasElement[] {
+  return all.filter(e => e.parentId === group.id)
 }
 
 export interface SitePage {

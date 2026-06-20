@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
+import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -45,6 +45,7 @@ export type RenderCtx = {
   pageHref: (slug: string) => string
   ctaHref: (el: CanvasElement) => string
   components?: SiteComponent[]
+  elements?: CanvasElement[] // the full element list, so a 'group' can find its flow children
 }
 
 // The absolute renderer for one element (shared by the page canvas + component
@@ -66,6 +67,17 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         {(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}
       </svg>
     )
+  if (el.type === 'group') {
+    const flow = el.flow || { dir: 'row' as const, gap: 16, padX: 0, padY: 0, align: 'start' as const, justify: 'start' as const }
+    const kids = flowChildren(el, ctx.elements || [])
+    return (
+      <div style={{ ...flowContainerStyle(flow, cqf), background: el.fill || undefined, borderRadius: cqf(el.radius || 0) }}>
+        {kids.map(k => (
+          <div key={k.id} style={flowItemStyle(k, flow, cqf)}>{withMotion(k, renderInner(k, cqf, ctx, mobile))}</div>
+        ))}
+      </div>
+    )
+  }
   if (el.type === 'shape')
     return (
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -189,11 +201,12 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
   const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
 
-  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
+  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components, elements: canvas.elements }
   const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => renderInner(el, cqf, ctx, mobile)
 
-  const desktopEls = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
-  const phoneEls = canvas.elements.filter(e => !e.hidden && !e.mHidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  // Flow-group children (parentId set) are rendered BY their group, not at the top level.
+  const desktopEls = canvas.elements.filter(e => !e.hidden && !e.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  const phoneEls = canvas.elements.filter(e => !e.hidden && !e.mHidden && !e.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   // Footer-pinned elements anchor below the body content, so the footer always sits
   // at the very bottom however much the body grows (identical maths to the editor).
   const layout = canvasLayout(canvas.elements)
@@ -251,8 +264,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
   const paletteVars: CSSProperties = {}
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
   const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
-  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
-  const ordered = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
+  const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components, elements: canvas.elements }
+  const ordered = canvas.elements.filter(e => !e.hidden && !e.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   // Footer-pinned elements always stack at the very bottom on phones.
   const els = [...ordered.filter(e => e.pin !== 'footer'), ...ordered.filter(e => e.pin === 'footer')]
 
@@ -272,6 +285,20 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
         } else if (el.type === 'draw') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>{(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}</svg></div>
+        } else if (el.type === 'group') {
+          const flow = el.flow || { dir: 'row' as const, gap: 16, padX: 0, padY: 0, align: 'start' as const, justify: 'start' as const }
+          const kids = flowChildren(el, canvas.elements)
+          // Render the group as its own container-query context at the phone width, so the
+          // children's units resolve relative to the GROUP (same proportions as desktop) and the
+          // row wraps to fit; height is content-driven so wrapping grows the group, never clips it.
+          const gcqf = (px: number) => `${(px / Math.max(1, el.w)) * 100}cqw`
+          node = (
+            <div style={{ width: '100%', containerType: 'inline-size', opacity: o }}>
+              <div style={{ ...flowContainerStyle({ ...flow, wrap: true }, gcqf), height: 'auto', background: el.fill || undefined, borderRadius: el.radius || 0 }}>
+                {kids.map(k => <div key={k.id} style={flowItemStyle(k, flow, gcqf)}>{withMotion(k, renderInner(k, gcqf, ctx, true))}</div>)}
+              </div>
+            </div>
+          )
         } else if (el.type === 'icon') {
           const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
           const ih = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)

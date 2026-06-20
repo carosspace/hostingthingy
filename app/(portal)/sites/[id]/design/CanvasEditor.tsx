@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -429,7 +429,7 @@ export default function CanvasEditor({
   const brandVars: CSSProperties = {}
   palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
   // Read-only context for rendering component instances inside the editor.
-  const renderCtx: RenderCtx = { accent, siteSlug, navPages, pageHref: () => '#', ctaHref: () => '', components }
+  const renderCtx: RenderCtx = { accent, siteSlug, navPages, pageHref: () => '#', ctaHref: () => '', components, elements: els }
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : ''
   const sel = selectedId ? els.find(e => e.id === selectedId) || null : null
@@ -1896,6 +1896,15 @@ export default function CanvasEditor({
           {(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}
         </svg>
       )
+    if (el.type === 'group') {
+      const flow = el.flow || { dir: 'row' as const, gap: 16, padX: 0, padY: 0, align: 'start' as const, justify: 'start' as const }
+      const kids = flowChildren(el, els)
+      return (
+        <div style={{ ...flowContainerStyle(flow, cqv), background: el.fill || undefined, borderRadius: cqv(el.radius || 0), pointerEvents: 'none' }}>
+          {kids.map(k => <div key={k.id} style={flowItemStyle(k, flow, cqv)}>{elInner(k)}</div>)}
+        </div>
+      )
+    }
     if (el.type === 'shape')
       return (
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}>
@@ -1991,7 +2000,7 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : el.type === 'group' ? '▦' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
@@ -1999,6 +2008,7 @@ export default function CanvasEditor({
     if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'shape') return 'Shape divider'
     if (el.type === 'draw') return 'Drawing'
+    if (el.type === 'group') return 'Layout group'
     if (el.type === 'icon') return 'Icon · ' + (el.icon || 'star')
     if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
@@ -2666,7 +2676,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'group' ? 'Layout group' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -3367,7 +3377,7 @@ export default function CanvasEditor({
             >
               {bgVideo.trim() && <video src={bgVideo.trim()} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />}
               {showGrid && <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: `repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(gridSize)}), repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px ${cqv(gridSize)})` }} />}
-              {[...els].sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
+              {[...els].filter(el => !el.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => {
                 const elHidden = el.hidden || (editingMobile && el.mHidden)
                 return (
                   <div
