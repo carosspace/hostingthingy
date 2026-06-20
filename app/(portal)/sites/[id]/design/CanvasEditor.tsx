@@ -662,6 +662,26 @@ export default function CanvasEditor({
     setSelectedIds(freed)
     touch()
   }
+  // Take one child out of its flow group (back to absolute at its stored x/y).
+  const removeFromGroup = (childId: string) => { snapshot(true); setEls(p => p.map(e => (e.id === childId ? { ...e, parentId: undefined } : e))); touch() }
+  // Reorder a child within its group by swapping it with the adjacent sibling (array order = flow order).
+  const moveChildInGroup = (childId: string, dir: -1 | 1) => {
+    const cur = elsRef.current
+    const child = cur.find(e => e.id === childId)
+    if (!child?.parentId) return
+    const sibs = cur.filter(e => e.parentId === child.parentId)
+    const swapWith = sibs[sibs.findIndex(e => e.id === childId) + dir]
+    if (!swapWith) return // already at the start/end
+    snapshot(true)
+    setEls(p => {
+      const arr = [...p]
+      const i = arr.findIndex(e => e.id === childId)
+      const j = arr.findIndex(e => e.id === swapWith.id)
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      return arr
+    })
+    touch()
+  }
   // --- Copy / paste (shared by the keyboard shortcuts and the right-click menu) ---
   const copySelection = (ids: string[]) => { const set = new Set(ids); elsRef.current.forEach(e => { if (e.parentId && set.has(e.parentId)) set.add(e.id) }); clip.current = elsRef.current.filter(x => set.has(x.id)); try { localStorage.setItem('cvclip', JSON.stringify(clip.current)) } catch { /* too big / unavailable — same-page paste still works via the ref */ } }
   const pasteClipboard = () => {
@@ -3269,8 +3289,27 @@ export default function CanvasEditor({
                     ))}
                   </div>
                 </div>
+                {(() => {
+                  const kids = flowChildren(sel, els)
+                  return kids.length ? (
+                    <div>
+                      <span style={labelCss}>Contents</span>
+                      <div className="flex flex-col gap-1 mt-1.5">
+                        {kids.map((k, i) => (
+                          <div key={k.id} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5" style={{ background: '#fff', border: '1px solid #ececef' }}>
+                            <span style={{ fontSize: 12, flex: 'none', color: '#9aa0ab', width: 14, textAlign: 'center' }}>{elIcon(k)}</span>
+                            <span style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#3a3f4a' }}>{elName(k)}</span>
+                            <button type="button" disabled={i === 0} onClick={() => moveChildInGroup(k.id, -1)} title="Move earlier" style={{ fontSize: 13, color: i === 0 ? '#d4d4d8' : '#888', flex: 'none', cursor: i === 0 ? 'default' : 'pointer' }}>↑</button>
+                            <button type="button" disabled={i === kids.length - 1} onClick={() => moveChildInGroup(k.id, 1)} title="Move later" style={{ fontSize: 13, color: i === kids.length - 1 ? '#d4d4d8' : '#888', flex: 'none', cursor: i === kids.length - 1 ? 'default' : 'pointer' }}>↓</button>
+                            <button type="button" onClick={() => removeFromGroup(k.id)} title="Take out of the group" style={{ fontSize: 12, color: '#c0392b', flex: 'none' }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
                 <button type="button" onClick={() => unwrapFlowGroup(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">Ungroup layout</button>
-                <p className="font-body text-ash/50 text-[11px] leading-relaxed">A layout group arranges its items in a row or column. Drag its edges to resize. <b>Ungroup layout</b> frees the items back to where they were.</p>
+                <p className="font-body text-ash/50 text-[11px] leading-relaxed">A layout group arranges its items in a row or column. Drag its edges to resize, reorder or take items out above, or <b>Ungroup layout</b> to free them all.</p>
               </>
               )
             })()}
