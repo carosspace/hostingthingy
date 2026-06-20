@@ -10,7 +10,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -253,7 +253,10 @@ export default function CanvasEditor({
   const foldersKey = `cvfolders:${siteId}`
   const [folderMap, setFolderMap] = useState<Record<string, string>>({})
   useEffect(() => { try { setFolderMap(JSON.parse(localStorage.getItem(foldersKey) || '{}') || {}) } catch { /* ignore */ } }, [foldersKey])
+  const collapseKey = `cvfoldcollapse:${siteId}`
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  useEffect(() => { try { const arr = JSON.parse(localStorage.getItem(collapseKey) || '[]'); if (Array.isArray(arr)) setCollapsedFolders(new Set(arr)) } catch { /* ignore */ } }, [collapseKey])
+  const toggleFolder = (f: string) => setCollapsedFolders(s => { const n = new Set(s); if (n.has(f)) n.delete(f); else n.add(f); try { localStorage.setItem(collapseKey, JSON.stringify(Array.from(n))) } catch { /* ignore */ } return n })
   const dragPageRef = useRef<string | null>(null) // slug being dragged in the Pages panel
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null) // drop target: folder name, '__top', or null
   const [showShortcuts, setShowShortcuts] = useState(false) // keyboard cheatsheet (press ?)
@@ -265,6 +268,17 @@ export default function CanvasEditor({
       try { localStorage.setItem(foldersKey, JSON.stringify(n)) } catch { /* ignore */ }
       return n
     })
+  }
+  // Duplicate / delete a page from the Pages panel. These navigate (the server action
+  // redirects), which re-mounts the editor — so persist the current page FIRST, and abort
+  // if that save can't complete, so unsaved canvas edits are never silently dropped.
+  const pageAction = async (kind: 'dup' | 'del', slug: string, title: string) => {
+    if (kind === 'del' && !window.confirm(`Delete the page “${title || slug}”? This can't be undone.`)) return
+    if (dirty.current) { await save(); if (dirty.current) return } // save failed / blocked → keep the user here with their work
+    const fd = new FormData()
+    fd.set('id', siteId)
+    fd.set('slug', slug)
+    await (kind === 'del' ? removePageAction(fd) : duplicatePageAction(fd))
   }
   const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
@@ -2146,6 +2160,10 @@ export default function CanvasEditor({
                   {p.folder && <option value="__none">✕ Out of “{p.folder}”</option>}
                   <option value="__new">+ New folder…</option>
                 </select>
+                <button type="button" onClick={() => void pageAction('dup', p.slug, p.title)} title="Duplicate this page" className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: '#9aa0ab', padding: '0 2px', flex: 'none' }}>⎘</button>
+                {p.slug !== '' && (
+                  <button type="button" onClick={() => void pageAction('del', p.slug, p.title)} title="Delete this page" className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: 12, color: '#c0392b', padding: '0 2px', flex: 'none' }}>🗑</button>
+                )}
               </div>
             )
           }
@@ -2171,7 +2189,7 @@ export default function CanvasEditor({
                       className="rounded-lg"
                       style={{ background: over ? 'rgba(103,144,93,0.08)' : 'transparent', outline: over ? `2px dashed ${ui}` : '2px dashed transparent', outlineOffset: -1 }}
                     >
-                      <button type="button" onClick={() => setCollapsedFolders(s => { const n = new Set(s); if (n.has(f)) n.delete(f); else n.add(f); return n })} className="flex items-center gap-1.5 w-full rounded-lg px-2 py-1.5 hover:bg-gold/5" style={{ color: '#6a6f7a' }}>
+                      <button type="button" onClick={() => toggleFolder(f)} className="flex items-center gap-1.5 w-full rounded-lg px-2 py-1.5 hover:bg-gold/5" style={{ color: '#6a6f7a' }}>
                         <span style={{ fontSize: 10, width: 10, flex: 'none' }}>{open ? '▾' : '▸'}</span>
                         <span style={{ fontSize: 12, flex: 'none' }}>📁</span>
                         <span style={{ fontSize: 12, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{f}</span>
@@ -3390,6 +3408,17 @@ export default function CanvasEditor({
                     ))}
                   </div>
                 </>
+              )}
+              {els.length === 0 && !drawMode && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, pointerEvents: 'none', zIndex: 3, padding: 24, textAlign: 'center' }}>
+                  <div style={{ fontSize: 30, opacity: 0.4, lineHeight: 1 }}>✎</div>
+                  <p style={{ fontSize: 16, fontWeight: 600, color: 'rgba(20,20,28,0.5)' }}>This page is empty</p>
+                  <p style={{ fontSize: 13, color: 'rgba(20,20,28,0.42)', maxWidth: 320, lineHeight: 1.5 }}>Add a heading, picture or button from the panel — or start from a ready-made template.</p>
+                  <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto', flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
+                    <button type="button" onClick={() => { setFocusMode(false); setPanelTab('elements') }} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2 rounded-sm">+ Add an element</button>
+                    <button type="button" onClick={() => { setFocusMode(false); setShowTemplates(true) }} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm" style={{ background: '#fff' }}>🎨 Start from a template</button>
+                  </div>
+                </div>
               )}
               {drawMode && (
                 <div
