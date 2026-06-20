@@ -256,6 +256,7 @@ export default function CanvasEditor({
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
   const dragPageRef = useRef<string | null>(null) // slug being dragged in the Pages panel
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null) // drop target: folder name, '__top', or null
+  const [showShortcuts, setShowShortcuts] = useState(false) // keyboard cheatsheet (press ?)
   const assignFolder = (slug: string, folder: string) => {
     setFolderMap(m => {
       const n = { ...m }
@@ -1548,6 +1549,8 @@ export default function CanvasEditor({
       const tag = t?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
       if (drawMode) { if (e.key === 'Escape') exitDraw(); return } // draw mode owns the keyboard; use the toolbar for undo/done
+      if (showShortcuts) { if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); setShowShortcuts(false) } return }
+      if (e.key === '?') { e.preventDefault(); setShowShortcuts(true); return } // open the cheatsheet
       if (e.key === 'Escape') setCtxMenu(null)
       const mod = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
@@ -1583,7 +1586,7 @@ export default function CanvasEditor({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedIds, editingMobile, drawMode])
+  }, [selectedIds, editingMobile, drawMode, showShortcuts])
 
   // Draft recovery: on open, offer to restore an autosaved draft that differs from
   // what loaded (i.e. the last session didn't get saved — a crash or navigation away).
@@ -2063,6 +2066,7 @@ export default function CanvasEditor({
               </button>
             )
           })}
+          <button type="button" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (?)" className="flex items-center justify-center rounded-xl transition-colors hover:bg-gold/10" style={{ width: 50, height: 34, marginTop: 2, border: '1px solid #ececef', background: '#ffffff', color: '#9aa0ab', fontSize: 15 }}>?</button>
         </div>
         <div className="lg:w-[284px] lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-2xl px-4 py-4 flex flex-col gap-4" style={{ background: '#ffffff', border: '1px solid #ececef', boxShadow: '0 1px 2px rgba(17,17,26,0.04), 0 14px 34px -16px rgba(17,17,26,0.22)' }}>
         <div className="flex items-center justify-between">
@@ -3420,6 +3424,41 @@ export default function CanvasEditor({
           </div>,
           document.body,
         )}
+        {showShortcuts && createPortal((() => {
+          const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
+          const M = isMac ? '⌘' : 'Ctrl'
+          const kbd: CSSProperties = { display: 'inline-block', minWidth: 16, textAlign: 'center', fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', color: '#3a3f4a', background: '#f1f2f4', border: '1px solid #e0e1e5', borderRadius: 5, padding: '2px 6px', lineHeight: 1.3 }
+          const groups: { title: string; items: [string[], string][] }[] = [
+            { title: 'Edit', items: [[[M, 'Z'], 'Undo'], [[M, '⇧', 'Z'], 'Redo'], [[M, 'D'], 'Duplicate'], [['Del'], 'Delete']] },
+            { title: 'Copy', items: [[[M, 'C'], 'Copy'], [[M, 'V'], 'Paste'], [[M, '⇧', 'C'], 'Copy style'], [[M, '⇧', 'V'], 'Paste style']] },
+            { title: 'Select & group', items: [[[M, 'A'], 'Select all'], [[M, 'G'], 'Group'], [[M, '⇧', 'G'], 'Ungroup'], [['Esc'], 'Deselect']] },
+            { title: 'Move', items: [[['←', '↑', '→', '↓'], 'Nudge 1px'], [['⇧', 'arrows'], 'Nudge 10px'], [['drag edge'], 'Resize one side'], [['?'], 'This help'] as [string[], string]] },
+          ]
+          return (
+            <div onClick={() => setShowShortcuts(false)} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(20,20,28,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,0.32)', padding: 24, width: 'min(560px, 94vw)', maxHeight: '86vh', overflow: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#2a2e3a' }}>Keyboard shortcuts</h3>
+                  <button type="button" onClick={() => setShowShortcuts(false)} style={{ fontSize: 20, color: '#999', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px 28px' }}>
+                  {groups.map(g => (
+                    <div key={g.title}>
+                      <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600, color: ui, marginBottom: 8 }}>{g.title}</p>
+                      {g.items.map(([keys, label]) => (
+                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '4px 0' }}>
+                          <span style={{ fontSize: 12.5, color: '#3a3f4a' }}>{label}</span>
+                          <span style={{ display: 'flex', gap: 4, flex: 'none' }}>{keys.map((k, i) => <kbd key={i} style={kbd}>{k}</kbd>)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: '#9aa0ab', marginTop: 18 }}>Press <kbd style={kbd}>?</kbd> any time to open this · {isMac ? '⌘ = Cmd' : 'Ctrl on Windows, ⌘ on Mac'}.</p>
+              </div>
+            </div>
+          )
+        })(), document.body)}
       </div>
 
       {cropId && (() => {
