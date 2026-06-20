@@ -69,7 +69,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Auth session refresh (portal only) ------------------------------------
-  if (path.startsWith('/dashboard') || path.startsWith('/account') || path === '/login') {
+  if (path.startsWith('/dashboard') || path.startsWith('/account') || path === '/login' || path === '/me' || path.startsWith('/me/')) {
     let response = NextResponse.next({ request })
     const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
       cookies: {
