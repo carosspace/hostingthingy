@@ -233,9 +233,17 @@ export interface DesignFinding {
   severity: CritiqueSeverity
   note: string
 }
+// An optional, machine-applicable change the review proposes for a specific element.
+// Restricted to safe style properties that already pass the save gate.
+export interface DesignEdit {
+  targetId: string
+  reason: string
+  set: { color?: string; fill?: string; fontSize?: number; weight?: number; align?: 'left' | 'center' | 'right'; alt?: string }
+}
 export interface DesignCritique {
   summary: string
   findings: DesignFinding[]
+  edits?: DesignEdit[]
 }
 
 const CRITIQUE_AREAS: CritiqueArea[] = ['Hierarchy', 'Contrast', 'Spacing', 'Copy', 'Colour', 'Accessibility', 'Mobile']
@@ -254,7 +262,12 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
       'tap targets). Give a few high-leverage notes, not a long checklist. Genuinely praise what works. Every note must be ' +
       'specific to THIS page and reference the actual elements described — never invent elements that are not in the summary. ' +
       'Mark a note "fix" only for real problems (especially low contrast or missing alt text), "tip" for things that could be ' +
-      'stronger, and "praise" for what is already working.',
+      'stronger, and "praise" for what is already working. ' +
+      'When a fix is a concrete, safe property change to a SPECIFIC element, ALSO add it to "edits", reusing the EXACT [id] shown ' +
+      'in the summary for that element. Only ever propose edits to these properties: color (text/icon colour), fill (button/box ' +
+      'fill), fontSize, weight (100–900), align (left/center/right), alt (image description). Use #rrggbb hex or a var(--brand-N) ' +
+      'token for colours. Never invent an id, never propose an edit you are unsure about, and keep edits to the few that genuinely ' +
+      'raise the design (max ~8). Leave edits empty if nothing concrete is worth auto-applying.',
     tools: [
       {
         name: 'give_critique',
@@ -276,6 +289,30 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
                 required: ['area', 'severity', 'note'],
               },
             },
+            edits: {
+              type: 'array',
+              description: 'Optional concrete, safe property changes the user can apply in one click. Reuse the exact [id] from the summary.',
+              items: {
+                type: 'object',
+                properties: {
+                  targetId: { type: 'string', description: 'The [id] of the element this changes, exactly as shown in the summary.' },
+                  reason: { type: 'string', description: 'Short reason, e.g. "raise contrast on the heading".' },
+                  set: {
+                    type: 'object',
+                    description: 'Only these keys are allowed.',
+                    properties: {
+                      color: { type: 'string', description: '#rrggbb or var(--brand-N)' },
+                      fill: { type: 'string', description: '#rrggbb or var(--brand-N)' },
+                      fontSize: { type: 'number' },
+                      weight: { type: 'number', description: '100–900' },
+                      align: { type: 'string', enum: ['left', 'center', 'right'] },
+                      alt: { type: 'string' },
+                    },
+                  },
+                },
+                required: ['targetId', 'set'],
+              },
+            },
           },
           required: ['summary', 'findings'],
         },
@@ -291,7 +328,31 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
   })
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a review. Please try again.')
-  const input = block.input as { summary?: string; findings?: { area?: string; severity?: string; note?: string }[] }
+  const input = block.input as {
+    summary?: string
+    findings?: { area?: string; severity?: string; note?: string }[]
+    edits?: { targetId?: string; reason?: string; set?: Record<string, unknown> }[]
+  }
+  // Validate proposed edits the same way the save gate would, so a bad value can never reach
+  // the canvas. Only the whitelisted style keys survive; an edit with no usable key is dropped.
+  const colorOk = (v: unknown): string | undefined => {
+    const s = String(v ?? '').trim()
+    return /^#[0-9a-f]{6}$/i.test(s) || /^var\(--brand-[0-5]\)$/.test(s) ? s : undefined // [0-5] = the 6 real palette slots, matches the save gate
+  }
+  const edits: DesignEdit[] = (input.edits ?? [])
+    .slice(0, 12)
+    .map(e => {
+      const raw = e?.set ?? {}
+      const set: DesignEdit['set'] = {}
+      const c = colorOk(raw.color); if (c) set.color = c
+      const f = colorOk(raw.fill); if (f) set.fill = f
+      if (Number.isFinite(raw.fontSize as number)) set.fontSize = Math.max(6, Math.min(400, Math.round(Number(raw.fontSize))))
+      if (Number.isFinite(raw.weight as number)) set.weight = Math.max(100, Math.min(900, Math.round(Number(raw.weight) / 100) * 100))
+      if (['left', 'center', 'right'].includes(String(raw.align))) set.align = String(raw.align) as 'left' | 'center' | 'right'
+      const alt = String(raw.alt ?? '').trim(); if (alt) set.alt = alt.slice(0, 250)
+      return { targetId: String(e?.targetId ?? '').trim(), reason: String(e?.reason ?? '').trim().slice(0, 140), set }
+    })
+    .filter(e => e.targetId && Object.keys(e.set).length > 0)
   return {
     summary: (input.summary ?? '').trim().slice(0, 300),
     findings: (input.findings ?? [])
@@ -302,6 +363,7 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
         note: (f.note ?? '').trim().slice(0, 280),
       }))
       .filter(f => f.note),
+    edits,
   }
 }
 
@@ -357,9 +419,12 @@ export async function aiMobileLayout(opts: { siteName: string; items: { id: stri
 export async function aiPolishCopy(opts: { siteName: string; brandVoice?: string; tone: string; items: { id: string; text: string }[] }): Promise<{ items: { id: string; text: string }[] }> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const list = opts.items.map((it, i) => `${i + 1}. [${it.id}] ${it.text.replace(/\s+/g, ' ').slice(0, 500)}`).join('\n')
-  const message = await anthropic.messages.create({
+  // Stream with generous headroom: a whole page of rewritten paragraphs in one tool_use
+  // object easily overruns a small budget, and a mid-output truncation used to come back
+  // as an empty result ("nothing happened") instead of an error.
+  const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 3000,
+    max_tokens: 16000,
     system:
       'You polish the copy on a website while keeping each piece roughly the same length and the same meaning. ' +
       'Warm, clear and human; never invent facts, claims, names or numbers. Return exactly one rewrite per input id, reusing that id.',
@@ -384,6 +449,8 @@ export async function aiPolishCopy(opts: { siteName: string; brandVoice?: string
       },
     ],
   })
+  const message = await stream.finalMessage()
+  if (message.stop_reason === 'max_tokens') throw new Error('That was a lot of copy to rewrite at once — please try again.')
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') throw new Error('The AI did not return rewrites. Please try again.')
   const input = block.input as { items?: { id?: string; text?: string }[] }

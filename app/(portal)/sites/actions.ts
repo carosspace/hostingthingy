@@ -992,7 +992,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -1006,8 +1006,8 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       type,
       x: num(e?.x, -2000, 8000, 0),
       y: num(e?.y, 0, 40000, 0),
-      w: num(e?.w, 8, 4000, 100),
-      h: num(e?.h, 8, 8000, 60),
+      w: num(e?.w, 1, 4000, 100), // floor 1 so hairline dividers (a 2px line) survive the gate
+      h: num(e?.h, 1, 8000, 60),
       z: num(e?.z, -9999, 9999, i),
       rotate: num(e?.rotate, -180, 180, 0) || undefined,
       opacity: num(e?.opacity, 0, 100, 100),
@@ -1046,6 +1046,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
+      // Freehand drawing: only allow SVG path-data characters (no quotes/parens → no injection), capped.
+      paths: type === 'draw' && Array.isArray(e?.paths) ? (e.paths as unknown[]).map(p => String(p ?? '')).filter(p => p.length <= 20000 && /^[\d\s.,\-MLCQTAHVZmlcqtahvz]+$/.test(p)).slice(0, 400) : undefined,
+      strokeW: type === 'draw' ? num(e?.strokeW, 1, 200, 6) : undefined,
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
       fields: type === 'form' && Array.isArray(e?.fields)

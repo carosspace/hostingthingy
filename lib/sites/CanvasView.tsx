@@ -60,6 +60,12 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     ) : null
   if (el.type === 'carousel')
     return el.slides && el.slides.length ? <Carousel slides={el.slides} fit={el.fit} radiusCss={cqf(el.radius || 0)} interval={el.interval} /> : null
+  if (el.type === 'draw')
+    return (
+      <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible', pointerEvents: 'none' }}>
+        {(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}
+      </svg>
+    )
   if (el.type === 'shape')
     return (
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -264,6 +270,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
         } else if (el.type === 'shape') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
+        } else if (el.type === 'draw') {
+          node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>{(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}</svg></div>
         } else if (el.type === 'icon') {
           const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
           const ih = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)

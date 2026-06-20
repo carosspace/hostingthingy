@@ -184,7 +184,7 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
 
 type Drag =
   | { kind: 'move'; px: number; py: number; scale: number; m: boolean; starts: { id: string; x: number; y: number }[] }
-  | { kind: 'resize'; id: string; px: number; py: number; scale: number; m: boolean; w: number; h: number; ar: number }
+  | { kind: 'resize'; id: string; px: number; py: number; scale: number; m: boolean; w: number; h: number; ar: number; dir: 'se' | 'e' | 's' }
   | { kind: 'marquee'; px: number; py: number; scale: number; m: boolean; ox: number; oy: number }
   | null
 
@@ -361,7 +361,7 @@ export default function CanvasEditor({
   const gw = (e: CanvasElement) => (editingMobile ? e.mw ?? Math.round(e.w * MR) : e.w)
   const gh = (e: CanvasElement) => (editingMobile ? e.mh ?? Math.round(e.h * MR) : e.h)
   const patchXY = (x: number, y: number): Partial<CanvasElement> => (editingMobile ? { mx: x, my: y } : { x, y })
-  const patchWH = (w: number, h: number): Partial<CanvasElement> => (editingMobile ? { mw: Math.max(8, Math.round(w)), mh: Math.max(8, Math.round(h)) } : { w: Math.max(8, Math.round(w)), h: Math.max(8, Math.round(h)) })
+  const patchWH = (w: number, h: number): Partial<CanvasElement> => (editingMobile ? { mw: Math.max(1, Math.round(w)), mh: Math.max(1, Math.round(h)) } : { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) }) // floor 1 to match the gate, so hairline lines survive
   const patchX = (x: number): Partial<CanvasElement> => (editingMobile ? { mx: x } : { x })
   const patchY = (y: number): Partial<CanvasElement> => (editingMobile ? { my: y } : { y })
   // Write a DISPLAYED y back into the element's own frame (footer y is band-local on
@@ -931,7 +931,7 @@ export default function CanvasEditor({
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
     box: { type: 'box', w: 340, h: 220, fill: '#eaeaea', radius: 10 },
-    line: { type: 'box', w: 440, h: 3, fill: '#111111', radius: 0 },
+    line: { type: 'box', x: 0, w: CANVAS_W, h: 3, fill: '#111111', radius: 0 },
     section: { type: 'box', x: 0, y: 80, w: CANVAS_W, h: 240, fill: '#f3f3f1', radius: 0 },
     shape: { type: 'shape', shape: 'line', x: 0, w: CANVAS_W, h: 60, fill: '#111111' },
   }
@@ -1245,7 +1245,7 @@ export default function CanvasEditor({
       .sort((a, b) => a.y - b.y)
       .slice(0, 40)
       .forEach(el => {
-        const p: string[] = [`• ${el.type}`]
+        const p: string[] = [`• [${el.id}] ${el.type}`]
         if ((el.type === 'text' || el.type === 'button') && el.text) p.push(`"${el.text.replace(/\s+/g, ' ').slice(0, 100)}"`)
         if (el.fontSize) p.push(`${el.fontSize}px`)
         if (el.weight) p.push(`weight ${el.weight}`)
@@ -1276,6 +1276,20 @@ export default function CanvasEditor({
     } finally {
       setCritiquing(false)
     }
+  }
+
+  // Apply the review's concrete suggestions in one click (undoable). Each edit only sets
+  // whitelisted style fields validated server-side; unknown ids and locked elements are skipped.
+  const applyCritique = () => {
+    const edits = critique?.edits
+    if (!edits || !edits.length) return
+    const map = new Map(edits.map(ed => [ed.targetId, ed.set]))
+    const willHit = elsRef.current.some(e => map.has(e.id) && !e.locked)
+    if (!willHit) { setCritique(c => (c ? { ...c, edits: [] } : c)); return }
+    snapshot(true)
+    setEls(p => p.map(e => (map.has(e.id) && !e.locked ? { ...e, ...map.get(e.id)! } : e)))
+    touch()
+    setCritique(c => (c ? { ...c, edits: [] } : c)) // applied → hide the button (Ctrl+Z to revert)
   }
 
   // Persist the site-wide brand voice (on blur). Skips a no-op save and shows a brief tick.
@@ -1382,12 +1396,14 @@ export default function CanvasEditor({
       const aw = (el: CanvasElement) => (d.m ? el.mw ?? Math.round(el.w * R) : el.w)
       const ah = (el: CanvasElement) => (d.m ? el.mh ?? Math.round(el.h * R) : el.h)
       if (d.kind === 'resize') {
-        let nw = Math.max(24, Math.round(d.w + dx))
-        let nh = Math.max(20, Math.round(d.h + dy))
-        // Hold Shift to keep the element's proportions (no distortion); otherwise snap to
-        // the grid when it's on.
-        if (e.shiftKey && d.ar > 0) { nh = Math.max(20, Math.round(nw / d.ar)) }
-        else if (gridSnapRef.current) { const g = gridSizeRef.current; nw = Math.max(24, Math.round(nw / g) * g); nh = Math.max(20, Math.round(nh / g) * g) }
+        // Edge handles change one axis only ('e' = width, 's' = height); the corner ('se') does both.
+        const useW = d.dir !== 's'
+        const useH = d.dir !== 'e'
+        let nw = useW ? Math.max(24, Math.round(d.w + dx)) : d.w
+        let nh = useH ? Math.max(20, Math.round(d.h + dy)) : d.h
+        // Hold Shift on the CORNER to keep proportions; otherwise snap the moving axes to the grid.
+        if (e.shiftKey && d.ar > 0 && d.dir === 'se') { nh = Math.max(20, Math.round(nw / d.ar)) }
+        else if (gridSnapRef.current) { const g = gridSizeRef.current; if (useW) nw = Math.max(24, Math.round(nw / g) * g); if (useH) nh = Math.max(20, Math.round(nh / g) * g) }
         setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, ...(d.m ? { mw: nw, mh: nh } : { w: nw, h: nh }) })))
         return
       }
@@ -1586,7 +1602,7 @@ export default function CanvasEditor({
     s?.addRange(range)
   }, [editingId])
 
-  const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize') => {
+  const startDrag = (e: RPointerEvent, el: CanvasElement, mode: 'move' | 'resize', dir: 'se' | 'e' | 's' = 'se') => {
     e.stopPropagation()
     e.preventDefault()
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -1595,7 +1611,7 @@ export default function CanvasEditor({
     if (mode === 'resize') {
       setSelectedIds([el.id])
       snapshot(true)
-      dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el), ar: gh(el) > 0 ? gw(el) / gh(el) : 1 }
+      dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el), ar: gh(el) > 0 ? gw(el) / gh(el) : 1, dir }
       return
     }
     // Shift-click toggles an element (and its group) in/out of the selection — no drag.
@@ -1731,6 +1747,12 @@ export default function CanvasEditor({
         <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, borderRadius: cqv(el.radius || 0), color: accent, fontSize: cqv(16) }}>▷ slideshow</div>
       )
     }
+    if (el.type === 'draw')
+      return (
+        <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible', pointerEvents: 'none' }}>
+          {(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}
+        </svg>
+      )
     if (el.type === 'shape')
       return (
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}>
@@ -1826,13 +1848,14 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
     if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'shape') return 'Shape divider'
+    if (el.type === 'draw') return 'Drawing'
     if (el.type === 'icon') return 'Icon · ' + (el.icon || 'star')
     if (el.type === 'component') return components.find(c => c.id === el.componentId)?.name || 'Component'
     if (el.type === 'menu') return 'Page menu'
@@ -2152,7 +2175,13 @@ export default function CanvasEditor({
                   </div>
                 )
               })}
-              <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
+              <div className="flex items-center gap-3 flex-wrap pt-0.5">
+                {!!critique.edits?.length && (
+                  <button type="button" onClick={applyCritique} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-1.5 rounded-sm">✦ Apply {critique.edits.length} suggested change{critique.edits.length > 1 ? 's' : ''}</button>
+                )}
+                <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
+              </div>
+              {!!critique.edits?.length && <p className="font-body text-ash/45 text-[10.5px] leading-relaxed">Applies safe colour/size/alignment tweaks to the elements above — Ctrl/⌘+Z to undo.</p>}
             </div>
           )}
         </div>
@@ -2448,7 +2477,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -2470,9 +2499,9 @@ export default function CanvasEditor({
             {!sel.locked && (
               <div className="flex items-center gap-1.5" title="Exact size in pixels">
                 <span style={labelCss}>Size</span>
-                <input type="number" min={8} value={Math.round(gw(sel))} onChange={e => { const w = Math.max(8, Number(e.target.value) || 8); const h = lockRatio ? Math.max(8, Math.round(w * (gh(sel) / Math.max(1, gw(sel))))) : gh(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
+                <input type="number" min={1} value={Math.round(gw(sel))} onChange={e => { const w = Math.max(1, Number(e.target.value) || 1); const h = lockRatio ? Math.max(1, Math.round(w * (gh(sel) / Math.max(1, gw(sel))))) : gh(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
                 <span style={{ fontSize: 11, color: '#999' }}>×</span>
-                <input type="number" min={8} value={Math.round(gh(sel))} onChange={e => { const h = Math.max(8, Number(e.target.value) || 8); const w = lockRatio ? Math.max(8, Math.round(h * (gw(sel) / Math.max(1, gh(sel))))) : gw(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
+                <input type="number" min={1} value={Math.round(gh(sel))} onChange={e => { const h = Math.max(1, Number(e.target.value) || 1); const w = lockRatio ? Math.max(1, Math.round(h * (gw(sel) / Math.max(1, gh(sel))))) : gw(sel); update(sel.id, patchWH(w, h)) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 60 }} />
                 <button type="button" title={lockRatio ? 'Proportions locked' : 'Lock proportions'} onClick={() => setLockRatio(v => !v)} style={{ fontSize: 12, color: lockRatio ? ui : '#999', width: 24 }}>{lockRatio ? '🔒' : '🔓'}</button>
               </div>
             )}
@@ -2914,6 +2943,13 @@ export default function CanvasEditor({
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={120} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
                 </div>
+                {(gh(sel) <= 24 || gw(sel) / Math.max(1, gh(sel)) >= 8) && (
+                  <div className="flex items-center gap-2">
+                    <span style={labelCss}>Thickness</span>
+                    <input type="range" min={1} max={40} value={Math.min(40, Math.round(gh(sel)))} onChange={e => { const h = Math.max(1, Math.min(40, Number(e.target.value) || 1)); update(sel.id, editingMobile ? { mh: h } : { h }) }} style={{ flex: 1 }} />
+                    <span style={{ fontSize: 11, color: '#666', width: 34 }}>{Math.round(gh(sel))}px</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Border</span>
                   {colorField(sel.borderColor, v => update(sel.id, { borderColor: v, borderWidth: sel.borderWidth || 2 }), '#a85c36')}
@@ -3140,10 +3176,14 @@ export default function CanvasEditor({
                   >
                     {elInner(el)}
                     {selectedId === el.id && !el.locked && (
-                      <div
-                        onPointerDown={e => startDrag(e, el, 'resize')}
-                        style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 3, background: ui, border: '2px solid #fff', cursor: 'nwse-resize', touchAction: 'none', zIndex: 2 }}
-                      />
+                      <>
+                        {/* East: width only (drag a line wider without thickening it) */}
+                        <div onPointerDown={e => startDrag(e, el, 'resize', 'e')} title="Drag to change width" style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 26, borderRadius: 4, background: '#fff', border: `1.5px solid ${ui}`, cursor: 'ew-resize', touchAction: 'none', zIndex: 2 }} />
+                        {/* South: height only */}
+                        <div onPointerDown={e => startDrag(e, el, 'resize', 's')} title="Drag to change height" style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 26, height: 8, borderRadius: 4, background: '#fff', border: `1.5px solid ${ui}`, cursor: 'ns-resize', touchAction: 'none', zIndex: 2 }} />
+                        {/* Corner: both (Shift = keep proportions) */}
+                        <div onPointerDown={e => startDrag(e, el, 'resize', 'se')} title="Drag to resize · Shift keeps proportions" style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 3, background: ui, border: '2px solid #fff', cursor: 'nwse-resize', touchAction: 'none', zIndex: 2 }} />
+                      </>
                     )}
                   </div>
                 )

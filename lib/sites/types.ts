@@ -124,7 +124,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw'
 
 // Global text styles: define Heading/Body/etc. once and apply to many text elements.
 // A text element references a style via `styleRef`; editing the style re-syncs every
@@ -365,6 +365,10 @@ export interface CanvasElement {
   // carousel
   slides?: string[] // image data URLs for a 'carousel' element
   interval?: number // auto-advance seconds (0 = manual only)
+  // freehand drawing: SVG path 'd' strings normalised to a 0..1000 viewBox; `color` is the
+  // stroke colour, `strokeW` the stroke width in viewBox units.
+  paths?: string[]
+  strokeW?: number
   // shape divider
   shape?: ShapeKind
   // icon (a recolourable line/fill icon — `icon` is a key in lib/sites/icons.tsx; `color` tints it)
