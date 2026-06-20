@@ -993,7 +993,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw', 'group']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -1050,6 +1050,24 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       // Freehand drawing: only allow SVG path-data characters (no quotes/parens → no injection), capped.
       paths: type === 'draw' && Array.isArray(e?.paths) ? (e.paths as unknown[]).map(p => String(p ?? '')).filter(p => p.length <= 20000 && /^[\d\s.,\-MLCQTAHVZmlcqtahvz]+$/.test(p)).slice(0, 400) : undefined,
       strokeW: type === 'draw' ? num(e?.strokeW, 1, 200, 6) : undefined,
+      // Flow Groups (layout engine). parentId is a raw element id (validated against surviving
+      // groups in a post-pass below); flow/sizeW/sizeH only meaningful on a 'group'.
+      parentId: e?.parentId ? String(e.parentId).slice(0, 40) : undefined,
+      flow: type === 'group' && e?.flow && typeof e.flow === 'object' ? (() => {
+        const f = e.flow as Record<string, unknown>
+        return {
+          dir: f.dir === 'col' ? 'col' as const : 'row' as const,
+          gap: num(f.gap, 0, 400, 16),
+          padX: num(f.padX, 0, 400, 0),
+          padY: num(f.padY, 0, 400, 0),
+          align: (['start', 'center', 'end', 'stretch'].includes(String(f.align)) ? String(f.align) : 'start') as 'start' | 'center' | 'end' | 'stretch',
+          justify: (['start', 'center', 'end', 'between'].includes(String(f.justify)) ? String(f.justify) : 'start') as 'start' | 'center' | 'end' | 'between',
+          wrap: f.wrap ? true : undefined,
+          collapsible: f.collapsible ? true : undefined,
+        }
+      })() : undefined,
+      sizeW: type === 'group' && ['hug', 'fill'].includes(String(e?.sizeW)) ? (String(e?.sizeW) as 'hug' | 'fill') : undefined,
+      sizeH: type === 'group' && ['hug', 'fill'].includes(String(e?.sizeH)) ? (String(e?.sizeH) as 'hug' | 'fill') : undefined,
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
       fields: type === 'form' && Array.isArray(e?.fields)
@@ -1112,6 +1130,13 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => sanitizeElement(e, i, true))
+  // Flow Groups integrity (runs AFTER the 80-cap slice): a child's parentId must point to a
+  // surviving 'group', and a group can't itself be parented (no nested groups). Otherwise drop
+  // parentId so the element falls back to absolute positioning — orphans are always safe.
+  const groupIds = new Set(elements.filter(el => el.type === 'group').map(el => el.id))
+  for (const el of elements) {
+    if (el.parentId && (el.type === 'group' || !groupIds.has(el.parentId))) el.parentId = undefined
+  }
   const components: SiteComponent[] | undefined = Array.isArray(c.components)
     ? ((c.components as Record<string, unknown>[])
         .map(comp => {

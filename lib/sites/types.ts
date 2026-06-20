@@ -124,7 +124,23 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw' | 'group'
+
+// Flow Groups (the layout engine): a 'group' element flex-lays-out its members. Children stay
+// in the flat elements[] array with parentId pointing back here; the group is the source of
+// truth for membership/order. Children keep their x/y/w/h as the absolute fallback (used if the
+// group is missing, and as seed geometry when a child is dragged out). Purely additive — a page
+// with no groups renders byte-identically to before. See [[layout-engine-plan]].
+export interface FlowConfig {
+  dir: 'row' | 'col' // main axis
+  gap: number // px between children (design units)
+  padX: number // horizontal padding inside the group
+  padY: number // vertical padding inside the group
+  align: 'start' | 'center' | 'end' | 'stretch' // cross-axis alignment (align-items)
+  justify: 'start' | 'center' | 'end' | 'between' // main-axis distribution (justify-content)
+  wrap?: boolean // allow children to wrap to the next line
+  collapsible?: boolean // accordion: the group can collapse (Stage 4)
+}
 
 // Global text styles: define Heading/Body/etc. once and apply to many text elements.
 // A text element references a style via `styleRef`; editing the style re-syncs every
@@ -369,6 +385,13 @@ export interface CanvasElement {
   // stroke colour, `strokeW` the stroke width in viewBox units.
   paths?: string[]
   strokeW?: number
+  // Flow Groups (layout engine). On a 'group' element: `flow` is the layout config + optional
+  // sizeW/sizeH ('fixed' fixed box, 'hug' shrink-to-content, 'fill' stretch). On a CHILD of a
+  // group: `parentId` is the owning group's id (the child then flows instead of being absolute).
+  parentId?: string
+  flow?: FlowConfig
+  sizeW?: 'fixed' | 'hug' | 'fill'
+  sizeH?: 'fixed' | 'hug' | 'fill'
   // shape divider
   shape?: ShapeKind
   // icon (a recolourable line/fill icon — `icon` is a key in lib/sites/icons.tsx; `color` tints it)
