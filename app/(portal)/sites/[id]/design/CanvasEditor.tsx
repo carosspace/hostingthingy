@@ -10,7 +10,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -200,6 +200,7 @@ export default function CanvasEditor({
   fontSystem,
   contactEmail,
   navPages,
+  allPages = [],
   brandVoice: initialBrandVoice = '',
   pageTransition: initialPageTransition = 'none',
   initial,
@@ -213,6 +214,7 @@ export default function CanvasEditor({
   fontSystem: string
   contactEmail: string
   navPages: { slug: string; label: string }[]
+  allPages?: { slug: string; title: string; hidden?: boolean }[]
   brandVoice?: string
   pageTransition?: PageTransitionKind
   initial: PageCanvas | null
@@ -244,7 +246,7 @@ export default function CanvasEditor({
   const [altBusy, setAltBusy] = useState(false) // AI alt-text suggestion in progress
   // Which tool category the left panel shows (Canva-style). Selecting an element
   // overrides this with its properties (the inspector); deselect to see a tab again.
-  const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers'>('design')
+  const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers' | 'pages'>('design')
   const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
@@ -1931,7 +1933,7 @@ export default function CanvasEditor({
       {!focusMode && (
       <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2.5 mb-4 lg:mb-0">
         <div className="flex flex-col gap-1.5 shrink-0">
-          {([['design', '◍', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '⤒', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
+          {([['pages', '▭', 'Pages'], ['design', '◍', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '⤒', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
             const on = lib && panelTab === key
             return (
               <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
@@ -1945,7 +1947,7 @@ export default function CanvasEditor({
         </div>
         <div className="lg:w-[284px] lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto rounded-2xl px-4 py-4 flex flex-col gap-4" style={{ background: '#ffffff', border: '1px solid #ececef', boxShadow: '0 1px 2px rgba(17,17,26,0.04), 0 14px 34px -16px rgba(17,17,26,0.22)' }}>
         <div className="flex items-center justify-between">
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#2a2e3a', letterSpacing: 0.2 }}>{lib ? ({ design: 'Design', text: 'Text', elements: 'Add', uploads: 'Uploads', layers: 'Layers' } as const)[panelTab] : 'Selected'}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#2a2e3a', letterSpacing: 0.2 }}>{lib ? ({ design: 'Design', text: 'Text', elements: 'Add', uploads: 'Uploads', layers: 'Layers', pages: 'Pages' } as const)[panelTab] : 'Selected'}</span>
           <div className="flex items-center gap-2.5">
             {siteStatus === 'live' && (
               <a href={pageSlug ? `/s/${siteSlug}/${pageSlug}` : `/s/${siteSlug}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, fontWeight: 600, color: '#9aa0ab' }} className="hover:text-gold">View ↗</a>
@@ -1996,6 +1998,30 @@ export default function CanvasEditor({
             </select>
           )}
         </div>
+
+        {lib && panelTab === 'pages' && (
+          <div className="space-y-2">
+            <p className="font-body text-ash/50 text-[11px] leading-relaxed">Every page on your site — click one to open it. Each page saves on its own.</p>
+            <div className="flex flex-col gap-1">
+              {allPages.map(p => {
+                const on = p.slug === pageSlug
+                return (
+                  <a key={p.slug || 'home'} href={`/sites/${siteId}/design?page=${p.slug}`} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
+                    <span style={{ fontSize: 13, flex: 'none', opacity: on ? 1 : 0.65 }}>{p.slug === '' ? '⌂' : '▭'}</span>
+                    <span style={{ fontSize: 13, fontWeight: on ? 600 : 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || (p.slug === '' ? 'Home' : p.slug)}</span>
+                    {p.hidden && <span style={{ fontSize: 9, color: on ? 'rgba(255,255,255,0.75)' : '#aaa', flex: 'none' }}>hidden</span>}
+                  </a>
+                )
+              })}
+            </div>
+            <form action={addPageAction}>
+              <input type="hidden" name="id" value={siteId} />
+              <input type="hidden" name="canvas" value="1" />
+              <button type="submit" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-2 rounded-sm w-full">+ Add a page</button>
+            </form>
+            <p className="font-body text-ash/40 text-[11px] leading-relaxed">Rename, reorder, hide or delete pages from the bar above the canvas.</p>
+          </div>
+        )}
 
         {lib && panelTab === 'text' && (
           <div>

@@ -247,6 +247,7 @@ export default async function DesignPage({
             fontSystem={c?.fontSystem ?? 'serif'}
             contactEmail={c?.contactEmail ?? ''}
             navPages={pages.filter(p => !p.hidden).map(p => ({ slug: p.slug, label: p.navLabel || p.title || 'Untitled' }))}
+            allPages={pages.map(p => ({ slug: p.slug, title: p.navLabel || p.title || 'Untitled', hidden: p.hidden }))}
             brandVoice={c?.brandVoice ?? ''}
             pageTransition={c?.pageTransition ?? 'none'}
             initial={current.canvas}
