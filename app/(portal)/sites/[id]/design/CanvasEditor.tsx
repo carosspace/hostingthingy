@@ -247,6 +247,22 @@ export default function CanvasEditor({
   // Which tool category the left panel shows (Canva-style). Selecting an element
   // overrides this with its properties (the inspector); deselect to see a tab again.
   const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers' | 'pages'>('design')
+  // Pages tab folders are an editor-only organisation layer kept per-browser in localStorage
+  // (like recent colours / saved blocks). They never touch the saved site or the URLs, so
+  // they can't race the editor's re-mount-on-navigation or get dropped by a save path.
+  const foldersKey = `cvfolders:${siteId}`
+  const [folderMap, setFolderMap] = useState<Record<string, string>>({})
+  useEffect(() => { try { setFolderMap(JSON.parse(localStorage.getItem(foldersKey) || '{}') || {}) } catch { /* ignore */ } }, [foldersKey])
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const assignFolder = (slug: string, folder: string) => {
+    setFolderMap(m => {
+      const n = { ...m }
+      if (folder) n[slug] = folder.slice(0, 40)
+      else delete n[slug]
+      try { localStorage.setItem(foldersKey, JSON.stringify(n)) } catch { /* ignore */ }
+      return n
+    })
+  }
   const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
@@ -2100,29 +2116,58 @@ export default function CanvasEditor({
           )}
         </div>
 
-        {lib && panelTab === 'pages' && (
-          <div className="space-y-2">
-            <p className="font-body text-ash/50 text-[11px] leading-relaxed">Every page on your site — click one to open it. Each page saves on its own.</p>
-            <div className="flex flex-col gap-1">
-              {allPages.map(p => {
-                const on = p.slug === pageSlug
-                return (
-                  <a key={p.slug || 'home'} href={`/sites/${siteId}/design?page=${p.slug}`} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
-                    <span style={{ fontSize: 13, flex: 'none', opacity: on ? 1 : 0.65 }}>{p.slug === '' ? '⌂' : '▭'}</span>
-                    <span style={{ fontSize: 13, fontWeight: on ? 600 : 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || (p.slug === '' ? 'Home' : p.slug)}</span>
-                    {p.hidden && <span style={{ fontSize: 9, color: on ? 'rgba(255,255,255,0.75)' : '#aaa', flex: 'none' }}>hidden</span>}
-                  </a>
-                )
-              })}
+        {lib && panelTab === 'pages' && (() => {
+          const pwf = allPages.map(p => ({ ...p, folder: folderMap[p.slug] }))
+          const folders = Array.from(new Set(pwf.map(p => p.folder).filter((f): f is string => !!f)))
+          const topLevel = pwf.filter(p => !p.folder)
+          const row = (p: { slug: string; title: string; hidden?: boolean; folder?: string }) => {
+            const on = p.slug === pageSlug
+            return (
+              <div key={p.slug || 'home'} className="group flex items-center gap-1">
+                <a href={`/sites/${siteId}/design?page=${p.slug}`} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors flex-1 min-w-0" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
+                  <span style={{ fontSize: 13, flex: 'none', opacity: on ? 1 : 0.65 }}>{p.slug === '' ? '⌂' : '▭'}</span>
+                  <span style={{ fontSize: 13, fontWeight: on ? 600 : 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || (p.slug === '' ? 'Home' : p.slug)}</span>
+                  {p.hidden && <span style={{ fontSize: 9, color: on ? 'rgba(255,255,255,0.75)' : '#aaa', flex: 'none' }}>hidden</span>}
+                </a>
+                <select value="" onChange={e => { const v = e.target.value; e.currentTarget.blur(); if (v === '__new') { const name = (window.prompt('New folder name:') || '').trim(); if (name) assignFolder(p.slug, name) } else if (v === '__none') assignFolder(p.slug, ''); else if (v) assignFolder(p.slug, v) }} title="File this page into a folder" style={{ fontSize: 11, color: '#9aa0ab', border: '1px solid #ececef', borderRadius: 6, padding: '3px 2px', background: '#fff', flex: 'none', width: 28, cursor: 'pointer' }}>
+                  <option value="">📁</option>
+                  {folders.filter(f => f !== p.folder).map(f => <option key={f} value={f}>→ {f}</option>)}
+                  {p.folder && <option value="__none">✕ Out of “{p.folder}”</option>}
+                  <option value="__new">+ New folder…</option>
+                </select>
+              </div>
+            )
+          }
+          return (
+            <div className="space-y-2">
+              <p className="font-body text-ash/50 text-[11px] leading-relaxed">Every page on your site — click one to open it. Use the 📁 to file pages into folders (folders tidy this panel only; your URLs never change).</p>
+              <div className="flex flex-col gap-1">
+                {topLevel.map(row)}
+                {folders.map(f => {
+                  const open = !collapsedFolders.has(f)
+                  const kids = pwf.filter(p => p.folder === f)
+                  return (
+                    <div key={f}>
+                      <button type="button" onClick={() => setCollapsedFolders(s => { const n = new Set(s); if (n.has(f)) n.delete(f); else n.add(f); return n })} className="flex items-center gap-1.5 w-full rounded-lg px-2 py-1.5 hover:bg-gold/5" style={{ color: '#6a6f7a' }}>
+                        <span style={{ fontSize: 10, width: 10, flex: 'none' }}>{open ? '▾' : '▸'}</span>
+                        <span style={{ fontSize: 12, flex: 'none' }}>📁</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>{f}</span>
+                        <span style={{ fontSize: 10, color: '#b3b7be', flex: 'none' }}>{kids.length}</span>
+                      </button>
+                      {open && <div className="flex flex-col gap-1 mt-1" style={{ paddingLeft: 10, marginLeft: 8, borderLeft: '1px solid #ececef' }}>{kids.map(row)}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+              <form action={addPageAction}>
+                <input type="hidden" name="id" value={siteId} />
+                <input type="hidden" name="canvas" value="1" />
+                <button type="submit" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-2 rounded-sm w-full">+ Add a page</button>
+              </form>
+              <p className="font-body text-ash/40 text-[11px] leading-relaxed">Rename, reorder, hide or delete pages from the bar above the canvas.</p>
             </div>
-            <form action={addPageAction}>
-              <input type="hidden" name="id" value={siteId} />
-              <input type="hidden" name="canvas" value="1" />
-              <button type="submit" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-2 rounded-sm w-full">+ Add a page</button>
-            </form>
-            <p className="font-body text-ash/40 text-[11px] leading-relaxed">Rename, reorder, hide or delete pages from the bar above the canvas.</p>
-          </div>
-        )}
+          )
+        })()}
 
         {lib && panelTab === 'text' && (
           <div>
