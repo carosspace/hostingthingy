@@ -254,6 +254,8 @@ export default function CanvasEditor({
   const [folderMap, setFolderMap] = useState<Record<string, string>>({})
   useEffect(() => { try { setFolderMap(JSON.parse(localStorage.getItem(foldersKey) || '{}') || {}) } catch { /* ignore */ } }, [foldersKey])
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const dragPageRef = useRef<string | null>(null) // slug being dragged in the Pages panel
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null) // drop target: folder name, '__top', or null
   const assignFolder = (slug: string, folder: string) => {
     setFolderMap(m => {
       const n = { ...m }
@@ -2120,11 +2122,13 @@ export default function CanvasEditor({
           const pwf = allPages.map(p => ({ ...p, folder: folderMap[p.slug] }))
           const folders = Array.from(new Set(pwf.map(p => p.folder).filter((f): f is string => !!f)))
           const topLevel = pwf.filter(p => !p.folder)
+          const dropOnto = (target: string) => { const s = dragPageRef.current; dragPageRef.current = null; setDragOverFolder(null); if (s != null) assignFolder(s, target === '__top' ? '' : target) }
           const row = (p: { slug: string; title: string; hidden?: boolean; folder?: string }) => {
             const on = p.slug === pageSlug
             return (
-              <div key={p.slug || 'home'} className="group flex items-center gap-1">
-                <a href={`/sites/${siteId}/design?page=${p.slug}`} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors flex-1 min-w-0" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
+              <div key={p.slug || 'home'} className="group flex items-center gap-0.5">
+                <span draggable onDragStart={e => { dragPageRef.current = p.slug; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', p.slug) } catch { /* some browsers */ } }} onDragEnd={() => { dragPageRef.current = null; setDragOverFolder(null) }} title="Drag into a folder" style={{ cursor: 'grab', color: '#c8c8cd', fontSize: 12, flex: 'none', padding: '0 2px', lineHeight: 1 }}>⠿</span>
+                <a href={`/sites/${siteId}/design?page=${p.slug}`} draggable={false} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors flex-1 min-w-0" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
                   <span style={{ fontSize: 13, flex: 'none', opacity: on ? 1 : 0.65 }}>{p.slug === '' ? '⌂' : '▭'}</span>
                   <span style={{ fontSize: 13, fontWeight: on ? 600 : 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || (p.slug === '' ? 'Home' : p.slug)}</span>
                   {p.hidden && <span style={{ fontSize: 9, color: on ? 'rgba(255,255,255,0.75)' : '#aaa', flex: 'none' }}>hidden</span>}
@@ -2140,14 +2144,26 @@ export default function CanvasEditor({
           }
           return (
             <div className="space-y-2">
-              <p className="font-body text-ash/50 text-[11px] leading-relaxed">Every page on your site — click one to open it. Use the 📁 to file pages into folders (folders tidy this panel only; your URLs never change).</p>
-              <div className="flex flex-col gap-1">
+              <p className="font-body text-ash/50 text-[11px] leading-relaxed">Every page on your site — click one to open it. Drag a page by its ⠿ handle (or use the 📁) to file it into a folder. Folders tidy this panel only; your URLs never change.</p>
+              <div
+                className="flex flex-col gap-1 rounded-lg"
+                onDragOver={e => { if (dragPageRef.current != null) { e.preventDefault(); setDragOverFolder('__top') } }}
+                onDrop={e => { e.preventDefault(); dropOnto('__top') }}
+                style={{ outline: dragOverFolder === '__top' ? `2px dashed ${ui}` : '2px dashed transparent', outlineOffset: 2 }}
+              >
                 {topLevel.map(row)}
+                {!topLevel.length && dragOverFolder === '__top' && <p className="font-body text-[11px] px-2 py-1" style={{ color: ui }}>Drop here to take it out of its folder</p>}
                 {folders.map(f => {
                   const open = !collapsedFolders.has(f)
                   const kids = pwf.filter(p => p.folder === f)
+                  const over = dragOverFolder === f
                   return (
-                    <div key={f}>
+                    <div key={f}
+                      onDragOver={e => { if (dragPageRef.current != null) { e.preventDefault(); e.stopPropagation(); setDragOverFolder(f) } }}
+                      onDrop={e => { e.preventDefault(); e.stopPropagation(); dropOnto(f) }}
+                      className="rounded-lg"
+                      style={{ background: over ? 'rgba(103,144,93,0.08)' : 'transparent', outline: over ? `2px dashed ${ui}` : '2px dashed transparent', outlineOffset: -1 }}
+                    >
                       <button type="button" onClick={() => setCollapsedFolders(s => { const n = new Set(s); if (n.has(f)) n.delete(f); else n.add(f); return n })} className="flex items-center gap-1.5 w-full rounded-lg px-2 py-1.5 hover:bg-gold/5" style={{ color: '#6a6f7a' }}>
                         <span style={{ fontSize: 10, width: 10, flex: 'none' }}>{open ? '▾' : '▸'}</span>
                         <span style={{ fontSize: 12, flex: 'none' }}>📁</span>
