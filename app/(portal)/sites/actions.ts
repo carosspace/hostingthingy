@@ -15,6 +15,7 @@ import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import type {
   SiteContent,
+  BookingCopy,
   SavedDesign,
   SiteFont,
   SiteComponent,
@@ -407,6 +408,36 @@ export async function setBrandVoiceAction(siteId: string, voice: string): Promis
   return { ok: true }
 }
 
+// Save the editable copy for the public booking page (/book/[slug]). Loads the full
+// content and writes it back with the spread intact (FOOTGUN: a bare write would drop
+// pages/savedDesigns/etc.), so only `booking` changes. Each field is trimmed and capped;
+// an empty field is dropped so the public page falls back to its default.
+export async function setBookingCopyAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site) return
+
+  const short = (key: string) => String(formData.get(key) ?? '').trim().slice(0, 80) || undefined
+  const long = (key: string) => String(formData.get(key) ?? '').trim().slice(0, 300) || undefined
+  const next: BookingCopy = {
+    heading: short('heading'),
+    intro: long('intro'),
+    successTitle: short('successTitle'),
+    successBody: long('successBody'),
+    closedTitle: short('closedTitle'),
+    closedBody: long('closedBody'),
+  }
+  // Drop the whole object when every field is empty (keeps content tidy + defaults clean).
+  const booking = Object.values(next).some(Boolean) ? next : undefined
+
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...existing, booking })
+  revalidatePath(`/sites/${id}`)
+}
+
 // Save the site-wide page-transition style (a gentle enter animation on every page).
 // Spread-preserves all other content, like setBrandVoiceAction.
 export async function setPageTransitionAction(siteId: string, kind: string): Promise<{ ok: boolean }> {
@@ -504,6 +535,8 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     ctaHref: existing?.ctaHref,
     contactLabel: existing?.contactLabel,
     contactEmail: String(formData.get('contactEmail') ?? '').trim(),
+    bookingHost: existing?.bookingHost, // edited elsewhere; preserve across content saves
+    booking: existing?.booking, // edited via setBookingCopyAction; never drop on a content save
     footer: existing?.footer,
     pages: updatedPages,
     savedDesigns: existing?.savedDesigns, // never drop saved designs on a content save
@@ -695,6 +728,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     contactLabel: String(parsed.contactLabel ?? '').trim() || undefined,
     contactEmail: String(parsed.contactEmail ?? '').trim(),
     bookingHost: existing?.bookingHost, // edited elsewhere; preserve across visual-editor saves
+    booking: existing?.booking, // edited via setBookingCopyAction; preserve across visual-editor saves
     footer: String(parsed.footer ?? '').trim() || undefined,
     socials: socials.length ? socials : undefined,
     heroOverlay,

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
-import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction } from '../actions'
+import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction, setBookingCopyAction } from '../actions'
 import { cfConfigured, cfGetHostname, cfCnameTarget, isOwnZone, type CfHostname } from '@/lib/sites/cloudflare'
 import SavedDesigns from './SavedDesigns'
 
@@ -170,6 +170,89 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
             <p className="font-body text-ash/50 text-[11px] mt-2">DNS changes can take a few minutes to a couple of hours. HTTPS turns on automatically once the domain resolves here.</p>
           </div>
         )}
+      </section>
+
+      <section className="border border-gold/15 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Booking page</p>
+        <p className="font-body text-ash/60 text-xs mb-4">
+          The words on your public booking page (<code className="text-gold/70">/book/{site.slug}</code>). Leave a field blank to use the default shown.
+          {' '}Your services &amp; availability are managed in the{' '}
+          <Link href="/bookings" className="text-gold hover:text-goldLight">Bookings dashboard</Link>.
+        </p>
+        <form action={setBookingCopyAction} className="space-y-4">
+          <input type="hidden" name="id" value={site.id} />
+          <div>
+            <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Heading</label>
+            <input
+              name="heading"
+              defaultValue={site.content?.booking?.heading ?? ''}
+              maxLength={80}
+              placeholder="Book a session"
+              className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+            />
+          </div>
+          <div>
+            <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Intro line</label>
+            <textarea
+              name="intro"
+              defaultValue={site.content?.booking?.intro ?? ''}
+              maxLength={300}
+              rows={2}
+              placeholder="Choose what feels right, then a time that's open."
+              className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Thank-you title</label>
+              <input
+                name="successTitle"
+                defaultValue={site.content?.booking?.successTitle ?? ''}
+                maxLength={80}
+                placeholder="Thank you"
+                className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+              />
+            </div>
+            <div>
+              <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Closed title</label>
+              <input
+                name="closedTitle"
+                defaultValue={site.content?.booking?.closedTitle ?? ''}
+                maxLength={80}
+                placeholder="Booking isn't open yet"
+                className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+              />
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Thank-you message</label>
+              <textarea
+                name="successBody"
+                defaultValue={site.content?.booking?.successBody ?? ''}
+                maxLength={300}
+                rows={3}
+                placeholder="Your booking request has been sent — {brand} will confirm it by email soon."
+                className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
+              />
+              <p className="font-body text-ash/40 text-[11px] mt-1.5">Use <code className="text-gold/70">{'{brand}'}</code> for your brand name.</p>
+            </div>
+            <div>
+              <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Closed message</label>
+              <textarea
+                name="closedBody"
+                defaultValue={site.content?.booking?.closedBody ?? ''}
+                maxLength={300}
+                rows={3}
+                placeholder="Please check back soon."
+                className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
+              />
+            </div>
+          </div>
+          <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+            Save
+          </button>
+        </form>
       </section>
 
       <section className="flex flex-wrap items-center gap-3">

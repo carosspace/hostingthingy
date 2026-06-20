@@ -589,6 +589,7 @@ export interface SiteContent {
   contactLabel?: string
   contactEmail: string
   bookingHost?: string // the name shown to clients on booking confirmations
+  booking?: BookingCopy // editable copy for the public booking page (/book/[slug])
   footer?: string
   socials?: Social[] // social profile links in the footer
   heroOverlay?: number // darkness % (0-80) over the hero photo
@@ -616,6 +617,19 @@ export function getPages(content: SiteContent | null): SitePage[] {
       ctaHref: content?.ctaHref,
     },
   ]
+}
+
+// Editable copy for the public booking page (/book/[slug]). Every field is optional;
+// the page falls back to sensible defaults when a field (or the whole object) is absent,
+// so existing sites with no `booking` keep working unchanged. {brand} in successBody is
+// substituted with the site's brand name when rendered.
+export interface BookingCopy {
+  heading?: string // the main italic display heading
+  intro?: string // the muted line under the heading
+  successTitle?: string // shown after a request is sent
+  successBody?: string // body under the success title ({brand} → the brand name)
+  closedTitle?: string // shown when booking isn't open (no services / no data)
+  closedBody?: string // body under the closed title
 }
 
 // A stock photo search result (from the Pexels proxy). Transient — not stored.

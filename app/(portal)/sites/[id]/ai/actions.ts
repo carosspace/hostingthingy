@@ -104,6 +104,8 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     contactLabel: existing?.contactLabel,
     contactEmail: existing?.contactEmail ?? '',
     footer: existing?.footer,
+    booking: existing?.booking, // never drop the owner's edited booking-page copy on an AI regenerate
+    bookingHost: existing?.bookingHost,
     pages,
     savedDesigns: existing?.savedDesigns, // never drop the owner's saved designs on an AI regenerate
   }
