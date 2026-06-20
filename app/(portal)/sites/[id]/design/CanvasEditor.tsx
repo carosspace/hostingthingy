@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -72,6 +72,9 @@ function readRecent(): string[] {
 function pushRecent(hex: string) {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return
   try { const next = [hex.toLowerCase(), ...readRecent().filter(c => c.toLowerCase() !== hex.toLowerCase())].slice(0, 12); localStorage.setItem(RECENT_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+}
+function removeRecentColor(hex: string) {
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(readRecent().filter(c => c.toLowerCase() !== hex.toLowerCase()))) } catch { /* ignore */ }
 }
 
 // A Canva-style colour control: a swatch button + hex box inline; clicking the swatch
@@ -158,8 +161,13 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
           {recent.length > 0 && (
             <>
               <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Recent</div>
-              <div className="flex flex-wrap gap-1.5">
-                {recent.map(c => swatch(c, resolved.toLowerCase() === c, () => pick(c), 'r' + c))}
+              <div className="flex flex-wrap gap-2">
+                {recent.map(c => (
+                  <span key={'r' + c} style={{ position: 'relative', display: 'inline-block' }}>
+                    {swatch(c, resolved.toLowerCase() === c, () => pick(c), 'r' + c)}
+                    <button type="button" title="Remove from recent" onClick={e => { e.stopPropagation(); removeRecentColor(c); setRecent(readRecent()) }} style={{ position: 'absolute', top: -5, right: -5, width: 14, height: 14, borderRadius: 999, background: '#fff', border: '1px solid rgba(0,0,0,0.25)', fontSize: 9, lineHeight: '11px', color: '#666', padding: 0, cursor: 'pointer' }}>×</button>
+                  </span>
+                ))}
               </div>
             </>
           )}
@@ -216,6 +224,7 @@ export default function CanvasEditor({
   const [bgGrad, setBgGrad] = useState<Gradient | null>(initial?.bgGradient ?? null)
   const [bgImage, setBgImage] = useState(initial?.bgImage ?? '')
   const [bgVideo, setBgVideo] = useState(initial?.bgVideo ?? '')
+  const [bgOpacity, setBgOpacity] = useState(initial?.bgOpacity ?? 100)
   const [palette, setPalette] = useState<string[]>(initial?.palette ?? [])
   const [fonts, setFonts] = useState<SiteFont[]>(initial?.fonts ?? [])
   const [components, setComponents] = useState<SiteComponent[]>(initial?.components ?? [])
@@ -1559,7 +1568,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1626,6 +1635,7 @@ export default function CanvasEditor({
     bg: bg.trim() || undefined,
     bgGradient: bgGrad || undefined,
     bgImage: bgImage.trim() || undefined,
+    bgOpacity: bgOpacity >= 100 ? undefined : Math.max(0, bgOpacity),
     bgVideo: bgVideo.trim() || undefined,
     elements: els,
     mobileCustom: mobileCustom || undefined,
@@ -1648,6 +1658,7 @@ export default function CanvasEditor({
     setBgGrad(c.bgGradient || null)
     setBgImage(c.bgImage || '')
     setBgVideo(c.bgVideo || '')
+    setBgOpacity(c.bgOpacity ?? 100)
     setPageWidth(c.width === 'contained' ? 'contained' : 'full')
     setMobileCustom(!!c.mobileCustom)
     setPalette(c.palette || [])
@@ -2311,6 +2322,13 @@ export default function CanvasEditor({
               <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
             ))}
           </div>
+          {(bg || bgGrad || bgImage) && (
+            <div className="flex items-center gap-2">
+              <span style={labelCss}>Opacity</span>
+              <input type="range" min={0} max={100} value={bgOpacity} onChange={e => { setBgOpacity(Number(e.target.value)); touch() }} style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: '#666', width: 32 }}>{bgOpacity}%</span>
+            </div>
+          )}
           <input value={bgVideo} onChange={e => { setBgVideo(e.target.value); touch() }} placeholder="Background video URL (https://…mp4)" style={{ ...inputCss, fontSize: 11, marginTop: 4 }} />
         </div>
 
@@ -2897,7 +2915,7 @@ export default function CanvasEditor({
             ) : null}
             <div className="flex items-center gap-2">
               <span style={labelCss}>Opacity</span>
-              <input type="range" min={10} max={100} value={sel.opacity ?? 100} onChange={e => update(sel.id, { opacity: Number(e.target.value) })} style={{ flex: 1 }} />
+              <input type="range" min={0} max={100} value={sel.opacity ?? 100} onChange={e => update(sel.id, { opacity: Number(e.target.value) })} style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: '#666', width: 32 }}>{sel.opacity ?? 100}%</span>
             </div>
             <div className="flex items-center gap-2">
@@ -3043,7 +3061,7 @@ export default function CanvasEditor({
           // The automatic phone layout, shown read-only in a phone frame.
           <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSys) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
-              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, bgOpacity: bgOpacity >= 100 ? undefined : bgOpacity, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
             </div>
           </div>
         ) : (
@@ -3078,10 +3096,7 @@ export default function CanvasEditor({
                 width: '100%',
                 aspectRatio: `${CW} / ${CH}`,
                 containerType: 'inline-size',
-                background: bgImage ? bg || t.bg : gradientCss(bgGrad) || bg || t.bg,
-                backgroundImage: bgImage ? `url('${bgImage}')` : undefined,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
+                ...pageBackground({ bg: bg || t.bg, bgGradient: bgGrad, bgImage, bgOpacity }),
                 ...brandVars,
               } as CSSProperties}
             >

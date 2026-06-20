@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
+import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -181,13 +181,7 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
   }
   const paletteVars: CSSProperties = {}
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
-  const bg: CSSProperties = {
-    ...paletteVars,
-    background: canvas.bgImage ? undefined : gradientCss(canvas.bgGradient) || canvas.bg || undefined,
-    backgroundImage: canvas.bgImage ? `url('${canvas.bgImage}')` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-  }
+  const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
 
   const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
   const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => renderInner(el, cqf, ctx, mobile)
@@ -250,13 +244,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
   }
   const paletteVars: CSSProperties = {}
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
-  const bg: CSSProperties = {
-    ...paletteVars,
-    background: canvas.bgImage ? undefined : gradientCss(canvas.bgGradient) || canvas.bg || undefined,
-    backgroundImage: canvas.bgImage ? `url('${canvas.bgImage}')` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-  }
+  const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
   const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components }
   const ordered = canvas.elements.filter(e => !e.hidden).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   // Footer-pinned elements always stack at the very bottom on phones.

@@ -294,6 +294,29 @@ export function gradientCss(g?: Gradient | null): string | undefined {
   return `linear-gradient(${a}deg, ${stopStr})`
 }
 
+// The page-background CSS for a canvas (colour / gradient / photo), faded by bgOpacity.
+// Fading is a white overlay painted over the background image (or blended into a solid),
+// so at 100% (or undefined) the result is byte-identical to no fade. Pass the four bg
+// fields; returns the background style props to spread onto the page root.
+export function pageBackground(canvas: { bg?: string; bgGradient?: Gradient | null; bgImage?: string; bgOpacity?: number }): {
+  background?: string
+  backgroundImage?: string
+  backgroundSize?: string
+  backgroundPosition?: string
+} {
+  const o = canvas.bgOpacity == null ? 100 : Math.max(0, Math.min(100, canvas.bgOpacity))
+  const fade = (100 - o) / 100
+  const overlay = fade > 0 ? `linear-gradient(rgba(255,255,255,${fade}), rgba(255,255,255,${fade}))` : ''
+  if (canvas.bgImage) {
+    const img = `url('${canvas.bgImage}')`
+    return { backgroundImage: overlay ? `${overlay}, ${img}` : img, backgroundSize: 'cover', backgroundPosition: 'center' }
+  }
+  const grad = gradientCss(canvas.bgGradient)
+  if (grad) return overlay ? { backgroundImage: `${overlay}, ${grad}` } : { backgroundImage: grad }
+  if (canvas.bg) return overlay ? { background: canvas.bg, backgroundImage: overlay } : { background: canvas.bg }
+  return {}
+}
+
 export interface CanvasElement {
   id: string
   type: CanvasElementType
@@ -388,6 +411,7 @@ export interface PageCanvas {
   bg?: string // background colour
   bgGradient?: Gradient // a background gradient (used when there's no bgImage)
   bgImage?: string // full background photo
+  bgOpacity?: number // 0-100; fades the page background (colour/gradient/photo) toward white
   bgVideo?: string // a full-background looping video (https URL); shown over the colour/photo
   elements: CanvasElement[]
   mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)

@@ -1125,6 +1125,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     bg: color(c.bg),
     bgGradient: grad(c.bgGradient),
     bgImage: dataOrHttp(c.bgImage),
+    bgOpacity: (() => { const n = num(c.bgOpacity, 0, 100, 100); return n >= 100 ? undefined : n })(),
     elements,
     mobileCustom: c.mobileCustom ? true : undefined,
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
