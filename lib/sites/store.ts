@@ -57,20 +57,21 @@ export async function createSiteRecord(
   input: { name: string; slug: string; template: string; status: SiteStatus },
 ): Promise<Site> {
   const supabase = createSupabaseServerClient()
-  const { data, error } = await supabase
-    .from('sites')
-    .insert({
-      owner_id: ownerId,
-      name: input.name,
-      slug: input.slug,
-      template: input.template,
-      status: input.status,
-      url: null,
-    })
-    .select()
-    .single()
-  if (error) throw error
-  return rowToSite(data as SiteRow)
+  // Slug is the public routing key, so it must be globally unique (see migration 010). If a
+  // unique-violation comes back, retry with a numeric suffix so a duplicate site name still
+  // creates a site. Without the unique index this loop runs once with the base slug (no-op).
+  const base = input.slug || 'site'
+  for (let n = 0; n < 50; n++) {
+    const slug = n === 0 ? base : `${base}-${n + 1}`
+    const { data, error } = await supabase
+      .from('sites')
+      .insert({ owner_id: ownerId, name: input.name, slug, template: input.template, status: input.status, url: null })
+      .select()
+      .single()
+    if (!error) return rowToSite(data as SiteRow)
+    if (error.code !== '23505') throw error // only a duplicate-slug collision is retryable
+  }
+  throw new Error('Could not find an available address for this site — try a different name.')
 }
 
 export async function updateSiteStatus(
@@ -88,11 +89,18 @@ export async function updateSiteStatus(
 
 export async function renameSiteRecord(id: string, name: string, slug: string): Promise<void> {
   const supabase = createSupabaseServerClient()
-  const { error } = await supabase
-    .from('sites')
-    .update({ name, slug, updated_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw error
+  // Same unique-slug retry as createSiteRecord (updating a row to its own slug never collides).
+  const base = slug || 'site'
+  for (let n = 0; n < 50; n++) {
+    const s = n === 0 ? base : `${base}-${n + 1}`
+    const { error } = await supabase
+      .from('sites')
+      .update({ name, slug: s, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (!error) return
+    if (error.code !== '23505') throw error
+  }
+  throw new Error('Could not find an available address for this site — try a different name.')
 }
 
 export async function setSiteDomain(id: string, domain: string | null): Promise<void> {

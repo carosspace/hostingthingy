@@ -34,6 +34,17 @@ export async function siteSlugForDomain(domain: string): Promise<string | null> 
   return row?.slug ? String(row.slug) : null
 }
 
+// Like siteSlugForDomain but only resolves a domain on a LIVE site — what the middleware
+// actually serves. Used by the TLS-check so we never authorize a certificate for (or leak the
+// existence of) a claimed-but-unpublished domain that won't be routed.
+export async function liveSiteSlugForDomain(domain: string): Promise<string | null> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('get_site_by_domain', { p_host: domain })
+  if (error || !data) return null
+  const row = Array.isArray(data) ? data[0] : data
+  return row?.slug && row?.status === 'live' ? String(row.slug) : null
+}
+
 export interface PublicSiteIndex {
   slug: string
   updatedAt: string | null

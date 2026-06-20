@@ -49,6 +49,7 @@ export async function generateSiteContent(siteName: string, description: string)
     ],
   })
 
+  if (message.stop_reason === 'max_tokens') throw new Error('That was too much to generate at once — please try again with a shorter description.')
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') {
     throw new Error('The AI did not return website content. Please try again.')
@@ -326,6 +327,7 @@ export async function aiCritiqueDesign(opts: { siteName: string; summary: string
       },
     ],
   })
+  if (message.stop_reason === 'max_tokens') throw new Error('The review ran long — please try again.')
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a review. Please try again.')
   const input = block.input as {
@@ -552,6 +554,9 @@ export async function aiRewritePage(opts: {
     ],
   })
 
+  // A truncated (max_tokens) response yields a partial pages/sections array; surface an error
+  // instead of silently dropping the tail (which the caller would treat as a real rewrite).
+  if (message.stop_reason === 'max_tokens') throw new Error('That page was too large to rewrite in one pass — please try a smaller instruction.')
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') {
     throw new Error('The AI did not return a page. Please try again.')
@@ -634,6 +639,8 @@ export async function generateSitePages(opts: {
     ],
   })
 
+  // Don't persist a truncated multi-page generate as blank tail pages — fail loudly instead.
+  if (message.stop_reason === 'max_tokens') throw new Error('That site was too large to generate at once — try fewer or simpler pages.')
   const block = message.content.find(b => b.type === 'tool_use')
   if (!block || block.type !== 'tool_use') {
     throw new Error('The AI did not return website content. Please try again.')

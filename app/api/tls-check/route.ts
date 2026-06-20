@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { siteSlugForDomain } from '@/lib/sites/public'
+import { liveSiteSlugForDomain } from '@/lib/sites/public'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     return new NextResponse('ok', { status: 200 })
   }
   try {
-    const slug = await siteSlugForDomain(domain)
+    const slug = await liveSiteSlugForDomain(domain) // only authorize domains we actually serve (live)
     return slug ? new NextResponse('ok', { status: 200 }) : new NextResponse('unknown domain', { status: 404 })
   } catch {
     return new NextResponse('error', { status: 503 })

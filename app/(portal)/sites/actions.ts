@@ -138,8 +138,9 @@ export async function setDomainAction(formData: FormData): Promise<void> {
 
   if (domain) {
     const validFqdn = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(domain)
-    // Block the platform's own host/subdomains so a site can't hijack them.
-    const isPlatform = domain === 'app.animatemple.com' || domain.endsWith('.animatemple.com')
+    // Block the platform's own host/subdomains so a site can't hijack them. www. is already
+    // stripped above, so the bare apex must be checked explicitly (it doesn't end in ".animatemple.com").
+    const isPlatform = domain === 'animatemple.com' || domain.endsWith('.animatemple.com')
     if (!validFqdn || isPlatform) domain = null
   }
 

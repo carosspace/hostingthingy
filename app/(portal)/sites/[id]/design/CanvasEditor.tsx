@@ -280,6 +280,19 @@ export default function CanvasEditor({
     fd.set('slug', slug)
     await (kind === 'del' ? removePageAction(fd) : duplicatePageAction(fd))
   }
+  // Switching pages / adding a page also navigates (full re-mount), so save the current page
+  // first — otherwise edits made within the autosave debounce window are dropped.
+  const goToPage = async (slug: string) => {
+    if (dirty.current) { await save(); if (dirty.current) return }
+    window.location.href = `/sites/${siteId}/design?page=${slug}`
+  }
+  const addPage = async () => {
+    if (dirty.current) { await save(); if (dirty.current) return }
+    const fd = new FormData()
+    fd.set('id', siteId)
+    fd.set('canvas', '1')
+    await addPageAction(fd)
+  }
   const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
@@ -1612,7 +1625,16 @@ export default function CanvasEditor({
       const raw = localStorage.getItem(draftKey)
       if (!raw) return
       const d = JSON.parse(raw)
-      if (d?.canvas?.elements && JSON.stringify(d.canvas.elements) !== JSON.stringify(initial?.elements || [])) {
+      // Compare the WHOLE canvas (not just elements) against the saved state, normalised the
+      // same way both sides serialise, so unsaved background/palette/banner/popup/font/guide
+      // edits also trigger the recovery prompt instead of being silently discarded.
+      const sig = (c: PageCanvas | null | undefined) => JSON.stringify([
+        c?.elements || [], c?.bg || '', c?.bgGradient || null, c?.bgImage || '', c?.bgVideo || '', c?.bgOpacity ?? 100,
+        c?.width === 'contained' ? 'contained' : 'full', c?.palette || [], c?.fonts || [], c?.components || [], c?.uploads || [],
+        c?.fontSystem || '', c?.guidesX || [], c?.guidesY || [], c?.textStyles || null, c?.banner || null, c?.popup || null,
+        !!c?.mobileCustom, c?.mobileCustom ? (c?.mobileH || 0) : 0,
+      ])
+      if (d?.canvas && sig(d.canvas) !== sig(initial)) {
         draftCanvas.current = d.canvas
         setDraftAt(typeof d.ts === 'number' ? d.ts : Date.now())
       } else {
@@ -1812,7 +1834,11 @@ export default function CanvasEditor({
     idc.current = Math.max(idc.current, maxId + 1)
   }
   async function save() {
-    if (editingComp) return // finish or cancel the master edit first — never persist mid-edit loose elements
+    // finish or cancel the master edit first — never persist mid-edit loose elements
+    if (editingComp) { setSaveError('Finish or cancel the component edit before saving or switching pages.'); setFocusMode(false); return }
+    // The save gate keeps only the first 80 elements; never report "Saved" while silently
+    // dropping the rest — warn and abort so the owner can trim the page first.
+    if (elsRef.current.length > 80) { setSaveError('This page has more than 80 elements — only the first 80 can be saved. Combine or remove a few, then save again.'); setFocusMode(false); return }
     setSaving(true)
     const canvas = buildCanvas()
     const payload = JSON.stringify(canvas)
@@ -1821,6 +1847,7 @@ export default function CanvasEditor({
     if (payload.length > 11_500_000) {
       setSaving(false)
       setSaveError('This page is too heavy to save — its images add up to more than ~11 MB. Remove some uploads or use smaller/fewer photos, then save again.')
+      setFocusMode(false) // make the error visible if the panel is hidden
       return
     }
     const fd = new FormData()
@@ -2149,7 +2176,7 @@ export default function CanvasEditor({
             return (
               <div key={p.slug || 'home'} className="group flex items-center gap-0.5">
                 <span draggable onDragStart={e => { dragPageRef.current = p.slug; e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', p.slug) } catch { /* some browsers */ } }} onDragEnd={() => { dragPageRef.current = null; setDragOverFolder(null) }} title="Drag into a folder" style={{ cursor: 'grab', color: '#c8c8cd', fontSize: 12, flex: 'none', padding: '0 2px', lineHeight: 1 }}>⠿</span>
-                <a href={`/sites/${siteId}/design?page=${p.slug}`} draggable={false} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors flex-1 min-w-0" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
+                <a href={`/sites/${siteId}/design?page=${p.slug}`} onClick={e => { if (dirty.current) { e.preventDefault(); if (on) void save(); else void goToPage(p.slug) } }} draggable={false} title={p.hidden ? 'Hidden from the menu' : undefined} className="flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors flex-1 min-w-0" style={{ background: on ? ui : '#fff', color: on ? '#fff' : '#3a3f4a', border: on ? 'none' : '1px solid #ececef' }}>
                   <span style={{ fontSize: 13, flex: 'none', opacity: on ? 1 : 0.65 }}>{p.slug === '' ? '⌂' : '▭'}</span>
                   <span style={{ fontSize: 13, fontWeight: on ? 600 : 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || (p.slug === '' ? 'Home' : p.slug)}</span>
                   {p.hidden && <span style={{ fontSize: 9, color: on ? 'rgba(255,255,255,0.75)' : '#aaa', flex: 'none' }}>hidden</span>}
@@ -2200,11 +2227,7 @@ export default function CanvasEditor({
                   )
                 })}
               </div>
-              <form action={addPageAction}>
-                <input type="hidden" name="id" value={siteId} />
-                <input type="hidden" name="canvas" value="1" />
-                <button type="submit" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-2 rounded-sm w-full">+ Add a page</button>
-              </form>
+              <button type="button" onClick={() => void addPage()} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-2 rounded-sm w-full">+ Add a page</button>
               <p className="font-body text-ash/40 text-[11px] leading-relaxed">Rename, reorder, hide or delete pages from the bar above the canvas.</p>
             </div>
           )
