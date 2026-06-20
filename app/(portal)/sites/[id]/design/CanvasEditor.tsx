@@ -279,6 +279,15 @@ export default function CanvasEditor({
   const viewportRef = useRef<HTMLDivElement>(null) // the scrollable canvas viewport (for fit-to-screen)
   const [lockRatio, setLockRatio] = useState(false) // keep proportions when typing a new width/height
   const dragRef = useRef<Drag>(null)
+  // Freehand draw mode: capture pointer strokes over the canvas, then bake them into one
+  // 'draw' element (paths normalised to a 0..1000 viewBox).
+  const [drawMode, setDrawMode] = useState(false)
+  const [drawColor, setDrawColor] = useState('#111111')
+  const [drawWidth, setDrawWidth] = useState(6)
+  const [drawStrokes, setDrawStrokes] = useState<{ x: number; y: number }[][]>([]) // committed strokes
+  const [drawCur, setDrawCur] = useState<{ x: number; y: number }[] | null>(null) // live stroke (mirror of curRef)
+  const drawActive = useRef(false)
+  const curRef = useRef<{ x: number; y: number }[]>([])
   const idc = useRef(
     (initial?.elements ?? []).reduce((m, e) => {
       const n = parseInt(String(e.id).replace(/\D/g, ''), 10)
@@ -1520,6 +1529,7 @@ export default function CanvasEditor({
       const t = e.target as HTMLElement | null
       const tag = t?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return
+      if (drawMode) { if (e.key === 'Escape') exitDraw(); return } // draw mode owns the keyboard; use the toolbar for undo/done
       if (e.key === 'Escape') setCtxMenu(null)
       const mod = e.ctrlKey || e.metaKey
       const k = e.key.toLowerCase()
@@ -1555,7 +1565,7 @@ export default function CanvasEditor({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedIds, editingMobile])
+  }, [selectedIds, editingMobile, drawMode])
 
   // Draft recovery: on open, offer to restore an autosaved draft that differs from
   // what loaded (i.e. the last session didn't get saved — a crash or navigation away).
@@ -1633,6 +1643,74 @@ export default function CanvasEditor({
       .map(m => ({ id: m.id, x: gx(m), y: gy(m) }))
     dragRef.current = { kind: 'move', px: e.clientX, py: e.clientY, scale, m: editingMobile, starts }
   }
+  // --- Freehand draw mode ----------------------------------------------------------------
+  const drawPt = (e: RPointerEvent): { x: number; y: number } | null => {
+    const r = canvasRef.current?.getBoundingClientRect()
+    if (!r) return null
+    // Clamp to the canvas so a stray drag past the edge (pointer capture keeps firing) can't
+    // push the baked box off-canvas out of sync with its paths.
+    const x = ((e.clientX - r.left) / r.width) * CW
+    const y = ((e.clientY - r.top) / r.height) * CH
+    return { x: Math.max(0, Math.min(CW, x)), y: Math.max(0, Math.min(CH, y)) }
+  }
+  const drawDown = (e: RPointerEvent) => {
+    const p = drawPt(e)
+    if (!p) return
+    e.preventDefault()
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId) } catch { /* not all browsers */ }
+    drawActive.current = true
+    curRef.current = [p]
+    setDrawCur([p])
+  }
+  const drawMove = (e: RPointerEvent) => {
+    if (!drawActive.current) return
+    if (curRef.current.length >= 1200) return // keep one stroke comfortably under the gate's per-path cap
+    const p = drawPt(e)
+    if (!p) return
+    // Decimate: skip points within ~2px of the last so a long stroke stays compact (and well
+    // under the gate's per-path char cap) while still reading as smooth.
+    const last = curRef.current[curRef.current.length - 1]
+    if (last && Math.abs(p.x - last.x) < 2 && Math.abs(p.y - last.y) < 2) return
+    curRef.current = [...curRef.current, p]
+    setDrawCur(curRef.current)
+  }
+  const drawEnd = () => {
+    if (!drawActive.current) return
+    drawActive.current = false
+    if (curRef.current.length > 1) { const s = curRef.current; setDrawStrokes(prev => [...prev, s]) }
+    curRef.current = []
+    setDrawCur(null)
+  }
+  const exitDraw = () => { setDrawMode(false); setDrawStrokes([]); setDrawCur(null); drawActive.current = false; curRef.current = [] }
+  const undoStroke = () => setDrawStrokes(prev => prev.slice(0, -1))
+  // Bake the captured strokes into one 'draw' element (paths normalised to a 0..1000 box).
+  const finishDraw = () => {
+    const all = drawStrokes.filter(s => s.length > 1)
+    if (!all.length) { exitDraw(); return }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    all.forEach(s => s.forEach(p => { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y }))
+    const pad = drawWidth // leave room so stroke width isn't clipped at the box edge
+    minX -= pad; minY -= pad; maxX += pad; maxY += pad
+    const w = Math.max(8, maxX - minX), h = Math.max(8, maxY - minY)
+    const paths = all.map(s => 'M' + s.map(p => `${(((p.x - minX) / w) * 1000).toFixed(1)} ${(((p.y - minY) / h) * 1000).toFixed(1)}`).join(' L'))
+    snapshot(true)
+    const maxZ = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const R = MOBILE_W / CANVAS_W
+    // Captured coords are in whichever device's design space we're editing; store canonical
+    // desktop x/y/w/h plus phone m* so the drawing lands right on both.
+    const box = editingMobile
+      ? { x: Math.round(minX / R), y: Math.round(minY / R), w: Math.round(w / R), h: Math.round(h / R), mx: Math.round(minX), my: Math.round(minY), mw: Math.round(w), mh: Math.round(h) }
+      : { x: Math.round(minX), y: Math.round(minY), w: Math.round(w), h: Math.round(h), ...(mobileCustom ? { mx: Math.round(minX * R), my: Math.round(minY * R), mw: Math.round(w * R), mh: Math.round(h * R) } : {}) }
+    const el: CanvasElement = { id: 'e' + idc.current++, type: 'draw', z: maxZ + 1, opacity: 100, paths, color: drawColor, strokeW: drawWidth, ...box }
+    setEls(p => [...p, el])
+    setSelectedIds([el.id])
+    touch()
+    exitDraw()
+  }
+  // Draw mode needs the live editable canvas. Switching device or phone-layout mode can
+  // unmount it (the auto-phone view is read-only) while the portaled toolbar floats on — so
+  // leave draw mode whenever that happens, discarding any in-progress strokes.
+  useEffect(() => { if (drawMode) exitDraw() }, [device, mobileCustom]) // eslint-disable-line react-hooks/exhaustive-deps
   // Pointer-down on the empty canvas starts a rubber-band (marquee) selection.
   const bgPointerDown = (e: RPointerEvent) => {
     if (e.target !== e.currentTarget) return
@@ -2079,7 +2157,9 @@ export default function CanvasEditor({
                 {([['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
+                <button type="button" onClick={() => { setSelectedIds([]); setDrawMode(true) }} className="font-label text-[10px] tracking-[1px] uppercase bg-gold/10 border border-gold/40 text-gold hover:bg-gold/20 px-2.5 py-1.5 rounded-sm">✎ Draw / write</button>
               </div>
+              <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed"><b>Draw / write</b> lets you sketch or hand-write freely on the canvas — drag to draw, then Done.</p>
             </div>
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
@@ -2816,6 +2896,20 @@ export default function CanvasEditor({
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Rotate 180° (above) to flip it the other way.</p>
               </>
             )}
+            {sel.type === 'draw' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Colour</span>
+                  {colorField(sel.color, v => update(sel.id, { color: v }), '#111111')}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Thickness</span>
+                  <input type="range" min={1} max={40} value={sel.strokeW || 6} onChange={e => update(sel.id, { strokeW: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 30 }}>{sel.strokeW || 6}px</span>
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>A freehand sketch. Drag its edges to resize; recolour or rethicken here.</p>
+              </>
+            )}
             {sel.type === 'icon' && (
               <>
                 <div className="flex items-center gap-2">
@@ -3229,10 +3323,41 @@ export default function CanvasEditor({
                   </div>
                 </>
               )}
+              {drawMode && (
+                <div
+                  onPointerDown={drawDown}
+                  onPointerMove={drawMove}
+                  onPointerUp={drawEnd}
+                  onPointerCancel={drawEnd}
+                  style={{ position: 'absolute', inset: 0, zIndex: 55, cursor: 'crosshair', touchAction: 'none' }}
+                >
+                  <svg viewBox={`0 0 ${CW} ${CH}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+                    {[...drawStrokes, ...(drawCur ? [drawCur] : [])].map((s, i) => (s.length > 1 ? (
+                      <path key={i} d={'M' + s.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L')} style={{ fill: 'none', stroke: drawColor, strokeWidth: drawWidth, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />
+                    ) : null))}
+                  </svg>
+                </div>
+              )}
             </div>
           </div>
           </div>
           </>
+        )}
+        {drawMode && createPortal(
+          <div style={{ position: 'fixed', top: 84, left: '50%', transform: 'translateX(-50%)', zIndex: 9998, display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #e6e6e9', borderRadius: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.16)', padding: '8px 12px', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: ui }}>✎ Draw</span>
+            <span style={{ display: 'flex', gap: 5 }}>
+              {Array.from(new Set(['#111111', '#ffffff', '#b4532e', '#3b6ea5', ui, ...palette])).slice(0, 8).map(c => (
+                <button key={c} type="button" title={c} onClick={() => setDrawColor(c)} style={{ width: 18, height: 18, borderRadius: '50%', background: c, border: drawColor.toLowerCase() === c.toLowerCase() ? `2px solid ${ui}` : '1px solid #ccc', cursor: 'pointer' }} />
+              ))}
+            </span>
+            <input type="range" min={1} max={40} value={drawWidth} onChange={e => setDrawWidth(Number(e.target.value))} title="Brush size" style={{ width: 72 }} />
+            <span style={{ fontSize: 11, color: '#888', width: 30 }}>{drawWidth}px</span>
+            <button type="button" onClick={undoStroke} disabled={!drawStrokes.length} style={{ fontSize: 12, color: drawStrokes.length ? '#555' : '#c4c4c8', cursor: drawStrokes.length ? 'pointer' : 'default' }}>↶ Undo</button>
+            <button type="button" onClick={exitDraw} style={{ fontSize: 12, color: '#888' }}>Cancel</button>
+            <button type="button" onClick={finishDraw} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm">✓ Done</button>
+          </div>,
+          document.body,
         )}
       </div>
 
