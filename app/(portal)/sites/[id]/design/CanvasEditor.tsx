@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -499,7 +499,7 @@ export default function CanvasEditor({
     setEls(prev => prev.map(e => (e.styleRef === key ? { ...e, fontSize: next.fontSize, fontFamily: next.fontFamily, weight: next.weight, italic: next.italic, lineHeight: next.lineHeight, letterSpacing: next.letterSpacing, color: next.color } : e)))
     touch()
   }
-  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id).map(e => (e.anchorTo === id ? { ...e, anchorTo: undefined } : e))); setSelectedIds([]); touch() }
+  const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id).map(e => { const e2 = e.anchorTo === id ? { ...e, anchorTo: undefined } : e; return e2.parentId === id ? { ...e2, parentId: undefined } : e2 })); setSelectedIds([]); touch() }
   const layer = (id: string, dir: 1 | -1) => {
     snapshot(true)
     setEls(p => {
@@ -607,18 +607,79 @@ export default function CanvasEditor({
     setEls(p => p.map(e => (set.has(e.id) && e.groupId ? { ...e, groupId: undefined } : e)))
     touch()
   }
+  // --- Flow Groups (layout engine): wrap a selection into a real 'group' element whose
+  // children flow with flex. Distinct from groupSelected above (that only sets a groupId so a
+  // selection moves together while staying absolute). ---
+  const makeFlowGroup = () => {
+    const set = new Set(selectedIds)
+    // Eligible = selected, not locked, not a component, not already a group, and not parented.
+    const kids = elsRef.current.filter(e => set.has(e.id) && !e.locked && e.type !== 'component' && e.type !== 'group' && !e.parentId)
+    if (kids.length < 2) return
+    // Bounding box over the eligible children (device-aware coords).
+    const minX = Math.min(...kids.map(e => gx(e)))
+    const minY = Math.min(...kids.map(e => gy(e)))
+    const maxX = Math.max(...kids.map(e => gx(e) + gw(e)))
+    const maxY = Math.max(...kids.map(e => gy(e) + gh(e)))
+    const bw = maxX - minX, bh = maxY - minY
+    const dir: 'row' | 'col' = bw >= bh ? 'row' : 'col'
+    // Flow order = children sorted along the main axis (also how they sit in the array).
+    const ordered = [...kids].sort((a, b) => (dir === 'row' ? gx(a) - gx(b) : gy(a) - gy(b)))
+    // Average POSITIVE gap between consecutive children along the main axis (clamp 0..200).
+    const gaps: number[] = []
+    for (let i = 1; i < ordered.length; i++) {
+      const prev = ordered[i - 1], cur = ordered[i]
+      const g = dir === 'row' ? gx(cur) - (gx(prev) + gw(prev)) : gy(cur) - (gy(prev) + gh(prev))
+      if (g > 0) gaps.push(g)
+    }
+    const gap = gaps.length ? Math.max(0, Math.min(200, Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length))) : 16
+    const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const group: CanvasElement = {
+      id: 'e' + idc.current++,
+      type: 'group',
+      x: Math.round(minX), y: Math.round(minY), w: Math.round(bw), h: Math.round(bh),
+      z: maxZ + 1,
+      opacity: 100,
+      flow: { dir, gap, padX: 0, padY: 0, align: 'start', justify: 'start' },
+    }
+    // Give the group sensible phone coords too, so it sits on-screen in a custom phone layout.
+    if (mobileCustom) { group.mx = Math.round(minX); group.my = Math.round(minY); group.mw = Math.round(bw); group.mh = Math.round(bh) }
+    const kidIds = new Set(ordered.map(e => e.id))
+    snapshot(true)
+    setEls(p => {
+      // Pull the eligible children out, parent them, and lay them back into the array in flow
+      // order, contiguous, right after the group element (flowChildren reads array order).
+      const rest = p.filter(e => !kidIds.has(e.id))
+      const parented = ordered.map(e => ({ ...e, parentId: group.id }))
+      return [...rest, group, ...parented]
+    })
+    setSelectedIds([group.id])
+    touch()
+  }
+  const unwrapFlowGroup = (groupId: string) => {
+    const freed = elsRef.current.filter(e => e.parentId === groupId).map(e => e.id)
+    snapshot(true)
+    setEls(p => p.filter(e => e.id !== groupId).map(e => (e.parentId === groupId ? { ...e, parentId: undefined } : e)))
+    setSelectedIds(freed)
+    touch()
+  }
   // --- Copy / paste (shared by the keyboard shortcuts and the right-click menu) ---
-  const copySelection = (ids: string[]) => { const set = new Set(ids); clip.current = elsRef.current.filter(x => set.has(x.id)); try { localStorage.setItem('cvclip', JSON.stringify(clip.current)) } catch { /* too big / unavailable — same-page paste still works via the ref */ } }
+  const copySelection = (ids: string[]) => { const set = new Set(ids); elsRef.current.forEach(e => { if (e.parentId && set.has(e.parentId)) set.add(e.id) }); clip.current = elsRef.current.filter(x => set.has(x.id)); try { localStorage.setItem('cvclip', JSON.stringify(clip.current)) } catch { /* too big / unavailable — same-page paste still works via the ref */ } }
   const pasteClipboard = () => {
     if (!clip.current.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
     const gmap = new Map<string, string>()
+    // old id → new id, so a copied child's parentId can be re-pointed at its copied group.
+    const idmap = new Map<string, string>()
     const copies = clip.current.map(s => {
       let gid = s.groupId
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
-      return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+      const nid = 'e' + idc.current++
+      idmap.set(s.id, nid)
+      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
     })
+    // Rewrite parentId to the copied group's new id; drop it if the group wasn't copied too.
+    for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
     setEls(p => [...p, ...copies])
     setSelectedIds(copies.map(c => c.id))
     touch()
@@ -661,13 +722,19 @@ export default function CanvasEditor({
     snapshot(true)
     let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
     const gmap = new Map<string, string>()
+    // old id → new id, so a child block element re-points its parentId at its copied group.
+    const idmap = new Map<string, string>()
     const copies = block.els.map(orig => {
       // Deep-clone so an inserted instance can never mutate the stored block.
       const s = JSON.parse(JSON.stringify(orig)) as CanvasElement
       let gid = s.groupId
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
-      return { ...s, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+      const nid = 'e' + idc.current++
+      idmap.set(s.id, nid)
+      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
     })
+    // Rewrite parentId to the copied group's new id; drop it if the group wasn't in the block.
+    for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
     setEls(p => [...p, ...copies])
     setSelectedIds(copies.map(c => c.id))
     touch()
@@ -679,23 +746,33 @@ export default function CanvasEditor({
     const set = new Set(elsRef.current.filter(e => ids.includes(e.id) && !e.locked).map(e => e.id))
     if (!set.size) return
     snapshot(true)
-    setEls(p => p.filter(e => !set.has(e.id)).map(e => (e.anchorTo && set.has(e.anchorTo) ? { ...e, anchorTo: undefined } : e)))
+    // Deleting a flow group frees its children back to absolute (clear parentId) rather than
+    // orphaning them (an orphan parentId would vanish from the editor until the next save).
+    setEls(p => p.filter(e => !set.has(e.id)).map(e => { const e2 = e.anchorTo && set.has(e.anchorTo) ? { ...e, anchorTo: undefined } : e; return e2.parentId && set.has(e2.parentId) ? { ...e2, parentId: undefined } : e2 }))
     setSelectedIds([])
     touch()
   }
   const duplicateMany = (ids: string[]) => {
     const set = new Set(ids)
+    // Pull in any flow-group's children so a duplicated group is a complete deep copy (not empty).
+    elsRef.current.forEach(e => { if (e.parentId && set.has(e.parentId)) set.add(e.id) })
     const src = elsRef.current.filter(e => set.has(e.id))
     if (!src.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     // Re-id any shared group so the duplicated set is its own group, not merged with the original.
     const gmap = new Map<string, string>()
+    // old id → new id, so a duplicated child re-points its parentId at its duplicated group.
+    const idmap = new Map<string, string>()
     const copies = src.map(e => {
       let gid = e.groupId
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
-      return { ...e, id: 'e' + idc.current++, z: ++z, groupId: gid, ...patchXY(gx(e) + 16, gy(e) + 16) }
+      const nid = 'e' + idc.current++
+      idmap.set(e.id, nid)
+      return { ...e, id: nid, z: ++z, groupId: gid, ...patchXY(gx(e) + 16, gy(e) + 16) }
     })
+    // Rewrite parentId to the duplicated group's new id; drop it if the group wasn't duplicated.
+    for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
     setEls(p => [...p, ...copies])
     setSelectedIds(copies.map(c => c.id))
     touch()
@@ -3147,6 +3224,56 @@ export default function CanvasEditor({
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>✸ = required. The <b>Email</b> field fills the sender&rsquo;s address; everything lands in <b>Messages</b> in your dashboard — no email setup needed.</p>
               </>
             )}
+            {sel.type === 'group' && (() => {
+              const gFlow: FlowConfig = sel.flow || { dir: 'row', gap: 16, padX: 0, padY: 0, align: 'start', justify: 'start' }
+              const setFlow = (patch: Partial<FlowConfig>) => update(sel.id, { flow: { ...gFlow, ...patch } })
+              const toggleBtn = (active: boolean) => ({ fontSize: 10, padding: '3px 9px', borderRadius: 3, border: `1px solid ${active ? ui : 'rgba(0,0,0,0.15)'}`, background: active ? ui : 'transparent', color: active ? '#fff' : '#666' } as CSSProperties)
+              return (
+              <>
+                <div>
+                  <span style={labelCss}>Direction</span>
+                  <div className="flex gap-1.5 mt-1.5">
+                    {([['row', 'Row →'], ['col', 'Column ↓']] as [FlowConfig['dir'], string][]).map(([d, lbl]) => (
+                      <button key={d} type="button" onClick={() => setFlow({ dir: d })} style={{ ...toggleBtn(gFlow.dir === d), flex: 1 }}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Gap</span>
+                  <input type="range" min={0} max={120} value={gFlow.gap} onChange={e => setFlow({ gap: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 32 }}>{gFlow.gap}px</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Pad X</span>
+                  <input type="range" min={0} max={120} value={gFlow.padX} onChange={e => setFlow({ padX: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 32 }}>{gFlow.padX}px</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Pad Y</span>
+                  <input type="range" min={0} max={120} value={gFlow.padY} onChange={e => setFlow({ padY: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 32 }}>{gFlow.padY}px</span>
+                </div>
+                <div>
+                  <span style={labelCss}>Align</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {([['start', 'Start'], ['center', 'Centre'], ['end', 'End'], ['stretch', 'Stretch']] as [FlowConfig['align'], string][]).map(([a, lbl]) => (
+                      <button key={a} type="button" onClick={() => setFlow({ align: a })} style={toggleBtn(gFlow.align === a)}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span style={labelCss}>Justify</span>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {([['start', 'Start'], ['center', 'Centre'], ['end', 'End'], ['between', 'Space']] as [FlowConfig['justify'], string][]).map(([j, lbl]) => (
+                      <button key={j} type="button" onClick={() => setFlow({ justify: j })} style={toggleBtn(gFlow.justify === j)}>{lbl}</button>
+                    ))}
+                  </div>
+                </div>
+                <button type="button" onClick={() => unwrapFlowGroup(sel.id)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">Ungroup layout</button>
+                <p className="font-body text-ash/50 text-[11px] leading-relaxed">A layout group arranges its items in a row or column. Drag its edges to resize. <b>Ungroup layout</b> frees the items back to where they were.</p>
+              </>
+              )
+            })()}
             {sel.type === 'box' && (
               <>
                 <div className="flex items-center gap-2">
@@ -3278,6 +3405,7 @@ export default function CanvasEditor({
             )}
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={groupSelected} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:opacity-90 px-2.5 py-1.5 rounded-sm">⊞ Group</button>
+              {els.filter(e => selectedIds.includes(e.id) && !e.locked && e.type !== 'component' && e.type !== 'group' && !e.parentId).length >= 2 && <button type="button" onClick={makeFlowGroup} title="Lay these out in a row or column that auto-arranges (a flow group)" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">⊟ Group into a layout</button>}
               {els.some(e => selectedIds.includes(e.id) && e.groupId) && <button type="button" onClick={ungroupSelected} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">Ungroup</button>}
               {!editingComp && <button type="button" onClick={() => makeComponent(selectedIds)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">❖ Make component</button>}
             </div>
