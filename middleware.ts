@@ -3,7 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 // Hosts that are the platform itself (dashboard + /s/ sites + marketing), never a
 // customer's site. Everything else is treated as a possible custom domain.
-const PLATFORM_HOSTS = new Set(['app.animatemple.com', 'animatemple.com', 'www.animatemple.com', 'localhost', '127.0.0.1'])
+// Only the editor/dashboard host is the platform. The apex (animatemple.com) +
+// www are a CUSTOMER SITE — the owner's own published site has domain
+// 'animatemple.com', so they must flow through the custom-domain routing below,
+// NOT be short-circuited here. (Other users can't claim the apex: setDomainAction
+// blocks it.)
+const PLATFORM_HOSTS = new Set(['app.animatemple.com', 'localhost', '127.0.0.1'])
 
 // Best-effort in-memory cache so a custom domain doesn't hit the DB every request.
 const domainCache = new Map<string, { slug: string | null; exp: number }>()

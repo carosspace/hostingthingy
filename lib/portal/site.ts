@@ -3,7 +3,7 @@ import { THEMES, DEFAULT_THEME, type SiteContent, type SiteTheme } from '@/lib/s
 
 // The slug of the site whose brand the client portal wears. Defaults to the
 // Anima Temple site; override per deploy with NEXT_PUBLIC_PORTAL_SITE_SLUG.
-export const PORTAL_SITE_SLUG = process.env.NEXT_PUBLIC_PORTAL_SITE_SLUG || 'animatemple'
+export const PORTAL_SITE_SLUG = process.env.NEXT_PUBLIC_PORTAL_SITE_SLUG || 'animatemple-com'
 
 export interface PortalSite {
   slug: string
