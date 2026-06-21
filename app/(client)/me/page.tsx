@@ -21,7 +21,7 @@ const MODULES: { title: string; icon: string; desc: string; href?: string }[] = 
   { title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.' },
   { title: 'Bookings', icon: '◷', desc: 'Your sessions — past and upcoming.', href: '/me/bookings' },
   { title: 'Messages', icon: '✉', desc: 'Talk with {brand}, privately.', href: '/me/messages' },
-  { title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.' },
+  { title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' },
   { title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.' },
 ]
 

@@ -26,6 +26,7 @@ export default async function PortalLayout({ children }: { children: React.React
             <Link href="/dashboard" className="text-ash hover:text-gold transition-colors">Dashboard</Link>
             <Link href="/sites" className="text-ash hover:text-gold transition-colors">Sites</Link>
             <Link href="/bookings" className="text-ash hover:text-gold transition-colors">Bookings</Link>
+            <Link href="/courses" className="text-ash hover:text-gold transition-colors">Courses</Link>
             <Link href="/messages" className="text-ash hover:text-gold transition-colors">
               Messages
               {unread > 0 && (
