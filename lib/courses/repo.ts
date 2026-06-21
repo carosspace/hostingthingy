@@ -150,6 +150,12 @@ export async function updateCourse(
 
   // When gating was submitted, try to set tier_id too.
   if (input.tierId !== undefined) {
+    // Verify the tier belongs to the caller (RLS scopes this select to the owner),
+    // so a forged/replayed POST can't gate a course to another owner's tier.
+    if (input.tierId) {
+      const { data: ownedTier } = await supabase.from('tiers').select('id').eq('id', input.tierId).maybeSingle()
+      if (!ownedTier) throw new Error('tier not found or not owned')
+    }
     const { error } = await supabase
       .from('courses')
       .update({ ...base, tier_id: input.tierId || null })

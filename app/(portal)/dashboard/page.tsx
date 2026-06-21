@@ -5,6 +5,7 @@ import type { Site } from '@/lib/sites/types'
 import { TEMPLATE_CARDS } from '@/lib/sites/types'
 import { createSiteAction, redeploySiteAction, deleteSiteAction } from '../sites/actions'
 import { updateNameAction } from '../account/actions'
+import { PORTAL_SITE_SLUG } from '@/lib/portal/site'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,9 @@ export default async function DashboardPage() {
     dbError = true
   }
   const siteCount = dbError ? null : sites.length
+  // Only the owner of the portal's site sees the "client portal" card — /me is
+  // hardwired to that one slug, so it's only truly "your brand" for that owner.
+  const ownsPortal = !dbError && sites.some(s => s.slug === PORTAL_SITE_SLUG)
 
   return (
     <div className="space-y-14">
@@ -154,7 +158,8 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {/* d. Your client portal */}
+      {/* d. Your client portal — only for the owner of the portal site */}
+      {ownsPortal && (
       <section>
         <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-5">Your client portal</h2>
         <div className="border border-gold/15 rounded-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -171,6 +176,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </section>
+      )}
 
       {/* e. Account */}
       <section className="space-y-6 max-w-lg">

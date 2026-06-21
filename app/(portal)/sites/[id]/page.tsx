@@ -27,8 +27,8 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
     return (
       <div className="space-y-6">
         <p className="font-body text-ash">This website couldn&rsquo;t be found.</p>
-        <Link href="/sites" className="font-label text-[10px] tracking-[3px] uppercase text-gold hover:text-goldLight">
-          ← Back to sites
+        <Link href="/dashboard" className="font-label text-[10px] tracking-[3px] uppercase text-gold hover:text-goldLight">
+          ← Dashboard
         </Link>
       </div>
     )
@@ -58,8 +58,8 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
   return (
     <div className="space-y-10">
       <div>
-        <Link href="/sites" className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors">
-          ← All sites
+        <Link href="/dashboard" className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors">
+          ← Dashboard
         </Link>
         <div className="flex items-center gap-3 flex-wrap mt-4">
           <h1 className="font-display text-4xl italic text-parchment">{site.name}</h1>

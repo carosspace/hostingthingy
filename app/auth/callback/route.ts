@@ -21,5 +21,8 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(`${base}${next}`)
   }
 
-  return NextResponse.redirect(`${base}/login?error=link`)
+  // On failure (expired/reused link), keep CLIENTS in their branded portal rather
+  // than dumping them on the owner login. `next` is a relative path we set.
+  const failPath = next.startsWith('/me') ? '/me?error=link' : '/login?error=link'
+  return NextResponse.redirect(`${base}${failPath}`)
 }

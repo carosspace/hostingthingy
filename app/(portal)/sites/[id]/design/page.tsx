@@ -21,8 +21,8 @@ export default async function DesignPage({
     return (
       <div className="space-y-6">
         <p className="font-body text-ash">This website couldn&rsquo;t be found.</p>
-        <Link href="/sites" className="font-label text-[10px] tracking-[3px] uppercase text-gold hover:text-goldLight">
-          ← Back to sites
+        <Link href="/dashboard" className="font-label text-[10px] tracking-[3px] uppercase text-gold hover:text-goldLight">
+          ← Dashboard
         </Link>
       </div>
     )

@@ -25,7 +25,7 @@ const MODULES: { title: string; icon: string; desc: string; href?: string }[] = 
   { title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.', href: '/me/memberships' },
 ]
 
-export default async function ClientPortalPage() {
+export default async function ClientPortalPage({ searchParams }: { searchParams: { error?: string } }) {
   const { slug, brand, content, theme, accent } = await getPortalSite()
   const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
 
@@ -35,7 +35,12 @@ export default async function ClientPortalPage() {
   if (!user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 py-16" style={rootStyle}>
-        <ClientLogin brand={brand} logoImage={content?.logoImage} theme={{ bg: theme.bg, text: theme.text, muted: theme.muted, accent }} />
+        <ClientLogin
+          brand={brand}
+          logoImage={content?.logoImage}
+          theme={{ bg: theme.bg, text: theme.text, muted: theme.muted, accent }}
+          initialError={searchParams?.error === 'link' ? 'That link expired or was already used — request a new one below.' : undefined}
+        />
       </div>
     )
   }

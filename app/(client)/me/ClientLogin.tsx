@@ -11,15 +11,17 @@ export default function ClientLogin({
   brand,
   logoImage,
   theme,
+  initialError,
 }: {
   brand: string
   logoImage?: string
   theme: { bg: string; text: string; muted: string; accent: string }
+  initialError?: string
 }) {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(initialError ?? '')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

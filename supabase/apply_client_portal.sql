@@ -474,6 +474,19 @@ as $$
 $$;
 grant execute on function public.get_my_memberships(text) to authenticated;
 
+
+-- ====================== 016_revoke_public_exec.sql =========================
+-- Lock these RPCs to signed-in users only (CREATE FUNCTION grants EXECUTE to
+-- PUBLIC by default; revoke it so anon can't even invoke them).
+revoke execute on function public.ensure_client(text)            from public;
+revoke execute on function public.get_my_appointments(text)      from public;
+revoke execute on function public.cancel_my_appointment(uuid)    from public;
+revoke execute on function public.get_my_messages(text)          from public;
+revoke execute on function public.send_my_message(text, text)    from public;
+revoke execute on function public.get_my_courses(text)           from public;
+revoke execute on function public.get_my_course(text, uuid)      from public;
+revoke execute on function public.get_my_memberships(text)       from public;
+
 -- ============================================================================
 -- Done. Now confirm NEXT_PUBLIC_PORTAL_SITE_SLUG (= animatemple) in Coolify,
 -- then sign in at app.animatemple.com/me
