@@ -37,7 +37,13 @@ export async function updateCourseAction(formData: FormData): Promise<void> {
   const description = String(formData.get('description') ?? '').trim()
   const coverImage = String(formData.get('coverImage') ?? '').trim()
   const published = String(formData.get('published') ?? '') === 'on'
-  await updateCourse(id, { title, description, coverImage, published })
+  // Access gating (migration 015). The select submits a tier id or '' (= open).
+  // Only pass tierId when the field is present so pre-015 saves stay untouched;
+  // updateCourse additionally guards against the column being absent.
+  const hasTierField = formData.has('tierId')
+  const tierIdRaw = String(formData.get('tierId') ?? '').trim()
+  const tierId = hasTierField ? (tierIdRaw || null) : undefined
+  await updateCourse(id, { title, description, coverImage, published, tierId })
   revalidatePath('/courses')
   revalidatePath(`/courses/${id}`)
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getCourse, listLessons, type Course, type Lesson } from '@/lib/courses/repo'
+import { listTiers, type Tier } from '@/lib/memberships/repo'
 import {
   updateCourseAction,
   deleteCourseAction,
@@ -18,12 +19,20 @@ const input =
 export default async function CourseEditPage({ params }: { params: { id: string } }) {
   let course: Course | null = null
   let lessons: Lesson[] = []
+  let tiers: Tier[] = []
   let dbError = false
   try {
     course = await getCourse(params.id)
     if (course) lessons = await listLessons(course.id)
   } catch {
     dbError = true
+  }
+  // Tiers power the Access control. Graceful: if migration 015 isn't applied the
+  // list is empty and the select shows just "Open to everyone".
+  try {
+    tiers = await listTiers()
+  } catch {
+    tiers = []
   }
 
   if (dbError) {
@@ -67,6 +76,32 @@ export default async function CourseEditPage({ params }: { params: { id: string 
             className={`${input} resize-none`}
           />
           <input name="coverImage" defaultValue={course.coverImage ?? ''} placeholder="Cover image URL (optional)" className={input} />
+          {/* Access: gate the course to a tier, or leave it open to everyone. */}
+          <label className="block">
+            <span className="font-label text-[9px] tracking-[2px] uppercase text-ash/50 block mb-1.5">Access</span>
+            <select
+              name="tierId"
+              defaultValue={course.tierId ?? ''}
+              className={`${input} appearance-none`}
+            >
+              <option value="" className="bg-surface text-parchment">
+                Open to everyone
+              </option>
+              {tiers.map(t => (
+                <option key={t.id} value={t.id} className="bg-surface text-parchment">
+                  Members only — {t.name}
+                </option>
+              ))}
+              {/* If the course is gated to a tier the list didn't load (e.g. a
+                  transient error), keep its current tier selectable so saving the
+                  course can never silently un-gate it. */}
+              {course.tierId && !tiers.some(t => t.id === course.tierId) && (
+                <option value={course.tierId} className="bg-surface text-parchment">
+                  Members only — current tier
+                </option>
+              )}
+            </select>
+          </label>
           <label className="flex items-center gap-2.5 font-body text-parchment text-sm select-none">
             <input
               type="checkbox"

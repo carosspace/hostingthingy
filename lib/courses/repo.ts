@@ -10,6 +10,9 @@ export interface Course {
   published: boolean
   sort: number
   lessonCount?: number
+  // The tier this course is gated to (null = open). Only populated once
+  // migration 015 is applied; undefined when the column doesn't exist yet.
+  tierId?: string | null
 }
 
 export interface Lesson {
@@ -82,6 +85,22 @@ export async function listCourses(): Promise<Course[]> {
 
 export async function getCourse(id: string): Promise<Course | null> {
   const supabase = createSupabaseServerClient()
+  // Try to read tier_id (migration 015); fall back to the base columns if the
+  // column doesn't exist yet, so pre-015 editing still loads.
+  const withTier = await supabase
+    .from('courses')
+    .select('id, title, description, cover_image, published, sort, tier_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (!withTier.error) {
+    if (!withTier.data) return null
+    const course = mapCourse(withTier.data)
+    course.tierId = (withTier.data as { tier_id?: string | null }).tier_id ?? null
+    return course
+  }
+  if (withTier.error.code !== '42703' && withTier.error.code !== 'PGRST204') {
+    throw withTier.error
+  }
   const { data, error } = await supabase
     .from('courses')
     .select('id, title, description, cover_image, published, sort')
@@ -105,21 +124,43 @@ export async function createCourse(
   if (error) throw error
 }
 
+// tierId gates the course: a tier id = members of that tier only; null = open to
+// everyone; undefined = leave the gating untouched. The tier_id column only
+// exists once migration 015 is applied, so we set it OPTIONALLY: if the update
+// fails because the column is missing (pre-015), we retry without it so Stage 5
+// course editing keeps working.
 export async function updateCourse(
   id: string,
-  input: { title: string; description: string; coverImage: string; published: boolean },
+  input: {
+    title: string
+    description: string
+    coverImage: string
+    published: boolean
+    tierId?: string | null
+  },
 ): Promise<void> {
   const supabase = createSupabaseServerClient()
-  const { error } = await supabase
-    .from('courses')
-    .update({
-      title: input.title,
-      description: input.description || null,
-      cover_image: input.coverImage || null,
-      published: input.published,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
+  const base = {
+    title: input.title,
+    description: input.description || null,
+    cover_image: input.coverImage || null,
+    published: input.published,
+    updated_at: new Date().toISOString(),
+  }
+
+  // When gating was submitted, try to set tier_id too.
+  if (input.tierId !== undefined) {
+    const { error } = await supabase
+      .from('courses')
+      .update({ ...base, tier_id: input.tierId || null })
+      .eq('id', id)
+    if (!error) return
+    // 42703 = undefined_column (Postgres); PGRST204 = column not found in schema
+    // cache (PostgREST). Pre-015 → fall through and save the rest of the course.
+    if (error.code !== '42703' && error.code !== 'PGRST204') throw error
+  }
+
+  const { error } = await supabase.from('courses').update(base).eq('id', id)
   if (error) throw error
 }
 
