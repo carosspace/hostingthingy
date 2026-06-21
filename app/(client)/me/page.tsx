@@ -15,10 +15,10 @@ interface ClientRow {
   name: string | null
 }
 
-// The five portal modules. Bookings (Stage 2) is live and links to /me/bookings;
-// the other four are present + beautiful but still "Coming soon".
+// The five portal modules — all live: Blueprint (Stage 4), Bookings, Messages,
+// Courses and Memberships each link to their /me/<module> sub-page.
 const MODULES: { title: string; icon: string; desc: string; href?: string }[] = [
-  { title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.' },
+  { title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.', href: '/me/blueprint' },
   { title: 'Bookings', icon: '◷', desc: 'Your sessions — past and upcoming.', href: '/me/bookings' },
   { title: 'Messages', icon: '✉', desc: 'Talk with {brand}, privately.', href: '/me/messages' },
   { title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' },
