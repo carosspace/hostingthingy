@@ -12,11 +12,14 @@ export interface MyBlueprint {
   generatedAt: string | null
 }
 
-// The three NEW env vars (set in Coolify). They may be absent right now — every
-// reader below degrades gracefully rather than crashing the portal.
-const BLUEPRINT_SUPABASE_URL = process.env.BLUEPRINT_SUPABASE_URL
+// The Divine Blueprint project config. The DB url + the public reader url are NOT
+// secret (the url ships in the blueprint site's own client bundle), so they default
+// to the live Divine Blueprint values — env vars override if it ever moves. Only the
+// SERVICE-ROLE KEY is a secret and must be set in Coolify; without it this module
+// stays inert and the portal degrades gracefully.
+const BLUEPRINT_SUPABASE_URL = process.env.BLUEPRINT_SUPABASE_URL || 'https://xsihrthqrpbpzvfnszca.supabase.co'
 const BLUEPRINT_SUPABASE_SERVICE_ROLE_KEY = process.env.BLUEPRINT_SUPABASE_SERVICE_ROLE_KEY
-const BLUEPRINT_APP_URL = process.env.BLUEPRINT_APP_URL
+const BLUEPRINT_APP_URL = process.env.BLUEPRINT_APP_URL || 'https://divine-blueprint.vercel.app'
 
 // The module is "configured" only when BOTH the blueprint DB url and its
 // service-role key are present. Without them we can't (and don't) query.
