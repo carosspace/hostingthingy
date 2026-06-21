@@ -1,38 +1,56 @@
-import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
-import { listSites } from "@/lib/sites/store";
-import type { Site } from "@/lib/sites/types";
+import Link from 'next/link'
+import { getCurrentUser } from '@/lib/auth'
+import { listSites } from '@/lib/sites/store'
+import type { Site } from '@/lib/sites/types'
+import { TEMPLATE_CARDS } from '@/lib/sites/types'
+import { createSiteAction, redeploySiteAction, deleteSiteAction } from '../sites/actions'
+import { updateNameAction } from '../account/actions'
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
+
+function StatusBadge({ status }: { status: Site['status'] }) {
+  const map: Record<Site['status'], { label: string; cls: string }> = {
+    queued: { label: 'Queued', cls: 'text-ash' },
+    building: { label: 'Building…', cls: 'text-gold' },
+    live: { label: 'Live', cls: 'text-green-400' },
+    failed: { label: 'Failed', cls: 'text-red-400' },
+    stopped: { label: 'Stopped', cls: 'text-ash' },
+  }
+  const s = map[status]
+  return <span className={`font-label text-[9px] tracking-[2px] uppercase ${s.cls}`}>{s.label}</span>
+}
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser()
   const displayName =
-    (user?.user_metadata?.full_name as string | undefined) || user?.email;
+    (user?.user_metadata?.full_name as string | undefined) || user?.email
+  const fullName = (user?.user_metadata?.full_name as string | undefined) ?? ''
 
-  let sites: Site[] = [];
-  let dbError = false;
+  let sites: Site[] = []
+  let dbError = false
   try {
-    sites = await listSites();
+    sites = await listSites()
   } catch {
-    dbError = true;
+    dbError = true
   }
-  const recent = sites.slice(0, 3);
+  const siteCount = dbError ? null : sites.length
 
   return (
     <div className="space-y-14">
+      {/* a. Welcome */}
       <section>
         <p className="font-label text-[10px] tracking-[4px] uppercase text-gold/70 mb-3">Welcome</p>
         <h1 className="font-display text-4xl italic text-parchment break-words">{displayName}</h1>
         <p className="font-body text-ash mt-3">Your temple. Let&apos;s put your work into the world.</p>
       </section>
 
+      {/* b. Stats */}
       {!dbError && sites.length > 0 && (
         <section className="grid grid-cols-3 gap-3">
           {[
-            { label: "Total", value: sites.length },
-            { label: "Live", value: sites.filter((s) => s.status === "live").length },
-            { label: "Paused", value: sites.filter((s) => s.status === "stopped").length },
+            { label: 'Total', value: sites.length },
+            { label: 'Live', value: sites.filter((s) => s.status === 'live').length },
+            { label: 'Paused', value: sites.filter((s) => s.status === 'stopped').length },
           ].map((stat) => (
             <div key={stat.label} className="border border-gold/15 rounded-sm p-5">
               <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-2">{stat.label}</p>
@@ -42,66 +60,163 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      <section>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold">
-            Your websites{!dbError && sites.length > 0 ? ` · ${sites.length}` : ""}
-          </h2>
-          <Link
-            href="/sites"
-            className="font-label text-[10px] tracking-[3px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm transition-colors"
-          >
-            + Add a website
-          </Link>
+      {/* c. Your websites — create + full list */}
+      <section className="space-y-6">
+        <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold">
+          Your websites{!dbError && sites.length > 0 ? ` · ${sites.length}` : ''}
+        </h2>
+
+        {/* Add a website */}
+        <div className="border border-gold/15 rounded-sm p-6">
+          <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-4">Add a website</p>
+          <form action={createSiteAction} className="space-y-5">
+            <input
+              name="name"
+              type="text"
+              required
+              placeholder="My beautiful website"
+              className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+            />
+            <div>
+              <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 mb-2">Choose a template</p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {TEMPLATE_CARDS.map((t, i) => (
+                  <label key={t.name} className="cursor-pointer">
+                    <input type="radio" name="template" value={t.name} defaultChecked={i === 0} className="peer sr-only" />
+                    <div className="h-full border border-gold/20 peer-checked:border-gold peer-checked:bg-gold/10 rounded-sm p-4 transition-colors">
+                      <p className="font-body text-parchment text-sm">{t.icon}&nbsp; {t.name}</p>
+                      <p className="font-body text-ash/60 text-xs mt-1">{t.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight transition-colors px-6 py-3 rounded-sm"
+            >
+              Create website →
+            </button>
+          </form>
         </div>
 
+        {/* Sites list */}
         {dbError ? (
           <div className="border border-gold/15 rounded-sm p-8 text-center">
             <p className="font-body text-parchment">Almost there — connect your database.</p>
-            <p className="font-body text-ash/60 text-sm mt-2">See SETUP.md to finish wiring it up.</p>
+            <p className="font-body text-ash/60 text-sm mt-2">
+              Create the platform&apos;s Supabase project and run the migration (see SETUP.md), then
+              your sites will save and persist here.
+            </p>
           </div>
-        ) : recent.length === 0 ? (
-          <Link
-            href="/sites"
-            className="block border border-gold/15 hover:border-gold/40 rounded-sm p-10 text-center transition-colors"
-          >
-            <p className="font-body text-ash">Create your first website →</p>
-          </Link>
+        ) : sites.length === 0 ? (
+          <div className="border border-gold/10 rounded-sm p-10 text-center">
+            <p className="font-body text-ash">No websites yet — create your first one above.</p>
+          </div>
         ) : (
           <div className="space-y-3">
-            {recent.map(site => (
-              <Link
+            {sites.map(site => (
+              <div
                 key={site.id}
-                href={`/sites/${site.id}`}
-                className="flex items-center justify-between gap-4 border border-gold/15 hover:border-gold/40 rounded-sm p-4 transition-colors"
+                className="border border-gold/15 rounded-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
               >
-                <span className="font-body text-parchment">{site.name}</span>
-                <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">{site.status}</span>
-              </Link>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Link
+                      href={`/sites/${site.id}`}
+                      className="font-body text-parchment text-lg hover:text-gold transition-colors"
+                    >
+                      {site.name}
+                    </Link>
+                    <StatusBadge status={site.status} />
+                  </div>
+                  <p className="font-body text-ash/60 text-sm mt-1 truncate">
+                    {site.url ?? `${site.slug}.hostingthingy.app`} · <span className="text-gold/60">{site.template}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <form action={redeploySiteAction}>
+                    <input type="hidden" name="id" value={site.id} />
+                    <button className="font-label text-[9px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm transition-colors">
+                      Redeploy
+                    </button>
+                  </form>
+                  <form action={deleteSiteAction}>
+                    <input type="hidden" name="id" value={site.id} />
+                    <button className="font-label text-[9px] tracking-[2px] uppercase border border-red-500/30 text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-sm transition-colors">
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </div>
             ))}
-            {sites.length > recent.length && (
-              <Link
-                href="/sites"
-                className="block text-center font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors pt-1"
-              >
-                View all {sites.length} →
-              </Link>
-            )}
           </div>
         )}
       </section>
 
+      {/* d. Your client portal */}
       <section>
-        <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-5">Coming to your temple</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {["Domains & SSL", "One-click deploys", "Databases", "Analytics"].map((f) => (
-            <div key={f} className="border border-gold/10 rounded-sm p-5">
-              <p className="font-body text-ash">{f}</p>
-              <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/40 mt-2">Soon</p>
-            </div>
-          ))}
+        <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-5">Your client portal</h2>
+        <div className="border border-gold/15 rounded-sm p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <p className="font-body text-ash">
+            This is your clients&apos; space — their bookings, messages, courses, memberships and Divine Blueprint, in your brand.
+          </p>
+          <Link
+            href="/me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 font-label text-[10px] tracking-[3px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm transition-colors"
+          >
+            Open your client portal ↗
+          </Link>
         </div>
       </section>
+
+      {/* e. Account */}
+      <section className="space-y-6 max-w-lg">
+        <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold">Account</h2>
+
+        <div className="border border-gold/15 rounded-sm p-6">
+          <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-3">Display name</p>
+          <form action={updateNameAction} className="flex flex-col sm:flex-row gap-3">
+            <input
+              name="name"
+              defaultValue={fullName}
+              placeholder="Your name"
+              className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
+            />
+            <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+              Save
+            </button>
+          </form>
+        </div>
+
+        <div className="border border-gold/15 rounded-sm divide-y divide-gold/10">
+          <div className="px-5 py-4">
+            <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-1">Email</p>
+            <p className="font-body text-parchment break-words">{user?.email}</p>
+          </div>
+          <div className="px-5 py-4">
+            <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-1">Websites</p>
+            <p className="font-body text-parchment">{siteCount ?? '—'}</p>
+          </div>
+          <div className="px-5 py-4">
+            <p className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mb-1">Member since</p>
+            <p className="font-body text-parchment">
+              {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
+            </p>
+          </div>
+        </div>
+
+        <form action="/auth/signout" method="post">
+          <button
+            type="submit"
+            className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors"
+          >
+            Sign out →
+          </button>
+        </form>
+      </section>
     </div>
-  );
+  )
 }

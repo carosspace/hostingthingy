@@ -75,7 +75,7 @@ export async function createSiteAction(formData: FormData): Promise<void> {
     await updateSiteStatus(site.id, 'failed', null)
   }
 
-  revalidatePath('/sites')
+  revalidatePath('/dashboard')
 }
 
 export async function renameSiteAction(formData: FormData): Promise<void> {
@@ -101,7 +101,7 @@ export async function renameSiteAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/sites/${id}`)
-  revalidatePath('/sites')
+  revalidatePath('/dashboard')
 }
 
 export async function redeploySiteAction(formData: FormData): Promise<void> {
@@ -123,7 +123,7 @@ export async function redeploySiteAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath(`/sites/${id}`)
-  revalidatePath('/sites')
+  revalidatePath('/dashboard')
 }
 
 export async function setDomainAction(formData: FormData): Promise<void> {
@@ -937,8 +937,8 @@ export async function deleteSiteAction(formData: FormData): Promise<void> {
   }
   await deleteSiteRecord(id)
 
-  revalidatePath('/sites')
-  redirect('/sites')
+  revalidatePath('/dashboard')
+  redirect('/dashboard')
 }
 
 // --- Free canvas (Canva-style) pages ---------------------------------------
