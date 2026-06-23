@@ -583,8 +583,9 @@ export default function CanvasEditor({
     for (let v = 0; v <= len + 0.5; v += minor) ticks.push(Math.round(v))
     return { minor, majorEvery, ticks }
   }
-  // Global text styles (Heading/Body/…): a text element links via styleRef; editing a
-  // style re-syncs every linked element here, so the public renderer never changes.
+  // Type-based text styles (Heading/Body/…): every text element has a type via styleRef; editing
+  // a type cascades to every element of that type (skipping each element's styleOverrides) here,
+  // so the public renderer never changes.
   const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
   const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
   // Warm the editor preview: load every Google family currently applied — on page elements, in a
@@ -766,29 +767,47 @@ export default function CanvasEditor({
     dirty.current = true
     setSaved(false)
   }
-  // Typography properties a global text style governs (also what auto-detaches a link).
+  // Typography properties a type-style governs (also what becomes a per-element override).
   const SYNCED_TYPO: (keyof CanvasElement)[] = ['fontSize', 'fontFamily', 'weight', 'italic', 'lineHeight', 'letterSpacing', 'color']
   const update = (id: string, patch: Partial<CanvasElement>) => {
     snapshot()
     setEls(p => p.map(e => {
       if (e.id !== id) return e
-      // Hand-editing a style-governed prop unlinks the element (so the change sticks).
-      const detach = e.styleRef && !('styleRef' in patch) && SYNCED_TYPO.some(k => k in patch)
-      return { ...e, ...patch, ...(detach ? { styleRef: undefined } : {}) }
+      // Hand-editing a type-governed prop on a typed element OVERRIDES just that prop for THIS
+      // element (it keeps its type for everything else). Record the changed keys in styleOverrides
+      // so a later type-style edit won't touch them. A patch that sets styleRef is the type change
+      // itself (applyStyle) and resets overrides separately, so it's exempt.
+      if (e.styleRef && !('styleRef' in patch)) {
+        const changed = SYNCED_TYPO.filter(k => k in patch) as string[]
+        if (changed.length) {
+          const overrides = Array.from(new Set([...(e.styleOverrides ?? []), ...changed]))
+          return { ...e, ...patch, styleOverrides: overrides }
+        }
+      }
+      return { ...e, ...patch }
     }))
     touch()
   }
-  // Link a text element to a global style (copies the style's look + sets styleRef).
+  // Make a text element a given TYPE: copy that type's current look onto it and clear any
+  // per-element overrides (so it now fully follows the type).
   const applyStyle = (id: string, key: TextStyleKey) => {
     const s = textStyles[key] || defaultTextStyles()[key]
-    update(id, { styleRef: key, fontSize: s.fontSize, fontFamily: s.fontFamily, weight: s.weight, italic: s.italic, lineHeight: s.lineHeight, letterSpacing: s.letterSpacing, color: s.color })
+    update(id, { styleRef: key, styleOverrides: [], fontSize: s.fontSize, fontFamily: s.fontFamily, weight: s.weight, italic: s.italic, lineHeight: s.lineHeight, letterSpacing: s.letterSpacing, color: s.color })
   }
-  // Edit a global style and re-sync every element linked to it (the "set once" magic).
+  // Edit a type-style and cascade to EVERY element of that type — applying each patched prop
+  // only where the element hasn't individually overridden it (so overrides are preserved).
   const editStyle = (key: TextStyleKey, patch: Partial<TextStyleProps>) => {
     snapshot(true)
     const next = { ...(textStyles[key] || defaultTextStyles()[key]), ...patch }
     setTextStyles(prev => ({ ...prev, [key]: next }))
-    setEls(prev => prev.map(e => (e.styleRef === key ? { ...e, fontSize: next.fontSize, fontFamily: next.fontFamily, weight: next.weight, italic: next.italic, lineHeight: next.lineHeight, letterSpacing: next.letterSpacing, color: next.color } : e)))
+    const patchKeys = Object.keys(patch) as (keyof TextStyleProps)[]
+    setEls(prev => prev.map(e => {
+      if (e.styleRef !== key) return e
+      const ov = new Set(e.styleOverrides ?? [])
+      const apply: Partial<CanvasElement> = {}
+      for (const k of patchKeys) if (!ov.has(k)) (apply as Record<string, unknown>)[k] = next[k]
+      return Object.keys(apply).length ? { ...e, ...apply } : e
+    }))
     touch()
   }
   const remove = (id: string) => { snapshot(true); setEls(p => p.filter(e => e.id !== id).map(e => { const e2 = e.anchorTo === id ? { ...e, anchorTo: undefined } : e; return e2.parentId === id ? { ...e2, parentId: undefined } : e2 })); setSelectedIds([]); touch() }
@@ -833,9 +852,16 @@ export default function CanvasEditor({
   const pasteStyle = (ids: string[]) => {
     const s = styleClip.current
     if (!s || !ids.length) return
+    // Typography props in the painted look must be recorded as per-element overrides on a
+    // typed element, so a later type-style change doesn't silently revert the paint.
+    const typo = SYNCED_TYPO.filter(k => k in s)
     const set = new Set(ids)
     snapshot(true)
-    setEls(p => p.map(e => (set.has(e.id) && !e.locked ? { ...e, ...s } : e)))
+    setEls(p => p.map(e => {
+      if (!set.has(e.id) || e.locked) return e
+      const ov = e.styleRef && typo.length ? { styleOverrides: Array.from(new Set([...(e.styleOverrides ?? []), ...typo])) } : {}
+      return { ...e, ...s, ...ov }
+    }))
     touch()
   }
 
@@ -1405,6 +1431,22 @@ export default function CanvasEditor({
     const deskX = editingMobile ? Math.max(0, Math.min(120 + (n % 5) * 24, CANVAS_W - ew)) : Math.max(0, Math.min(Math.round(c.x - ew / 2), CANVAS_W - ew))
     const deskY = editingMobile ? 120 + (n % 8) * 24 : Math.max(0, Math.round(c.y - eh / 2))
     const el: CanvasElement = { id: 'e' + idc.current++, x: deskX, y: deskY, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
+    // Type-based text: a text preset carries a styleRef (its type). New text adopts that type's
+    // CURRENT style props (so it matches the rest of that type) and starts with no per-element
+    // overrides. Keeps the preset's geometry (x/y/w/h) and any non-typo fields (e.g. ctaType).
+    if (el.type === 'text' && el.styleRef) {
+      const s = textStyles[el.styleRef] || defaultTextStyles()[el.styleRef as TextStyleKey]
+      if (s) {
+        el.fontSize = s.fontSize
+        el.fontFamily = s.fontFamily
+        el.weight = s.weight
+        el.italic = s.italic
+        el.lineHeight = s.lineHeight
+        el.letterSpacing = s.letterSpacing
+        el.color = s.color
+      }
+      el.styleOverrides = []
+    }
     // Site Look: new buttons + links pick up this page's default button/link styling so they
     // match the chosen look. Only fields the look actually sets are applied; the rest keep the
     // preset's defaults. A "link" is a text element with ctaType 'link'.
@@ -1436,10 +1478,10 @@ export default function CanvasEditor({
   }
   // Preset "Add" buttons.
   const PRESETS: Record<string, Partial<CanvasElement> & { type: CanvasElementType }> = {
-    title: { type: 'text', w: 580, h: 92, text: 'Your title', fontSize: 56, fontFamily: 'display', italic: true, color: '#111111' },
-    subtitle: { type: 'text', w: 480, h: 54, text: 'A subtitle', fontSize: 26, fontFamily: 'display', color: '#111111' },
-    body: { type: 'text', w: 460, h: 120, text: 'Your text goes here…', fontSize: 18, fontFamily: 'body', color: '#111111' },
-    link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: '#111111', ctaType: 'link' },
+    title: { type: 'text', w: 580, h: 92, text: 'Your title', fontSize: 56, fontFamily: 'display', italic: true, color: '#111111', styleRef: 'heading' },
+    subtitle: { type: 'text', w: 480, h: 54, text: 'A subtitle', fontSize: 26, fontFamily: 'display', color: '#111111', styleRef: 'subheading' },
+    body: { type: 'text', w: 460, h: 120, text: 'Your text goes here…', fontSize: 18, fontFamily: 'body', color: '#111111', styleRef: 'body' },
+    link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: '#111111', ctaType: 'link', styleRef: 'caption' },
     button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: '#111111', ctaType: 'none', radius: 6, fontFamily: 'label' },
     contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: '#111111', ctaType: 'email', radius: 6, fontFamily: 'label' },
     form: { type: 'form', w: 360, h: 360, text: 'Send message', fill: '#111111', color: '#1a1612', radius: 10, fontFamily: 'body' },
@@ -3558,18 +3600,44 @@ export default function CanvasEditor({
                 </div>
                 {sel.type === 'text' && (
                   <div>
-                    <p style={labelCss}>Text style — link this text to a type</p>
+                    <p style={labelCss}>Text style — this text&apos;s type</p>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {TEXT_STYLE_KEYS.map(key => {
                         const on = sel.styleRef === key
                         return (
-                          <button key={key} type="button" onClick={() => applyStyle(sel.id, key)} title={`Apply the ${TEXT_STYLE_LABELS[key]} style`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: on ? accent : 'rgba(0,0,0,0.18)', background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{TEXT_STYLE_LABELS[key]}</button>
+                          <button key={key} type="button" onClick={() => applyStyle(sel.id, key)} title={`Make this a ${TEXT_STYLE_LABELS[key]}`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: on ? accent : 'rgba(0,0,0,0.18)', background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{TEXT_STYLE_LABELS[key]}</button>
                         )
                       })}
                     </div>
-                    {sel.styleRef && (
-                      <p className="font-body text-ash/50 text-[11px] mt-1">Linked to the <b className="text-ash">{TEXT_STYLE_LABELS[sel.styleRef as TextStyleKey]}</b> style — edit it under <b>Design → Text styles</b> to change every linked text. <button type="button" onClick={() => update(sel.id, { styleRef: undefined })} className="text-gold hover:text-goldLight underline">Unlink</button></p>
-                    )}
+                    {sel.styleRef && (() => {
+                      const styleKey = sel.styleRef as TextStyleKey
+                      const styleLabel = TEXT_STYLE_LABELS[styleKey]
+                      const hasOverrides = !!sel.styleOverrides?.length
+                      // The element's CURRENT type-governed props — pushed to the type by "Save as".
+                      const elProps: Partial<TextStyleProps> = { fontSize: sel.fontSize ?? 24, fontFamily: sel.fontFamily, weight: sel.weight, italic: sel.italic, lineHeight: sel.lineHeight, letterSpacing: sel.letterSpacing, color: sel.color }
+                      // Reset: drop overrides + re-copy the type's current props onto the element.
+                      const resetToType = () => {
+                        const s = textStyles[styleKey] || defaultTextStyles()[styleKey]
+                        update(sel.id, { styleRef: styleKey, styleOverrides: [], fontSize: s.fontSize, fontFamily: s.fontFamily, weight: s.weight, italic: s.italic, lineHeight: s.lineHeight, letterSpacing: s.letterSpacing, color: s.color })
+                      }
+                      // Save as: make this element's look THE type, so all of that type adopt it; this
+                      // element now equals the type, so its overrides clear.
+                      const saveAsType = () => {
+                        editStyle(styleKey, elProps)
+                        update(sel.id, { styleOverrides: [] })
+                      }
+                      return (
+                        <>
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            <button type="button" onClick={saveAsType} title={`Update the ${styleLabel} style to match this text — every ${styleLabel} follows`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: accent, background: 'transparent', color: '#666' }}>Save as the {styleLabel} style</button>
+                            {hasOverrides && (
+                              <button type="button" onClick={resetToType} title={`Drop this text's tweaks and follow the ${styleLabel} style again`} className="font-label text-[9px] tracking-[1px] uppercase px-2 py-1 rounded-sm border" style={{ borderColor: 'rgba(0,0,0,0.18)', background: 'transparent', color: '#666' }}>Reset to {styleLabel}</button>
+                            )}
+                          </div>
+                          <p className="font-body text-ash/50 text-[11px] mt-1">This text is a <b className="text-ash">{styleLabel}</b>{hasOverrides ? ' with its own tweaks' : ''} — edit the type under <b>Design → Text styles</b> to change every {styleLabel}. <button type="button" onClick={() => update(sel.id, { styleRef: undefined, styleOverrides: undefined })} className="text-gold hover:text-goldLight underline">Unlink</button></p>
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -3641,13 +3709,10 @@ export default function CanvasEditor({
                   ))}
                 </div>
                 {(() => {
-                  // Set the selected element's fontFamily. If it's linked to a global text style,
-                  // edit the STYLE (so every linked text updates together, like the role buttons);
-                  // otherwise set it on the element directly.
-                  const setFont = (ff: string) => {
-                    if (sel.styleRef) editStyle(sel.styleRef as TextStyleKey, { fontFamily: ff })
-                    else update(sel.id, { fontFamily: ff })
-                  }
+                  // Set the selected element's fontFamily. Always an element-level edit: on a typed
+                  // element, update() records it as a per-element override (the type is unchanged).
+                  // "Save as the {Type} style" is the explicit way to push a look to the whole type.
+                  const setFont = (ff: string) => update(sel.id, { fontFamily: ff })
                   const isGoogle = (sel.fontFamily || '').startsWith('google:')
                   return (
                     <div className="space-y-1.5">

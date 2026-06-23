@@ -144,10 +144,11 @@ export interface FlowConfig {
   collapsible?: boolean // accordion: the group can collapse (Stage 4)
 }
 
-// Global text styles: define Heading/Body/etc. once and apply to many text elements.
-// A text element references a style via `styleRef`; editing the style re-syncs every
-// element that uses it (the sync happens in the editor, so the renderer is unchanged —
-// elements always carry their own resolved typography).
+// Global text styles: every text element has a TYPE (Heading/Body/etc.) it follows via
+// `styleRef`. Editing a type re-syncs every element of that type — except the per-element
+// properties listed in that element's `styleOverrides` (those stay individually customised).
+// The sync happens in the editor, so the renderer is unchanged — elements always carry
+// their own resolved typography.
 export interface TextStyleProps {
   fontSize: number
   fontFamily?: string // 'display' | 'body' | 'label' | 'custom:<id>'
@@ -369,7 +370,8 @@ export interface CanvasElement {
   letterSpacing?: number // design px (can be negative)
   lineHeight?: number // unitless multiplier (0.8-4)
   dropCap?: boolean // enlarge the first letter of a text block
-  styleRef?: string // a global text-style key (TEXT_STYLE_KEYS); editing that style re-syncs this element
+  styleRef?: string // the element's TYPE: a global text-style key (TEXT_STYLE_KEYS). The element follows this type's style; editing the type re-syncs this element EXCEPT for properties listed in styleOverrides.
+  styleOverrides?: string[] // the SYNCED_TYPO prop keys (fontSize/fontFamily/weight/italic/lineHeight/letterSpacing/color) the owner has individually customised on THIS element. A type-style change never touches these; "Reset to type" clears them. Editor-only metadata — the render still uses the element's own resolved props.
   href?: string
   ctaType?: CtaType
   newTab?: boolean // open this element's link in a new browser tab

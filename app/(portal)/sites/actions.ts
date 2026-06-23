@@ -1087,6 +1087,17 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       lineHeight: lineH(e?.lineHeight),
       dropCap: type === 'text' && e?.dropCap ? true : undefined,
       styleRef: allowComponent && type === 'text' && TEXT_STYLE_KEYS.includes(String(e?.styleRef) as (typeof TEXT_STYLE_KEYS)[number]) ? String(e?.styleRef) : undefined,
+      // The per-element typography overrides: the SYNCED_TYPO prop keys this element has
+      // individually customised (a type-style change skips these). Filtered to the prop
+      // whitelist + de-duplicated; omitted when empty so the canvas stays tidy.
+      styleOverrides: (() => {
+        // Gated like styleRef (allowComponent + text): overrides are meaningless without a type,
+        // so component-internal text never persists an orphaned override array.
+        if (!allowComponent || type !== 'text' || !Array.isArray(e?.styleOverrides)) return undefined
+        const allowed = ['fontSize', 'fontFamily', 'weight', 'italic', 'lineHeight', 'letterSpacing', 'color']
+        const out = Array.from(new Set((e.styleOverrides as unknown[]).map(k => String(k)).filter(k => allowed.includes(k))))
+        return out.length ? out : undefined
+      })(),
       href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
       ctaType,
       newTab: e?.newTab ? true : undefined,
