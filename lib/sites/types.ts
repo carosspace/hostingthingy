@@ -443,7 +443,10 @@ export interface PageCanvas {
   bgOpacity?: number // 0-100; fades the page background (colour/gradient/photo) toward white
   bgVideo?: string // a full-background looping video (https URL); shown over the colour/photo
   elements: CanvasElement[]
-  mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (else auto-stack)
+  mobileCustom?: boolean // phones use the hand-arranged mx/my/mw/mh layout (the "Custom" mode); wins over mobileMode
+  // How phones render when not Custom: 'scale' = the desktop layout scaled down to phone width
+  // (the default — undefined means 'scale'), 'stack' = the automatic top-to-bottom MobileStack.
+  mobileMode?: 'scale' | 'stack'
   mobileH?: number // height of the custom phone artboard in design px on MOBILE_W
   palette?: string[] // brand swatches (hex); referenced by colours as var(--brand-N)
   fonts?: SiteFont[] // uploaded brand fonts, referenced by fontFamily 'custom:<id>'

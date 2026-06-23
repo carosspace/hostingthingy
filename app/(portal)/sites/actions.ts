@@ -1191,6 +1191,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     bgOpacity: (() => { const n = num(c.bgOpacity, 0, 100, 100); return n >= 100 ? undefined : n })(),
     elements,
     mobileCustom: c.mobileCustom ? true : undefined,
+    // Only emit a recognised phone-layout mode; anything else (incl. the 'scale' default) is dropped
+    // so undefined ⟺ "match desktop (scale)".
+    mobileMode: c.mobileMode === 'scale' || c.mobileMode === 'stack' ? (c.mobileMode as 'scale' | 'stack') : undefined,
     mobileH: c.mobileH === undefined || c.mobileH === null ? undefined : num(c.mobileH, 200, 40000, 1200),
     palette: Array.isArray(c.palette) ? (c.palette.map(hex).filter(Boolean) as string[]).slice(0, 6) : undefined,
     bgVideo: httpUrl(c.bgVideo),

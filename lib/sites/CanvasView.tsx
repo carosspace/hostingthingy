@@ -187,9 +187,37 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   ) : content
 }
 
+// The absolutely-positioned canvas surface: a fixed-aspect box (containerType:inline-size)
+// with each element placed via container-query units, so the WHOLE layout scales with the
+// box's width. Shared by the desktop branch AND the "scale" phone branch — rendering the
+// same desktop elements inside the narrower phone box reproduces the desktop arrangement,
+// just smaller. `topOf` resolves footer-pinned y; `bgVideo` paints behind the elements.
+function AbsoluteCanvas({ els, cqf, topOf, designW, designH, bg, bgVideo, inner }: {
+  els: CanvasElement[]
+  cqf: (px: number) => string
+  topOf: (el: CanvasElement) => number
+  designW: number
+  designH: number
+  bg: CSSProperties
+  bgVideo?: string
+  inner: (el: CanvasElement, cqf: (px: number) => string, mobile?: boolean) => ReactNode
+}) {
+  return (
+    <div style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${designW} / ${designH}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
+      {bgVideo && <video src={bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+      {els.map(el => (
+        <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cqf(el.x), top: cqf(topOf(el)), width: cqf(el.w), height: cqf(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
+          {withMotion(el, inner(el, cqf))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Read-only renderer for a free-canvas page. Desktop: a faithful absolutely-positioned
 // canvas that scales with the viewport. Phones: a hand-arranged phone artboard when the
-// page opted into a custom mobile layout, otherwise the elements stack top-to-bottom.
+// page opted into a custom mobile layout ('Custom'); otherwise the desktop layout scaled
+// to phone width ('scale', the default) or the auto top-to-bottom stack ('stack').
 export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, navPages }: ViewProps) {
   const pageHref = (slug: string) => (slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${slug}`)
   const ctaHref = (el: CanvasElement): string => {
@@ -219,13 +247,8 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       {canvas.fonts && canvas.fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(canvas.fonts) }} />}
       {/* Desktop / tablet: the full canvas */}
-      <div className="hidden md:block" style={{ ...bg, position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${desktopH}`, containerType: 'inline-size', overflow: 'hidden' } as CSSProperties}>
-        {canvas.bgVideo && <video src={canvas.bgVideo} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-        {desktopEls.map(el => (
-          <div key={el.id} data-cv={el.id} style={{ position: 'absolute', left: cq(el.x), top: cq(desktopTop(el)), width: cq(el.w), height: cq(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.cursor }}>
-            {withMotion(el, inner(el, cq))}
-          </div>
-        ))}
+      <div className="hidden md:block">
+        <AbsoluteCanvas els={desktopEls} cqf={cq} topOf={desktopTop} designW={CANVAS_W} designH={desktopH} bg={bg} bgVideo={canvas.bgVideo} inner={inner} />
       </div>
 
       {/* Phones */}
@@ -239,8 +262,13 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
               </div>
             ))}
           </div>
-        ) : (
+        ) : canvas.mobileMode === 'stack' ? (
           <MobileStack canvas={canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={navPages} />
+        ) : (
+          // 'scale' (the default when mobileMode is undefined): render the SAME desktop absolute
+          // layout inside the phone-width box. The container-query units scale it down faithfully —
+          // same arrangement, smaller — so it's pixel-faithful to desktop.
+          <AbsoluteCanvas els={desktopEls} cqf={cq} topOf={desktopTop} designW={CANVAS_W} designH={desktopH} bg={bg} bgVideo={canvas.bgVideo} inner={inner} />
         )}
       </div>
       <CanvasMotion />

@@ -315,6 +315,8 @@ export default function CanvasEditor({
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [focusMode, setFocusMode] = useState(false) // hide the side panel to give the canvas the whole width
   const [mobileCustom, setMobileCustom] = useState(!!initial?.mobileCustom)
+  // The phone layout when not Custom: 'scale' (match desktop, the default) or 'stack' (auto stack).
+  const [mobileMode, setMobileMode] = useState<'scale' | 'stack'>(initial?.mobileMode === 'stack' ? 'stack' : 'scale')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -432,6 +434,9 @@ export default function CanvasEditor({
   // the desktop artboard). Pairs with topOf() so align/distribute work across frames.
   const patchYDisp = (e: CanvasElement, dispY: number): Partial<CanvasElement> => (editingMobile ? { my: Math.round(dispY) } : e.pin === 'footer' ? { y: Math.max(0, Math.round(dispY - bodyBottom)) } : { y: Math.max(0, Math.round(dispY)) })
   const cqv = (px: number) => `${(px / CW) * 100}cqw`
+  // A CANVAS_W-based container-query unit (always desktop design space) — used by the
+  // read-only "Match desktop (scale)" phone preview so it mirrors the public 'scale' render.
+  const cqScale = (px: number) => `${(px / CANVAS_W) * 100}cqw`
   const brandVars: CSSProperties = {}
   palette.forEach((c, i) => { (brandVars as Record<string, string>)[`--brand-${i}`] = c })
   // Read-only context for rendering component instances inside the editor.
@@ -1403,7 +1408,7 @@ export default function CanvasEditor({
     if (palette.length) lines.push(`Brand palette: ${palette.join(', ')}.`)
     if (banner?.text) lines.push(`A dismissible announcement bar reads: "${banner.text.replace(/\s+/g, ' ').slice(0, 120)}".`)
     if (popup?.text) lines.push(`A popup (after ${popup.delay ?? 2}s) says: "${[popup.title, popup.text].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 160)}".`)
-    lines.push(`Mobile layout: ${mobileCustom ? 'hand-tuned for phones' : 'automatic top-to-bottom stack'}.`)
+    lines.push(`Mobile layout: ${mobileCustom ? 'hand-tuned for phones' : mobileMode === 'stack' ? 'automatic top-to-bottom stack' : 'the desktop layout scaled down to phone width'}.`)
     lines.push('')
     lines.push(`${visible.length} element(s) on the canvas (top to bottom):`)
     visible
@@ -1787,7 +1792,7 @@ export default function CanvasEditor({
         c?.elements || [], c?.bg || '', c?.bgGradient || null, c?.bgImage || '', c?.bgVideo || '', c?.bgOpacity ?? 100,
         c?.width === 'contained' ? 'contained' : 'full', c?.palette || [], c?.fonts || [], c?.components || [], c?.uploads || [],
         c?.fontSystem || '', c?.guidesX || [], c?.guidesY || [], c?.textStyles || null, c?.banner || null, c?.popup || null,
-        !!c?.mobileCustom, c?.mobileCustom ? (c?.mobileH || 0) : 0,
+        !!c?.mobileCustom, c?.mobileCustom ? (c?.mobileH || 0) : 0, c?.mobileMode === 'stack' ? 'stack' : 'scale',
       ])
       if (d?.canvas && sig(d.canvas) !== sig(initial)) {
         draftCanvas.current = d.canvas
@@ -1812,7 +1817,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
 
   // Continuous SERVER auto-save (debounced) so the owner never has to press Save and
   // switching pages can't lose work. Backs off quietly on the same guards save() would
@@ -1824,7 +1829,7 @@ export default function CanvasEditor({
     const t = setTimeout(() => { void save(true) }, 1200)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -1963,6 +1968,8 @@ export default function CanvasEditor({
     bgVideo: bgVideo.trim() || undefined,
     elements: els,
     mobileCustom: mobileCustom || undefined,
+    // 'scale' is the default — leave it off so undefined ⟺ scale (matches the renderer + gate).
+    mobileMode: mobileMode === 'stack' ? 'stack' : undefined,
     mobileH: mobileCustom ? mobileH : undefined,
     palette: palette.length ? palette : undefined,
     fonts: fonts.length ? fonts : undefined,
@@ -1985,6 +1992,7 @@ export default function CanvasEditor({
     setBgOpacity(c.bgOpacity ?? 100)
     setPageWidth(c.width === 'contained' ? 'contained' : 'full')
     setMobileCustom(!!c.mobileCustom)
+    setMobileMode(c.mobileMode === 'stack' ? 'stack' : 'scale')
     setPalette(c.palette || [])
     setFonts(c.fonts || [])
     setComponents(c.components || [])
@@ -3570,31 +3578,66 @@ export default function CanvasEditor({
         )}
 
         {device === 'mobile' ? (
-          <div className="mb-3 flex flex-wrap items-center justify-center gap-2 text-center">
-            {mobileCustom ? (
-              <>
-                <span className="font-body text-ash/60 text-[11px]">Custom phone layout — drag, resize and arrange just like desktop.</span>
-                <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange'}</button>
-                <button type="button" onClick={seedMobile} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm">↺ Re-stack</button>
-                <button type="button" onClick={useAutoMobile} className="font-label text-[9px] tracking-[1px] uppercase text-ash/60 hover:text-gold px-2 py-1">Back to automatic</button>
-              </>
-            ) : (
-              <>
-                <span className="font-body text-ash/60 text-[11px]">Your phone layout is automatic — everything stacks neatly top to bottom.</span>
-                <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-3 py-1.5 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange for phone'}</button>
-                <button type="button" onClick={seedMobile} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm">✏️ Customise the phone layout</button>
-              </>
-            )}
+          <div className="mb-3 flex flex-col items-center gap-2 text-center">
+            {/* Phone layout picker — Match desktop (scale) · Stacked · Custom */}
+            <div className="inline-flex rounded-sm border overflow-hidden" style={{ borderColor: 'rgba(0,0,0,0.15)' }}>
+              {(() => {
+                const cur: 'scale' | 'stack' | 'custom' = mobileCustom ? 'custom' : mobileMode
+                const pick = (k: 'scale' | 'stack' | 'custom') => {
+                  if (k === cur) return
+                  setSelectedIds([]); setEditingId('')
+                  if (k === 'custom') {
+                    // First time → seed the phone artboard (sets mobileCustom + touch); otherwise just switch.
+                    if (els.some(e => e.mx !== undefined || e.my !== undefined)) { setMobileCustom(true); touch() }
+                    else seedMobile()
+                  } else {
+                    setMobileCustom(false); setMobileMode(k); touch()
+                  }
+                }
+                return ([['scale', 'Match desktop'], ['stack', 'Stacked'], ['custom', 'Custom']] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => pick(k)} className="font-label text-[9px] tracking-[1px] uppercase px-3 py-1.5 border-r last:border-r-0" style={{ borderColor: 'rgba(0,0,0,0.12)', background: cur === k ? ui : 'transparent', color: cur === k ? '#fff' : '#888' }}>{lbl}</button>
+                ))
+              })()}
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {mobileCustom ? (
+                <>
+                  <span className="font-body text-ash/60 text-[11px]">Custom phone layout — drag, resize and arrange just like desktop.</span>
+                  <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange'}</button>
+                  <button type="button" onClick={seedMobile} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm">↺ Re-stack</button>
+                </>
+              ) : mobileMode === 'stack' ? (
+                <>
+                  <span className="font-body text-ash/60 text-[11px]">Stacked — everything flows neatly top to bottom on phones.</span>
+                  <button type="button" onClick={aiArrangeMobile} disabled={mobileBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-3 py-1.5 rounded-sm">{mobileBusy ? 'Arranging…' : '✦ AI arrange for phone'}</button>
+                </>
+              ) : (
+                <span className="font-body text-ash/60 text-[11px]">Match desktop — phones show the desktop layout, scaled down to fit.</span>
+              )}
+            </div>
           </div>
         ) : (
           <p className="font-body text-ash/60 text-xs mb-3 text-center">Drag to move (snaps to align) · drag a box to select several · corner ◢ resizes (hold Shift to keep proportions) · arrows nudge · Ctrl+D duplicate · Ctrl+Z undo · Del removes.</p>
         )}
 
         {device === 'mobile' && !mobileCustom ? (
-          // The automatic phone layout, shown read-only in a phone frame.
+          // Read-only phone preview — mirrors the public render for the chosen mode.
           <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSys) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
-              <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, bgOpacity: bgOpacity >= 100 ? undefined : bgOpacity, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              {mobileMode === 'stack' ? (
+                <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, bgOpacity: bgOpacity >= 100 ? undefined : bgOpacity, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+              ) : (
+                // 'scale': the desktop absolute layout rendered inside the phone-width frame, so
+                // the container-query units scale it down faithfully (same as the public 'scale' render).
+                <div style={{ position: 'relative', width: '100%', aspectRatio: `${CANVAS_W} / ${desktopH}`, containerType: 'inline-size', overflow: 'hidden', ...pageBackground({ bg: bg || t.bg, bgGradient: bgGrad, bgImage, bgOpacity }), ...brandVars } as CSSProperties}>
+                  {bgVideo.trim() && <video src={bgVideo.trim()} autoPlay muted loop playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  {[...els].filter(e => !e.hidden && !e.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0)).map(el => (
+                    <div key={el.id} style={{ position: 'absolute', left: cqScale(el.x), top: cqScale(topOf(el)), width: cqScale(el.w), height: cqScale(el.h), opacity: (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend }}>
+                      {renderInner(el, cqScale, renderCtx)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
