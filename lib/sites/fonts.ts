@@ -111,3 +111,19 @@ export function fontVars(key?: string | null): Record<string, string> {
   const f = getFontSystem(key)
   return { '--font-display': f.display, '--font-body': f.body, '--font-label': f.label }
 }
+
+// Site Look per-role font overrides: given the canvas `fontRoles` and the caller's own
+// fontFamily→CSS resolver (each render root has its own `fontVar`, e.g. google:→googleStack),
+// return ONLY the --font-* vars to layer on TOP of fontVars(). An empty/absent role is skipped
+// so it keeps following the font system. Spread this after fontVars() on the same root element.
+export function fontRoleVars(
+  fontRoles: { display?: string; body?: string; label?: string } | undefined,
+  resolve: (ff: string) => string,
+): Record<string, string> {
+  if (!fontRoles) return {}
+  const out: Record<string, string> = {}
+  if (fontRoles.display) out['--font-display'] = resolve(fontRoles.display)
+  if (fontRoles.body) out['--font-body'] = resolve(fontRoles.body)
+  if (fontRoles.label) out['--font-label'] = resolve(fontRoles.label)
+  return out
+}

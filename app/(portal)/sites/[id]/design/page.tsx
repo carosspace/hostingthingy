@@ -228,6 +228,7 @@ export default async function DesignPage({
             allPages={pages.map(p => ({ slug: p.slug, title: p.navLabel || p.title || 'Untitled', hidden: p.hidden }))}
             brandVoice={c?.brandVoice ?? ''}
             pageTransition={c?.pageTransition ?? 'none'}
+            inheritLook={!!c?.inheritLook}
             initial={current.canvas}
           />
         </div>

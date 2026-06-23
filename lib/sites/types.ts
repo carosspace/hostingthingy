@@ -456,8 +456,33 @@ export interface PageCanvas {
   guidesX?: number[] // editor-only vertical guide lines (design px x); elements snap to them. Never rendered on the public page.
   guidesY?: number[] // editor-only horizontal guide lines (design px y)
   textStyles?: Record<string, TextStyleProps> // global text styles (Heading/Body/…) for this page
+  // Per-role font overrides (the "Site Look" Title/Body/Accent fonts). Each value is a
+  // fontFamily ('google:<Family>' | 'custom:<id>' | role) the render resolves and uses to
+  // OVERRIDE that role's CSS var on the page root; '' / undefined = follow `fontSystem`.
+  fontRoles?: { display?: string; body?: string; label?: string }
+  // Default style for newly-added button / link elements, set in the Site Look panel so a
+  // page's new buttons/links match the look. Existing elements keep their own styling.
+  buttonStyle?: { fill?: string; color?: string; radius?: number; fontFamily?: string }
+  linkStyle?: { color?: string; fontFamily?: string }
   banner?: SiteBanner // a dismissible announcement bar shown above the page
   popup?: SitePopup // a one-time modal shown after a delay
+}
+
+// The canonical site-wide "look": background, per-role fonts, brand colours, text styles
+// and the default button/link styling. Written by applySiteLookAction (server-trusted) and
+// used to seed new pages when `SiteContent.inheritLook` is on. Mirrors the per-page canvas
+// look fields so "Apply to all pages" can copy them onto every page's canvas.
+export interface SiteLook {
+  bg?: string
+  bgGradient?: Gradient | null
+  bgImage?: string
+  bgOpacity?: number
+  fontSystem?: string
+  fontRoles?: { display?: string; body?: string; label?: string }
+  textStyles?: Record<string, TextStyleProps>
+  palette?: string[]
+  buttonStyle?: { fill?: string; color?: string; radius?: number; fontFamily?: string }
+  linkStyle?: { color?: string; fontFamily?: string }
 }
 
 // A modal shown to a visitor a few seconds after arriving (once per visitor).
@@ -601,6 +626,9 @@ export interface SiteContent {
   pages?: SitePage[]
   // Up to MAX_SAVED_DESIGNS whole-site snapshots the owner can switch between.
   savedDesigns?: SavedDesign[]
+  // The canonical "Site Look" (set via "Apply to all pages") + whether new pages inherit it.
+  siteLook?: SiteLook
+  inheritLook?: boolean
 }
 
 // Always returns the page list, migrating a legacy single-page site on the fly.

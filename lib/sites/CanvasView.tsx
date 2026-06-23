@@ -9,6 +9,7 @@ import { embedSrc } from './embed'
 import { Banner } from './Banner'
 import { Popup } from './Popup'
 import { googleStack, usedGoogleFamilies, googleHref } from './googleFonts'
+import { fontRoleVars } from './fonts'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -228,7 +229,10 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
   }
   const paletteVars: CSSProperties = {}
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
-  const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
+  // Site Look per-role font overrides: layer the chosen Title/Body/Accent fonts on top of the
+  // role CSS vars so all role-based text uses them (resolved with this file's fontVar).
+  const roleVars = fontRoleVars(canvas.fontRoles, fontVar) as CSSProperties
+  const bg: CSSProperties = { ...paletteVars, ...roleVars, ...pageBackground(canvas) }
 
   const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components, elements: canvas.elements }
   const inner = (el: CanvasElement, cqf: (px: number) => string, mobile = false) => renderInner(el, cqf, ctx, mobile)
@@ -304,7 +308,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
   }
   const paletteVars: CSSProperties = {}
   ;(canvas.palette ?? []).forEach((c, i) => { (paletteVars as Record<string, string>)[`--brand-${i}`] = c })
-  const bg: CSSProperties = { ...paletteVars, ...pageBackground(canvas) }
+  const roleVars = fontRoleVars(canvas.fontRoles, fontVar) as CSSProperties
+  const bg: CSSProperties = { ...paletteVars, ...roleVars, ...pageBackground(canvas) }
   const ctx: RenderCtx = { accent, siteSlug, navPages, pageHref, ctaHref, components: canvas.components, elements: canvas.elements }
   const ordered = canvas.elements.filter(e => !e.hidden && !e.parentId).sort((a, b) => (a.z ?? 0) - (b.z ?? 0))
   // Footer-pinned elements always stack at the very bottom on phones.

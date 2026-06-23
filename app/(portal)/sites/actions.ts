@@ -16,6 +16,7 @@ import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import { isGoogleFamily } from '@/lib/sites/googleFonts'
 import type {
   SiteContent,
+  SiteLook,
   BookingCopy,
   SavedDesign,
   SiteFont,
@@ -541,6 +542,8 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     footer: existing?.footer,
     pages: updatedPages,
     savedDesigns: existing?.savedDesigns, // never drop saved designs on a content save
+    siteLook: existing?.siteLook, // set via applySiteLookAction; never drop on a content save
+    inheritLook: existing?.inheritLook, // set via applySiteLookAction / setSiteLookOptionAction
   })
 
   revalidatePath(`/sites/${id}`)
@@ -735,6 +738,8 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     heroOverlay,
     pages: updatedPages,
     savedDesigns: existing?.savedDesigns, // managed elsewhere; never drop on a content save
+    siteLook: existing?.siteLook, // set via applySiteLookAction; never drop on a content save
+    inheritLook: existing?.inheritLook, // set via applySiteLookAction / setSiteLookOptionAction
   }
 
   await saveSiteContent(id, content)
@@ -765,7 +770,12 @@ export async function addPageAction(formData: FormData): Promise<void> {
   // canvas, the new page starts as a (blank) canvas too, instead of bouncing you
   // back to the block editor.
   const wantCanvas = String(formData.get('canvas') ?? '') === '1'
-  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [], ...(wantCanvas ? { canvas: { h: 1000, elements: [], bg: '#ffffff' } } : {}) }
+  // When the site has a canonical Site Look and "new pages inherit this look" is on, seed the
+  // new (canvas) page with the look's tokens so it matches the rest of the site out of the box.
+  const seedCanvas: PageCanvas = wantCanvas && existing?.inheritLook && existing?.siteLook
+    ? sanitizeCanvas({ ...siteLookCanvasTokens(existing.siteLook), h: 1000, elements: [] })
+    : { h: 1000, elements: [], bg: '#ffffff' }
+  const newPage: SitePage = { id: 'p' + Date.now(), title, slug, headline: title, subheadline: '', sections: [], ...(wantCanvas ? { canvas: seedCanvas } : {}) }
   const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
   await saveSiteContent(id, { ...baseContent, pages: [...pages, newPage] })
   revalidatePath(`/sites/${id}/design`)
@@ -1170,6 +1180,38 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     }
     return Object.keys(out).length ? out : undefined
   }
+  // Site Look: per-role font overrides. Each of display/body/label is a validated fontFamily
+  // (role / custom: / whitelisted google:) — anything else drops to undefined (= follow the
+  // font system). Returns undefined when nothing valid survives, so the canvas stays tidy.
+  const fontRolesOf = (v: unknown): { display?: string; body?: string; label?: string } | undefined => {
+    if (!v || typeof v !== 'object') return undefined
+    const src = v as Record<string, unknown>
+    const out: { display?: string; body?: string; label?: string } = {}
+    const d = fontFamilyOf(src.display); if (d) out.display = d
+    const b = fontFamilyOf(src.body); if (b) out.body = b
+    const l = fontFamilyOf(src.label); if (l) out.label = l
+    return out.display || out.body || out.label ? out : undefined
+  }
+  // Site Look: the default styling for newly-added button elements. fill/color are colour
+  // strings or brand tokens (same gate as elements), radius a clamped int, font validated.
+  const buttonStyleOf = (v: unknown): { fill?: string; color?: string; radius?: number; fontFamily?: string } | undefined => {
+    if (!v || typeof v !== 'object') return undefined
+    const s = v as Record<string, unknown>
+    const out: { fill?: string; color?: string; radius?: number; fontFamily?: string } = {}
+    const fill = color(s.fill); if (fill) out.fill = fill
+    const col = color(s.color); if (col) out.color = col
+    if (s.radius !== undefined && s.radius !== null) out.radius = num(s.radius, 0, 400, 0)
+    const ff = fontFamilyOf(s.fontFamily); if (ff) out.fontFamily = ff
+    return Object.keys(out).length ? out : undefined
+  }
+  const linkStyleOf = (v: unknown): { color?: string; fontFamily?: string } | undefined => {
+    if (!v || typeof v !== 'object') return undefined
+    const s = v as Record<string, unknown>
+    const out: { color?: string; fontFamily?: string } = {}
+    const col = color(s.color); if (col) out.color = col
+    const ff = fontFamilyOf(s.fontFamily); if (ff) out.fontFamily = ff
+    return Object.keys(out).length ? out : undefined
+  }
   const rawEls = Array.isArray(c.elements) ? (c.elements as Record<string, unknown>[]) : []
   const elements: CanvasElement[] = rawEls.slice(0, 80).map((e, i) => sanitizeElement(e, i, true))
   // Flow Groups integrity (runs AFTER the 80-cap slice): a child's parentId must point to a
@@ -1226,6 +1268,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     guidesX: guideList(c.guidesX, 0, 4000),
     guidesY: guideList(c.guidesY, 0, 40000),
     textStyles: textStylesOf(c.textStyles),
+    fontRoles: fontRolesOf(c.fontRoles),
+    buttonStyle: buttonStyleOf(c.buttonStyle),
+    linkStyle: linkStyleOf(c.linkStyle),
     banner: (() => {
       const b = c.banner as Record<string, unknown> | undefined
       const text = String(b?.text ?? '').trim().slice(0, 200)
@@ -1314,6 +1359,136 @@ export async function saveCanvasAction(formData: FormData): Promise<void> {
   // editor remounts mid-edit (the "jump"). The editor holds the live state; the page is
   // force-dynamic so it re-fetches fresh on the next navigation anyway.
   await setPageCanvas(id, pageSlug, sanitizeCanvas(raw), false)
+}
+
+// --- Site Look (one look applied across all pages) --------------------------
+
+// The look-defining token fields of a canvas (the bits "Apply to all pages" copies). Pulled
+// out so applySiteLookAction, addPageAction and the SiteLook ⇄ canvas mapping all agree.
+const SITE_LOOK_FIELDS = ['bg', 'bgGradient', 'bgImage', 'bgOpacity', 'fontSystem', 'fontRoles', 'textStyles', 'palette', 'buttonStyle', 'linkStyle'] as const
+
+// The look tokens of a page's canvas, as a plain object. EVERY look field is set (absent ones
+// to undefined) so spreading this onto a target canvas reliably REPLACES that page's look —
+// including clearing a field the source page doesn't use (apply-to-all is replace-by-design).
+function lookTokensFromCanvas(canvas: PageCanvas): Partial<PageCanvas> {
+  const out: Record<string, unknown> = {}
+  const src = canvas as unknown as Record<string, unknown>
+  for (const k of SITE_LOOK_FIELDS) out[k] = src[k]
+  return out as Partial<PageCanvas>
+}
+
+// A SiteLook's tokens as canvas fields (SiteLook.bgGradient → canvas.bgGradient, etc.). Used
+// to seed a new page's canvas when "new pages inherit this look" is on. (bgGradient may be
+// null in SiteLook; sanitizeCanvas turns an invalid/absent gradient into undefined.)
+function siteLookCanvasTokens(look: SiteLook): Partial<PageCanvas> {
+  return {
+    bg: look.bg,
+    bgGradient: look.bgGradient ?? undefined,
+    bgImage: look.bgImage,
+    bgOpacity: look.bgOpacity,
+    fontSystem: look.fontSystem,
+    fontRoles: look.fontRoles,
+    textStyles: look.textStyles,
+    palette: look.palette,
+    buttonStyle: look.buttonStyle,
+    linkStyle: look.linkStyle,
+  }
+}
+
+// Restyle an existing element to match the look's button/link defaults. Only the style fields
+// change — geometry, text, links and everything else are preserved (footgun: spread the el).
+function restyleElementForLook(el: CanvasElement, look: SiteLook): CanvasElement {
+  if (el.type === 'button') {
+    const bs = look.buttonStyle
+    if (!bs) return el
+    return {
+      ...el,
+      fill: bs.fill ?? el.fill,
+      color: bs.color ?? el.color,
+      radius: bs.radius ?? el.radius,
+      fontFamily: bs.fontFamily ?? el.fontFamily,
+    }
+  }
+  // A "link" is a text element whose ctaType is 'link' (the editor's link preset).
+  if (el.type === 'text' && el.ctaType === 'link') {
+    const ls = look.linkStyle
+    if (!ls) return el
+    return { ...el, color: ls.color ?? el.color, fontFamily: ls.fontFamily ?? el.fontFamily }
+  }
+  return el
+}
+
+// Apply the SOURCE page's look (background, fonts, colours, text styles, button/link styles)
+// to EVERY page: set content.siteLook to it, overwrite the look-token fields on every page's
+// canvas, and restyle existing button/link elements to match. Preserves each page's
+// elements/layout and everything else (footgun: spread the page + canvas, only replace the
+// look fields). Also persists the "new pages inherit this look" flag.
+export async function applySiteLookAction(formData: FormData): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const id = String(formData.get('id') ?? '')
+  const sourceSlug = String(formData.get('sourceSlug') ?? '')
+  if (!id) return { ok: false }
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site?.content) return { ok: false }
+  const content = site.content
+  const pages = getPages(content)
+  // Require a CANVAS source: if sourceSlug names a block page (no canvas), fall back to the
+  // first canvas page rather than no-op'ing on the matched-but-canvasless page.
+  const source = pages.find(p => p.slug === sourceSlug && p.canvas) ?? pages.find(p => p.canvas)
+  if (!source?.canvas) return { ok: false }
+
+  // The canonical look = the source page's sanitised look tokens.
+  const tokens = lookTokensFromCanvas(source.canvas)
+  const look: SiteLook = {
+    bg: source.canvas.bg,
+    bgGradient: source.canvas.bgGradient ?? null,
+    bgImage: source.canvas.bgImage,
+    bgOpacity: source.canvas.bgOpacity,
+    fontSystem: source.canvas.fontSystem,
+    fontRoles: source.canvas.fontRoles,
+    textStyles: source.canvas.textStyles,
+    palette: source.canvas.palette,
+    buttonStyle: source.canvas.buttonStyle,
+    linkStyle: source.canvas.linkStyle,
+  }
+
+  // "new pages inherit this look": persisted alongside the look (the checkbox posts it).
+  const inheritLook = String(formData.get('inheritLook') ?? '') === '1'
+
+  // Overwrite the look fields on every canvas page; preserve elements + layout + everything
+  // else, then restyle existing button/link elements to the new look.
+  const updatedPages: SitePage[] = pages.map(p => {
+    if (!p.canvas) return p
+    const restyled = p.canvas.elements.map(el => restyleElementForLook(el, look))
+    return { ...p, canvas: { ...p.canvas, ...tokens, elements: restyled } as PageCanvas }
+  })
+  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+
+  await saveSiteContent(id, {
+    ...content, // footgun: spread the whole content so savedDesigns/booking/etc. survive
+    siteLook: look,
+    inheritLook,
+    headline: home.headline,
+    subheadline: home.subheadline,
+    sections: home.sections,
+    pages: updatedPages,
+  })
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}`)
+  return { ok: true }
+}
+
+// Persist just the "new pages inherit this look" flag (the checkbox, without re-applying the
+// whole look). Spread-preserves the rest of the content.
+export async function setSiteLookOptionAction(siteId: string, inheritLook: boolean): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(siteId)
+  if (!site) return { ok: false }
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(siteId, { ...existing, inheritLook: !!inheritLook })
+  return { ok: true }
 }
 
 // Turn a page into a blank free canvas.

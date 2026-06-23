@@ -1,6 +1,7 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import { THEMES, DEFAULT_THEME, type SiteContent, type SitePage, type SiteTheme, type CtaType, type Social, type SectionItem } from '@/lib/sites/types'
-import { fontVars } from '@/lib/sites/fonts'
+import { fontVars, fontRoleVars } from '@/lib/sites/fonts'
+import { googleStack } from '@/lib/sites/googleFonts'
 import { socialIcon } from '@/lib/sites/socialIcons'
 import { embedSrc } from '@/lib/sites/embed'
 import { CanvasView } from '@/lib/sites/CanvasView'
@@ -28,6 +29,10 @@ function socialHref(s: Social): string {
   if (s.kind === 'email') return s.url.startsWith('mailto:') ? s.url : `mailto:${s.url}`
   return /^https?:\/\//.test(s.url) ? s.url : `https://${s.url}`
 }
+
+// Resolve a Site Look role-override fontFamily to a CSS font value (mirrors CanvasView's fontVar).
+const lookFontVar = (f?: string) =>
+  f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : f && f.startsWith('google:') ? googleStack(f.slice(7)) : 'var(--font-display)'
 
 export default function PublicPage({
   siteSlug,
@@ -227,7 +232,7 @@ export default function PublicPage({
 
       <PageTransition kind={content?.pageTransition}>
       {page.canvas && !page.canvasHidden && page.canvas.elements.length > 0 ? (
-        <main className={`flex-1 ${contentPad}`} style={page.canvas.fontSystem ? (fontVars(page.canvas.fontSystem) as CSSProperties) : undefined}>
+        <main className={`flex-1 ${contentPad}`} style={(page.canvas.fontSystem || page.canvas.fontRoles) ? ({ ...(page.canvas.fontSystem ? fontVars(page.canvas.fontSystem) : {}), ...fontRoleVars(page.canvas.fontRoles, lookFontVar) } as CSSProperties) : undefined}>
           <CanvasView canvas={page.canvas} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={safeHref} navPages={visiblePages.map(p => ({ slug: p.slug, label: p.navLabel || p.title }))} />
         </main>
       ) : hasContent ? (

@@ -140,5 +140,10 @@ export function usedGoogleFamilies(canvas: PageCanvas): string[] {
   scanEls(canvas.elements)
   ;(canvas.components || []).forEach(c => scanEls(c.elements))
   if (canvas.textStyles) for (const k of Object.keys(canvas.textStyles)) scan(canvas.textStyles[k]?.fontFamily)
+  // Site Look: the per-role override fonts + the default button/link fonts must load too,
+  // or the published page won't match the look the owner chose.
+  if (canvas.fontRoles) { scan(canvas.fontRoles.display); scan(canvas.fontRoles.body); scan(canvas.fontRoles.label) }
+  scan(canvas.buttonStyle?.fontFamily)
+  scan(canvas.linkStyle?.fontFamily)
   return Array.from(out)
 }

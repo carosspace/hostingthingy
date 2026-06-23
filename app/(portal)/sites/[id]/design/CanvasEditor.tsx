@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
-import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
+import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
@@ -11,7 +11,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, setSiteLookOptionAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -292,6 +292,53 @@ type Drag =
 
 const GRID_SIZES = [8, 10, 16, 20, 24, 32, 40, 50] // selectable snap-grid cell sizes (design px)
 
+// One-click "Site Look" presets: tasteful background + Title/Body/Accent fonts (real Google
+// families) + a small brand palette. Clicking a chip applies it to the current page state.
+type PresetLook = {
+  name: string
+  bg: string
+  fontRoles: { display: string; body: string; label: string }
+  palette: string[]
+  headingColor?: string // optional Heading text-style colour the preset also nudges
+}
+const PRESET_LOOKS: PresetLook[] = [
+  {
+    name: 'Editorial',
+    bg: '#faf7f2',
+    fontRoles: { display: 'google:Cormorant Garamond', body: 'google:Jost', label: 'google:Jost' },
+    palette: ['#1a1612', '#9a7d2e', '#6b6560', '#e7e1d6'],
+    headingColor: '#1a1612',
+  },
+  {
+    name: 'Classic',
+    bg: '#ffffff',
+    fontRoles: { display: 'google:Playfair Display', body: 'google:Inter', label: 'google:Inter' },
+    palette: ['#111111', '#b08642', '#7a7a7a', '#efeae1'],
+    headingColor: '#111111',
+  },
+  {
+    name: 'Warm serif',
+    bg: '#fbf6ef',
+    fontRoles: { display: 'google:DM Serif Display', body: 'google:DM Sans', label: 'google:DM Sans' },
+    palette: ['#2a1c14', '#a85c36', '#8a7a6a', '#ece2d4'],
+    headingColor: '#2a1c14',
+  },
+  {
+    name: 'Modern',
+    bg: '#0e1116',
+    fontRoles: { display: 'google:Space Grotesk', body: 'google:Inter', label: 'google:Space Grotesk' },
+    palette: ['#f5f5f4', '#7cc4ff', '#a1a1aa', '#1c222b'],
+    headingColor: '#f5f5f4',
+  },
+  {
+    name: 'Soft sans',
+    bg: '#f6f5f3',
+    fontRoles: { display: 'google:Fraunces', body: 'google:Manrope', label: 'google:Manrope' },
+    palette: ['#22201d', '#5c7a52', '#7d7a72', '#e6e8e1'],
+    headingColor: '#22201d',
+  },
+]
+
 export default function CanvasEditor({
   siteId,
   siteSlug,
@@ -305,6 +352,7 @@ export default function CanvasEditor({
   allPages = [],
   brandVoice: initialBrandVoice = '',
   pageTransition: initialPageTransition = 'none',
+  inheritLook: initialInheritLook = false,
   initial,
 }: {
   siteId: string
@@ -319,6 +367,7 @@ export default function CanvasEditor({
   allPages?: { slug: string; title: string; hidden?: boolean }[]
   brandVoice?: string
   pageTransition?: PageTransitionKind
+  inheritLook?: boolean
   initial: PageCanvas | null
 }) {
   const t = THEMES[theme] ?? THEMES.sand
@@ -335,6 +384,14 @@ export default function CanvasEditor({
   const [editingComp, setEditingComp] = useState<{ id: string; outsideIds: string[]; origX: number; origY: number; origW: number; origH: number; origOpacity: number; origZ: number } | null>(null) // editing a component master in place
   const [uploads, setUploads] = useState<string[]>(initial?.uploads ?? []) // reusable image/logo library to drag onto the canvas
   const [fontSys, setFontSys] = useState(initial?.fontSystem || fontSystem) // this page's font bundle
+  // Site Look: per-role font overrides (Title/Body/Accent) + default button/link styling for
+  // newly-added elements. '' on a role = follow the font system.
+  const [fontRoles, setFontRoles] = useState<{ display?: string; body?: string; label?: string }>(initial?.fontRoles ?? {})
+  const [buttonStyle, setButtonStyle] = useState<{ fill?: string; color?: string; radius?: number; fontFamily?: string }>(initial?.buttonStyle ?? {})
+  const [linkStyle, setLinkStyle] = useState<{ color?: string; fontFamily?: string }>(initial?.linkStyle ?? {})
+  // Whether new pages inherit the canonical Site Look (persisted site-wide via applySiteLookAction).
+  const [inheritLook, setInheritLook] = useState<boolean>(initialInheritLook)
+  const [applyingLook, setApplyingLook] = useState(false) // "Apply to all pages" in flight
   const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -520,8 +577,11 @@ export default function CanvasEditor({
     els.forEach(e => add(e.fontFamily))
     for (const c of components) for (const e of c.elements || []) add(e.fontFamily)
     for (const k of Object.keys(textStyles)) add(textStyles[k]?.fontFamily)
+    // Site Look role-override fonts + the default button/link fonts (mirrors usedGoogleFamilies).
+    add(fontRoles.display); add(fontRoles.body); add(fontRoles.label)
+    add(buttonStyle.fontFamily); add(linkStyle.fontFamily)
     fams.forEach(ensureGoogleFont)
-  }, [els, textStyles, components])
+  }, [els, textStyles, components, fontRoles, buttonStyle, linkStyle])
   const [banner, setBanner] = useState<SiteBanner | null>(initial?.banner ?? null) // optional announcement bar above the page
   const [popup, setPopup] = useState<SitePopup | null>(initial?.popup ?? null) // optional one-time modal
   const [critique, setCritique] = useState<DesignCritique | null>(null) // AI design review result
@@ -1325,6 +1385,18 @@ export default function CanvasEditor({
     const deskX = editingMobile ? Math.max(0, Math.min(120 + (n % 5) * 24, CANVAS_W - ew)) : Math.max(0, Math.min(Math.round(c.x - ew / 2), CANVAS_W - ew))
     const deskY = editingMobile ? 120 + (n % 8) * 24 : Math.max(0, Math.round(c.y - eh / 2))
     const el: CanvasElement = { id: 'e' + idc.current++, x: deskX, y: deskY, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
+    // Site Look: new buttons + links pick up this page's default button/link styling so they
+    // match the chosen look. Only fields the look actually sets are applied; the rest keep the
+    // preset's defaults. A "link" is a text element with ctaType 'link'.
+    if (el.type === 'button') {
+      if (buttonStyle.fill) el.fill = buttonStyle.fill
+      if (buttonStyle.color) el.color = buttonStyle.color
+      if (buttonStyle.radius != null) el.radius = buttonStyle.radius
+      if (buttonStyle.fontFamily) el.fontFamily = buttonStyle.fontFamily
+    } else if (el.type === 'text' && el.ctaType === 'link') {
+      if (linkStyle.color) el.color = linkStyle.color
+      if (linkStyle.fontFamily) el.fontFamily = linkStyle.fontFamily
+    }
     // When the page has a custom phone layout, also give the new element sensible
     // phone coords so it lands on-screen there (it exists on both devices). While the
     // phone artboard is the active frame, drop it at the visible viewport centre.
@@ -1767,6 +1839,46 @@ export default function CanvasEditor({
     }
   }
 
+  // Apply a one-click Site Look preset to the CURRENT page's state: background, the three role
+  // fonts, the brand palette, and (gently) the Heading text-style colour. Undoable; the chosen
+  // Google fonts warm via the effect on fontRoles. The owner can then "Apply to all pages".
+  const applyPresetLook = (p: PresetLook) => {
+    snapshot(true)
+    setBg(p.bg); setBgGrad(null); setBgImage('')
+    setFontRoles({ ...p.fontRoles })
+    setPalette(p.palette.slice(0, MAX_PALETTE))
+    if (p.headingColor) setTextStyles(prev => ({ ...prev, heading: { ...(prev.heading || defaultTextStyles().heading), color: p.headingColor } }))
+    for (const ff of [p.fontRoles.display, p.fontRoles.body, p.fontRoles.label]) if (ff.startsWith('google:')) ensureGoogleFont(ff.slice(7))
+    touch()
+  }
+
+  // "Apply to all pages": flush the editor first (so the source page's look is persisted), then
+  // copy this page's look onto every page server-side and reload to show the change everywhere.
+  const applyLookToAllPages = async () => {
+    if (applyingLook) return
+    if (!confirm('Apply this page’s look — background, fonts, colours, button/link styles — to every page? Each page’s own colours/fonts will be replaced.')) return
+    setApplyingLook(true)
+    try {
+      await (window as unknown as { __cvFlush?: () => Promise<void> }).__cvFlush?.()
+      const fd = new FormData()
+      fd.set('id', siteId)
+      fd.set('sourceSlug', pageSlug)
+      fd.set('inheritLook', inheritLook ? '1' : '')
+      const res = await applySiteLookAction(fd)
+      if (res?.ok) window.location.reload()
+      else { setApplyingLook(false); alert('Couldn’t apply the look to all pages — please try again.') }
+    } catch {
+      setApplyingLook(false)
+      alert('Couldn’t apply the look to all pages — please try again.')
+    }
+  }
+
+  // Toggle "new pages inherit this look" (persisted site-wide, separate from the page canvas save).
+  const toggleInheritLook = (on: boolean) => {
+    setInheritLook(on)
+    void setSiteLookOptionAction(siteId, on)
+  }
+
   // Set the site-wide page-transition style (fire-and-forget; it's a site-level setting,
   // separate from the per-page canvas save).
   const changePageTransition = (kind: PageTransitionKind) => {
@@ -2047,6 +2159,7 @@ export default function CanvasEditor({
         c?.width === 'contained' ? 'contained' : 'full', c?.palette || [], c?.fonts || [], c?.components || [], c?.uploads || [],
         c?.fontSystem || '', c?.guidesX || [], c?.guidesY || [], c?.textStyles || null, c?.banner || null, c?.popup || null,
         !!c?.mobileCustom, c?.mobileCustom ? (c?.mobileH || 0) : 0, c?.mobileMode === 'stack' ? 'stack' : 'scale',
+        c?.fontRoles || null, c?.buttonStyle || null, c?.linkStyle || null,
       ])
       if (d?.canvas && sig(d.canvas) !== sig(initial)) {
         draftCanvas.current = d.canvas
@@ -2071,7 +2184,7 @@ export default function CanvasEditor({
     }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, fontRoles, buttonStyle, linkStyle, guidesX, guidesY, textStyles, banner, popup])
 
   // Continuous SERVER auto-save (debounced) so the owner never has to press Save and
   // switching pages can't lose work. Backs off quietly on the same guards save() would
@@ -2083,7 +2196,7 @@ export default function CanvasEditor({
     const t = setTimeout(() => { void save(true) }, 1200)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileMode, mobileH, palette, fonts, components, uploads, fontSys, fontRoles, buttonStyle, linkStyle, guidesX, guidesY, textStyles, banner, popup])
 
   // Focus the element being inline-edited and drop the cursor at the end.
   useEffect(() => {
@@ -2235,6 +2348,11 @@ export default function CanvasEditor({
     guidesX: guidesX.length ? guidesX : undefined,
     guidesY: guidesY.length ? guidesY : undefined,
     textStyles,
+    // Site Look: only emit a roles/style object when something is actually set (keeps the
+    // canvas tidy and "undefined ⟺ follow the font system / element defaults").
+    fontRoles: (fontRoles.display || fontRoles.body || fontRoles.label) ? fontRoles : undefined,
+    buttonStyle: (buttonStyle.fill || buttonStyle.color || buttonStyle.radius != null || buttonStyle.fontFamily) ? buttonStyle : undefined,
+    linkStyle: (linkStyle.color || linkStyle.fontFamily) ? linkStyle : undefined,
     banner: banner && banner.text.trim() ? banner : undefined,
     popup: popup && popup.text.trim() ? popup : undefined,
   })
@@ -2254,6 +2372,9 @@ export default function CanvasEditor({
     setComponents(c.components || [])
     setUploads(c.uploads || [])
     setFontSys(c.fontSystem || fontSystem)
+    setFontRoles(c.fontRoles ?? {})
+    setButtonStyle(c.buttonStyle ?? {})
+    setLinkStyle(c.linkStyle ?? {})
     setGuidesX(c.guidesX || [])
     setGuidesY(c.guidesY || [])
     setTextStyles(c.textStyles ?? defaultTextStyles())
@@ -2803,6 +2924,91 @@ export default function CanvasEditor({
 
         {lib && panelTab === 'design' && (<>
         <button type="button" onClick={() => setShowTemplates(true)} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2.5 rounded-sm">🎨 Start from a template</button>
+
+        {/* ─────────────── Site look ─────────────── */}
+        <div className="h-px bg-gold/15" />
+        <div className="rounded-md" style={{ border: `1px solid ${ui}40`, background: `${ui}0a`, padding: 12 }}>
+          <div className="flex items-center justify-between">
+            <p className="font-label text-[10px] tracking-[2px] uppercase" style={{ color: ui, fontWeight: 700 }}>✦ Site look</p>
+          </div>
+          <p className="font-body text-ash/55 text-[11px] mt-1 mb-2.5 leading-relaxed">Set this page&rsquo;s background, fonts, brand colours and button/link styles in one place — then apply the look to every page.</p>
+
+          {/* Theme presets */}
+          <p style={labelCss}>Quick looks</p>
+          <div className="flex flex-wrap gap-1.5 mt-1.5 mb-1">
+            {PRESET_LOOKS.map(p => (
+              <button key={p.name} type="button" onClick={() => applyPresetLook(p)} title={`Apply the “${p.name}” look`} className="inline-flex items-center gap-1.5 rounded-sm px-2 py-1.5" style={{ border: '1px solid rgba(0,0,0,0.15)', background: '#fff' }}>
+                <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', background: p.bg, flex: 'none' }} />
+                <span style={{ fontFamily: p.fontRoles.display.startsWith('google:') ? googleStack(p.fontRoles.display.slice(7)) : undefined, fontSize: 12, color: '#2a2a2a' }}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Fonts: the three role-override pickers */}
+          <p style={{ ...labelCss, marginTop: 10 }}>Fonts</p>
+          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">Pick any font for titles, body text and small labels — used everywhere on this page. Leave a row to follow the font style below.</p>
+          {([['display', 'Title font'], ['body', 'Body font'], ['label', 'Accent / labels']] as ['display' | 'body' | 'label', string][]).map(([role, lbl]) => {
+            const cur = fontRoles[role]
+            return (
+              <div key={role} className="mb-2">
+                <div className="flex items-center justify-between">
+                  <span style={labelCss}>{lbl}</span>
+                  {cur && <button type="button" onClick={() => { setFontRoles(r => ({ ...r, [role]: undefined })); touch() }} className="font-body text-[10px] text-gold/70 hover:text-gold">↺ follow font style</button>}
+                </div>
+                <GoogleFontPicker value={cur} onPick={ff => { setFontRoles(r => ({ ...r, [role]: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+              </div>
+            )
+          })}
+
+          {/* Buttons */}
+          <p style={{ ...labelCss, marginTop: 6 }}>Buttons</p>
+          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new buttons you add.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={labelCss}>Fill</span>
+            {colorField(buttonStyle.fill, v => { setButtonStyle(s => ({ ...s, fill: v })); touch() }, '#111111')}
+            <span style={labelCss}>Text</span>
+            {colorField(buttonStyle.color, v => { setButtonStyle(s => ({ ...s, color: v })); touch() }, '#ffffff')}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span style={labelCss}>Radius</span>
+            <input type="range" min={0} max={40} value={buttonStyle.radius ?? 6} onChange={e => { setButtonStyle(s => ({ ...s, radius: Number(e.target.value) })); touch() }} style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: '#666', width: 26 }}>{buttonStyle.radius ?? 6}</span>
+          </div>
+          <div className="mt-1.5">
+            <select value={(buttonStyle.fontFamily || '').startsWith('google:') ? '' : (buttonStyle.fontFamily || '')} onChange={e => { setButtonStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+              <option value="">Default (label font)</option>
+              <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+              {(buttonStyle.fontFamily || '').startsWith('google:') && <option value="">{buttonStyle.fontFamily!.slice(7)} (Google)</option>}
+            </select>
+            <GoogleFontPicker value={buttonStyle.fontFamily} onPick={ff => { setButtonStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+          </div>
+
+          {/* Links */}
+          <p style={{ ...labelCss, marginTop: 10 }}>Links</p>
+          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new text links you add.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={labelCss}>Colour</span>
+            {colorField(linkStyle.color, v => { setLinkStyle(s => ({ ...s, color: v })); touch() }, '#9a7d2e')}
+          </div>
+          <div className="mt-1.5">
+            <select value={(linkStyle.fontFamily || '').startsWith('google:') ? '' : (linkStyle.fontFamily || '')} onChange={e => { setLinkStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+              <option value="">Default (label font)</option>
+              <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+              {(linkStyle.fontFamily || '').startsWith('google:') && <option value="">{linkStyle.fontFamily!.slice(7)} (Google)</option>}
+            </select>
+            <GoogleFontPicker value={linkStyle.fontFamily} onPick={ff => { setLinkStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+          </div>
+
+          <p className="font-body text-ash/45 text-[10.5px] mt-2.5 leading-relaxed">Background, brand colours and text styles for the look are set in the sections below.</p>
+
+          {/* Apply to all pages + inherit */}
+          <div className="h-px bg-gold/15 my-2.5" />
+          <button type="button" onClick={applyLookToAllPages} disabled={applyingLook} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2.5 rounded-sm">{applyingLook ? 'Applying…' : '✦ Apply this look to all pages'}</button>
+          <label className="flex items-start gap-2 mt-2 font-body text-ash/70 text-[12px] leading-snug cursor-pointer">
+            <input type="checkbox" checked={inheritLook} onChange={e => toggleInheritLook(e.target.checked)} style={{ accentColor: ui, marginTop: 2 }} />
+            <span>New pages inherit this look</span>
+          </label>
+        </div>
 
         <div className="h-px bg-gold/15" />
         <div>
@@ -3899,7 +4105,7 @@ export default function CanvasEditor({
 
         {device === 'mobile' && !mobileCustom ? (
           // Read-only phone preview — mirrors the public render for the chosen mode.
-          <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSys) } as CSSProperties}>
+          <div className="mx-auto rounded-[28px] overflow-hidden border-[7px] border-neutral-300 shadow-md" style={{ maxWidth: 360, background: bg || t.bg, ...fontVars(fontSys), ...fontRoleVars(fontRoles, fontVar) } as CSSProperties}>
             <div style={{ pointerEvents: 'none' }}>
               {mobileMode === 'stack' ? (
                 <MobileStack canvas={{ h: desktopH, bg: bg.trim() || undefined, bgGradient: bgGrad || undefined, bgImage: bgImage.trim() || undefined, bgOpacity: bgOpacity >= 100 ? undefined : bgOpacity, elements: els, palette: palette.length ? palette : undefined, components }} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
@@ -3930,7 +4136,7 @@ export default function CanvasEditor({
               </div>
             )}
           <div ref={viewportRef} onWheel={e => { if (!editingMobile && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setZoomClamped(zoom - e.deltaY * 0.0015) } }} style={{ overflow: 'auto', maxHeight: '80vh' }}>
-          <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSys), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
+          <div className={`rounded-sm overflow-hidden border border-gold/15 ${zoom === 1 || editingMobile ? 'mx-auto' : ''} ${!editingMobile && pageWidth === 'contained' && zoom === 1 ? 'max-w-3xl' : ''}`} style={{ ...fontVars(fontSys), ...fontRoleVars(fontRoles, fontVar), width: editingMobile ? 380 : zoom === 1 ? '100%' : `${zoom * 100}%`, maxWidth: editingMobile ? 380 : undefined } as CSSProperties}>
             {banner && banner.text.trim() && (
               <div style={{ background: banner.bg || '#141414', color: banner.color || '#ffffff', fontSize: 13, lineHeight: 1.3, padding: '8px 12px', textAlign: 'center', position: 'relative' }}>
                 {banner.text}
