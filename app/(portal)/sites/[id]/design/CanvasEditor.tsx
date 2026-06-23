@@ -1745,12 +1745,25 @@ export default function CanvasEditor({
   // navigation never loses work. This does NOT publish — only the Save button does.
   useEffect(() => {
     if (!dirty.current) return
+    if (draftAt) return // a recovery draft is pending — don't overwrite it until the owner restores/discards
     const t = setTimeout(() => {
       try {
         const payload = JSON.stringify({ ts: Date.now(), canvas: buildCanvas() })
         if (payload.length < 3_000_000) localStorage.setItem(draftKey, payload) // stay under the localStorage quota
       } catch { /* full / over quota — the manual Save still works */ }
     }, 1500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
+
+  // Continuous SERVER auto-save (debounced) so the owner never has to press Save and
+  // switching pages can't lose work. Backs off quietly on the same guards save() would
+  // hit (mid component-edit, >80 els) so it never pops an error while editing.
+  useEffect(() => {
+    if (!dirty.current) return
+    if (draftAt) return // a recovery draft is pending — never auto-save over / clear it before the owner restores
+    if (editingComp || elsRef.current.length > 80) return
+    const t = setTimeout(() => { void save(true) }, 1200)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [els, bg, bgGrad, bgImage, bgVideo, bgOpacity, pageWidth, mobileCustom, mobileH, palette, fonts, components, uploads, fontSys, guidesX, guidesY, textStyles, banner, popup])
@@ -1930,12 +1943,13 @@ export default function CanvasEditor({
     const maxId = (c.elements || []).reduce((m, e) => { const n = parseInt(String(e.id).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? Math.max(m, n) : m }, 0)
     idc.current = Math.max(idc.current, maxId + 1)
   }
-  async function save() {
-    // finish or cancel the master edit first — never persist mid-edit loose elements
-    if (editingComp) { setSaveError('Finish or cancel the component edit before saving or switching pages.'); setFocusMode(false); return }
+  async function save(auto = false) {
+    // finish or cancel the master edit first — never persist mid-edit loose elements.
+    // On auto-save, skip quietly so we never pop an error mid-edit.
+    if (editingComp) { if (auto) return; setSaveError('Finish or cancel the component edit before saving or switching pages.'); setFocusMode(false); return }
     // The save gate keeps only the first 80 elements; never report "Saved" while silently
     // dropping the rest — warn and abort so the owner can trim the page first.
-    if (elsRef.current.length > 80) { setSaveError('This page has more than 80 elements — only the first 80 can be saved. Combine or remove a few, then save again.'); setFocusMode(false); return }
+    if (elsRef.current.length > 80) { if (auto) return; setSaveError('This page has more than 80 elements — only the first 80 can be saved. Combine or remove a few, then save again.'); setFocusMode(false); return }
     setSaving(true)
     const canvas = buildCanvas()
     const payload = JSON.stringify(canvas)
@@ -1943,6 +1957,7 @@ export default function CanvasEditor({
     // images add up fast. Warn with something actionable instead of a silent failure.
     if (payload.length > 11_500_000) {
       setSaving(false)
+      if (auto) return // auto-save backs off quietly; the manual Save still surfaces this
       setSaveError('This page is too heavy to save — its images add up to more than ~11 MB. Remove some uploads or use smaller/fewer photos, then save again.')
       setFocusMode(false) // make the error visible if the panel is hidden
       return
@@ -1965,6 +1980,18 @@ export default function CanvasEditor({
       setSaving(false)
     }
   }
+
+  // Expose a flush so the top "Pages" tabs (a separate client component) can persist the
+  // current page before navigating — switching pages can't lose work. `save` is a hoisted
+  // function declaration, so referencing it here is safe; the ref keeps it current.
+  const saveRef = useRef<(auto?: boolean) => Promise<void>>(save)
+  saveRef.current = save
+  useEffect(() => {
+    ;(window as unknown as { __cvFlush?: () => Promise<void> }).__cvFlush = async () => {
+      if (dirty.current) await saveRef.current(true)
+    }
+    return () => { delete (window as unknown as { __cvFlush?: () => Promise<void> }).__cvFlush }
+  }, [])
 
   // Visual for one element inside the canvas.
   const elInner = (el: CanvasElement) => {
@@ -2229,9 +2256,15 @@ export default function CanvasEditor({
             <button type="button" onClick={() => setFocusMode(true)} title="Hide this panel (or double-click the canvas)" style={{ fontSize: 16, lineHeight: 1, color: '#b6bbc4', width: 20 }} className="hover:text-gold">⟨</button>
           </div>
         </div>
-        <button type="button" onClick={save} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} style={{ background: saved ? '#1f9d6b' : ui }} className="text-white hover:brightness-110 text-[12px] font-semibold tracking-wide px-4 py-2.5 rounded-xl disabled:opacity-50 transition">
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button type="button" onClick={() => save()} disabled={saving || !!editingComp} title={editingComp ? 'Finish editing the component first' : undefined} style={{ background: saved ? '#1f9d6b' : ui }} className="text-white hover:brightness-110 text-[12px] font-semibold tracking-wide px-4 py-2.5 rounded-xl disabled:opacity-50 transition">
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & publish'}
+          </button>
+          {/* Auto-save status — the owner never has to press Save; this just reassures. */}
+          <span className="font-label text-[9px] tracking-[1px] uppercase" style={{ color: '#9aa0ab' }}>
+            {saving ? 'Saving…' : (saved && !dirty.current) ? 'Saved' : (dirty.current && !saving) ? 'Unsaved…' : ''}
+          </span>
+        </div>
         {saveError && (
           <p className="font-body text-[11px] leading-relaxed rounded-sm px-2.5 py-2" style={{ color: '#8a2b1d', background: '#fbe9e6', border: '1px solid rgba(179,64,47,0.3)' }}>{saveError}</p>
         )}

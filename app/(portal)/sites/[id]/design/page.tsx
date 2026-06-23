@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
-import { generateSiteAction, addPageAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
+import { generateSiteAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
 import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
+import PageTabs from './PageTabs'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,35 +75,12 @@ export default async function DesignPage({
 
       {/* Pages & menu */}
       <div className="space-y-3 border-b border-gold/10 pb-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-label text-[9px] tracking-[3px] uppercase text-gold/60 mr-1">Pages</span>
-          {pages.map(p => (
-            <Link
-              key={p.id}
-              href={`/sites/${site.id}/design?page=${p.slug}`}
-              className={`font-label text-[10px] tracking-[2px] uppercase px-3 py-1.5 rounded-sm transition-colors ${
-                p.slug === current.slug ? 'bg-gold text-background' : 'border border-gold/20 text-ash hover:text-gold'
-              }`}
-            >
-              {p.navLabel || p.title || 'Untitled'}
-              {p.hidden && <span className="opacity-50"> · hidden</span>}
-            </Link>
-          ))}
-          <form action={addPageAction} className="flex items-center gap-1">
-            <input type="hidden" name="id" value={site.id} />
-            {/* Inherit the current build mode: a new page added from a canvas page is a canvas page. */}
-            <input type="hidden" name="canvas" value={current.canvas ? '1' : ''} />
-            <input
-              name="title"
-              placeholder="New page name"
-              className="bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-xs px-3 py-1.5 rounded-sm outline-none placeholder:text-ash/40"
-              style={{ width: 130 }}
-            />
-            <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">
-              + Add
-            </button>
-          </form>
-        </div>
+        <PageTabs
+          siteId={site.id}
+          pages={pages.map(p => ({ id: p.id, slug: p.slug, navLabel: p.navLabel, title: p.title, hidden: p.hidden }))}
+          currentSlug={current.slug}
+          newCanvas={current.canvas ? '1' : ''}
+        />
 
         {/* Edit the menu: the current page's settings + extra (non-page) links */}
         <details key={current.slug} className="border border-gold/15 rounded-sm px-4 py-3">
