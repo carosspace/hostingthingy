@@ -148,6 +148,24 @@ function pushRecent(hex: string) {
 function removeRecentColor(hex: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(readRecent().filter(c => c.toLowerCase() !== hex.toLowerCase()))) } catch { /* ignore */ }
 }
+// The row of "default colours" is editable: the owner can remove ones they never use
+// (each gets an × like Recent), persisted in localStorage. Absent key = the full set;
+// once customised we store the kept list. Reset restores the original set.
+const DEFAULTS_KEY = 'cveditor:defaultColors'
+function readDefaults(): string[] {
+  try {
+    const raw = localStorage.getItem(DEFAULTS_KEY)
+    if (raw == null) return DEFAULT_SOLIDS
+    const a = JSON.parse(raw)
+    return Array.isArray(a) ? a.filter((c: unknown) => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) : DEFAULT_SOLIDS
+  } catch { return DEFAULT_SOLIDS }
+}
+function removeDefaultColor(hex: string) {
+  try { localStorage.setItem(DEFAULTS_KEY, JSON.stringify(readDefaults().filter(c => c.toLowerCase() !== hex.toLowerCase()))) } catch { /* ignore */ }
+}
+function resetDefaultColors() {
+  try { localStorage.removeItem(DEFAULTS_KEY) } catch { /* ignore */ }
+}
 
 // A Canva-style colour control: a swatch button + hex box inline; clicking the swatch
 // opens a floating picker with an HSV spectrum, an eyedropper, the brand palette
@@ -161,6 +179,7 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const [hsv, setHsv] = useState(() => hexToHsv(current))
   const [recent, setRecent] = useState<string[]>([])
+  const [defaults, setDefaults] = useState<string[]>(DEFAULT_SOLIDS)
   const wrapRef = useRef<HTMLSpanElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
   useEffect(() => { setText(resolved) }, [resolved])
@@ -168,6 +187,7 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
   const openPicker = () => {
     setHsv(hexToHsv(current))
     setRecent(readRecent())
+    setDefaults(readDefaults())
     const r = wrapRef.current?.getBoundingClientRect()
     if (r) setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - 240)), top: Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 320)) })
     setOpen(true)
@@ -243,9 +263,19 @@ function ColorField({ value, onChange, fallback, palette }: { value?: string; on
               </div>
             </>
           )}
-          <div style={{ ...labelCss, marginTop: 12, marginBottom: 6 }}>Default colours</div>
-          <div className="flex flex-wrap gap-1.5">
-            {DEFAULT_SOLIDS.map(c => swatch(c, resolved.toLowerCase() === c, () => pick(c), c))}
+          <div style={{ ...labelCss, marginTop: 12, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Default colours</span>
+            {defaults.length !== DEFAULT_SOLIDS.length && (
+              <button type="button" title="Restore the default colours" onClick={() => { resetDefaultColors(); setDefaults(readDefaults()) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', textTransform: 'none', color: '#9aa0ab', textDecoration: 'underline' }}>Reset</button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {defaults.map(c => (
+              <span key={c} style={{ position: 'relative', display: 'inline-block' }}>
+                {swatch(c, resolved.toLowerCase() === c, () => pick(c), c)}
+                <button type="button" title="Remove this colour" onClick={e => { e.stopPropagation(); removeDefaultColor(c); setDefaults(readDefaults()) }} style={{ position: 'absolute', top: -5, right: -5, width: 14, height: 14, borderRadius: 999, background: '#fff', border: '1px solid rgba(0,0,0,0.25)', fontSize: 9, lineHeight: '11px', color: '#666', padding: 0, cursor: 'pointer' }}>×</button>
+              </span>
+            ))}
           </div>
         </div>,
         document.body
