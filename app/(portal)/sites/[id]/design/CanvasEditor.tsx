@@ -3199,11 +3199,13 @@ export default function CanvasEditor({
           </div>
         ))}
 
-        {/* 8 ── Font style */}
+        {/* 8 ── Typography (quick pairings + your fonts + text styles, merged) */}
         <div className="h-px bg-gold/15" />
-        {Section('fontstyle', 'Font style', (
+        {Section('typography', 'Typography', (
           <>
-            <p className="font-body text-ash/50 text-[11px] mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
+            {/* Quick pairings — the FONT_SYSTEMS preview tiles */}
+            <p style={labelCss}>Quick pairings</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
             <div className="grid grid-cols-2 gap-1.5">
               {FONT_SYSTEMS.map(f => {
                 const on = fontSys === f.key
@@ -3215,14 +3217,11 @@ export default function CanvasEditor({
                 )
               })}
             </div>
-          </>
-        ))}
 
-        {/* 9 ── Fonts — Title / Body / Accent (the three role-override pickers) */}
-        <div className="h-px bg-gold/15" />
-        {Section('fonts', 'Fonts — Title / Body / Accent', (
-          <>
-            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Pick any font for titles, body text and small labels — used everywhere on this page. Leave a row to follow the font style above.</p>
+            {/* Your fonts — the three role-override pickers */}
+            <div className="h-px bg-gold/15 my-3" />
+            <p style={labelCss}>Your fonts</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">Pick any font for titles, body text and small labels — used everywhere on this page. Leave a row to follow the font style above.</p>
             {([['display', 'Title font'], ['body', 'Body font'], ['label', 'Accent / labels']] as ['display' | 'body' | 'label', string][]).map(([role, lbl]) => {
               const cur = fontRoles[role]
               return (
@@ -3235,56 +3234,12 @@ export default function CanvasEditor({
                 </div>
               )
             })}
-          </>
-        ))}
 
-        {/* 10 ── Buttons & links */}
-        <div className="h-px bg-gold/15" />
-        {Section('buttonslinks', 'Buttons & links', (
-          <>
-            <p style={labelCss}>Buttons</p>
-            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new buttons you add.</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span style={labelCss}>Fill</span>
-              {colorField(buttonStyle.fill, v => { setButtonStyle(s => ({ ...s, fill: v })); touch() }, '#111111')}
-              <span style={labelCss}>Text</span>
-              {colorField(buttonStyle.color, v => { setButtonStyle(s => ({ ...s, color: v })); touch() }, '#ffffff')}
-            </div>
-            <div className="flex items-center gap-2 mt-1.5">
-              <span style={labelCss}>Radius</span>
-              <input type="range" min={0} max={40} value={buttonStyle.radius ?? 6} onChange={e => { setButtonStyle(s => ({ ...s, radius: Number(e.target.value) })); touch() }} style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, color: '#666', width: 26 }}>{buttonStyle.radius ?? 6}</span>
-            </div>
-            <div className="mt-1.5">
-              <select value={(buttonStyle.fontFamily || '').startsWith('google:') ? '' : (buttonStyle.fontFamily || '')} onChange={e => { setButtonStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
-                <option value="">Default (label font)</option>
-                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
-                {(buttonStyle.fontFamily || '').startsWith('google:') && <option value="">{buttonStyle.fontFamily!.slice(7)} (Google)</option>}
-              </select>
-              <GoogleFontPicker value={buttonStyle.fontFamily} onPick={ff => { setButtonStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
-            </div>
-            <p style={{ ...labelCss, marginTop: 10 }}>Links</p>
-            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new text links you add.</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span style={labelCss}>Colour</span>
-              {colorField(linkStyle.color, v => { setLinkStyle(s => ({ ...s, color: v })); touch() }, '#9a7d2e')}
-            </div>
-            <div className="mt-1.5">
-              <select value={(linkStyle.fontFamily || '').startsWith('google:') ? '' : (linkStyle.fontFamily || '')} onChange={e => { setLinkStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
-                <option value="">Default (label font)</option>
-                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
-                {(linkStyle.fontFamily || '').startsWith('google:') && <option value="">{linkStyle.fontFamily!.slice(7)} (Google)</option>}
-              </select>
-              <GoogleFontPicker value={linkStyle.fontFamily} onPick={ff => { setLinkStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
-            </div>
-          </>
-        ))}
-
-        {/* 11 ── Text styles (its inner per-style expanders stay working) */}
-        <div className="h-px bg-gold/15" />
-        {Section('textstyles', 'Text styles', (
-          <>
-            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Set Heading, Body and the rest once — every text you&rsquo;ve linked to a style updates together. Link a text from its own panel.</p>
+            {/* Text styles — the per-type expanders */}
+            <div className="h-px bg-gold/15 my-3" />
+            <p style={labelCss}>Text styles</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1 leading-relaxed">Set Heading, Body and the rest once — every text you&rsquo;ve linked to a style updates together.</p>
+            <p className="font-body text-ash/40 text-[11px] mb-1.5 leading-relaxed">To link a text: select it on the canvas, then pick a type (Heading, Body…) in its panel.</p>
             <div className="space-y-1">
               {TEXT_STYLE_KEYS.map(key => {
                 const s = textStyles[key] || defaultTextStyles()[key]
@@ -3333,6 +3288,48 @@ export default function CanvasEditor({
                   </div>
                 )
               })}
+            </div>
+          </>
+        ))}
+
+        {/* 10 ── Buttons & links */}
+        <div className="h-px bg-gold/15" />
+        {Section('buttonslinks', 'Buttons & links', (
+          <>
+            <p style={labelCss}>Buttons</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new buttons you add.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span style={labelCss}>Fill</span>
+              {colorField(buttonStyle.fill, v => { setButtonStyle(s => ({ ...s, fill: v })); touch() }, '#111111')}
+              <span style={labelCss}>Text</span>
+              {colorField(buttonStyle.color, v => { setButtonStyle(s => ({ ...s, color: v })); touch() }, '#ffffff')}
+            </div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span style={labelCss}>Radius</span>
+              <input type="range" min={0} max={40} value={buttonStyle.radius ?? 6} onChange={e => { setButtonStyle(s => ({ ...s, radius: Number(e.target.value) })); touch() }} style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: '#666', width: 26 }}>{buttonStyle.radius ?? 6}</span>
+            </div>
+            <div className="mt-1.5">
+              <select value={(buttonStyle.fontFamily || '').startsWith('google:') ? '' : (buttonStyle.fontFamily || '')} onChange={e => { setButtonStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+                <option value="">Default (label font)</option>
+                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                {(buttonStyle.fontFamily || '').startsWith('google:') && <option value="">{buttonStyle.fontFamily!.slice(7)} (Google)</option>}
+              </select>
+              <GoogleFontPicker value={buttonStyle.fontFamily} onPick={ff => { setButtonStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+            </div>
+            <p style={{ ...labelCss, marginTop: 10 }}>Links</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new text links you add.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span style={labelCss}>Colour</span>
+              {colorField(linkStyle.color, v => { setLinkStyle(s => ({ ...s, color: v })); touch() }, '#9a7d2e')}
+            </div>
+            <div className="mt-1.5">
+              <select value={(linkStyle.fontFamily || '').startsWith('google:') ? '' : (linkStyle.fontFamily || '')} onChange={e => { setLinkStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+                <option value="">Default (label font)</option>
+                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                {(linkStyle.fontFamily || '').startsWith('google:') && <option value="">{linkStyle.fontFamily!.slice(7)} (Google)</option>}
+              </select>
+              <GoogleFontPicker value={linkStyle.fontFamily} onPick={ff => { setLinkStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
             </div>
           </>
         ))}
@@ -3561,7 +3558,8 @@ export default function CanvasEditor({
                 </div>
                 {sel.type === 'text' && (
                   <div>
-                    <div className="flex flex-wrap gap-1">
+                    <p style={labelCss}>Text style — link this text to a type</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
                       {TEXT_STYLE_KEYS.map(key => {
                         const on = sel.styleRef === key
                         return (
