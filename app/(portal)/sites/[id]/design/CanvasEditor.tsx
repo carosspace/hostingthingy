@@ -400,6 +400,12 @@ export default function CanvasEditor({
   const styleClip = useRef<Partial<CanvasElement> | null>(null) // format painter: copied style
   const lastSnap = useRef(0)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
+  // On-canvas distance labels shown while dragging ONE element: the gap (design px) to the
+  // nearest neighbour on each side that shares the dragged element's row/column. `equal` marks
+  // the pair when an equal-gap snap is active (rendered in the accent colour). `mid` is the
+  // cross-axis centre of the connector. Footer-pinned elements are excluded (their desktop y is
+  // band-local, so a label drawn at their stored y would land in the wrong place).
+  const [spacing, setSpacing] = useState<{ axis: 'x' | 'y'; mid: number; from: number; to: number; gap: number; equal: boolean }[]>([])
 
   // The body grows continuously; footer-pinned elements then sit below it (see
   // canvasLayout). bodyBottom is where the footer band starts on the desktop canvas.
@@ -824,12 +830,17 @@ export default function CanvasEditor({
     if (sels.length < 3) return
     snapshot(true)
     const ry = (e: CanvasElement) => topOf(e) // displayed y, so footers distribute with body correctly
-    const sorted = [...sels].sort((a, b) => (axis === 'h' ? gx(a) - gx(b) : ry(a) - ry(b)))
+    const startOf = (e: CanvasElement) => (axis === 'h' ? gx(e) : ry(e))
+    const sizeOf = (e: CanvasElement) => (axis === 'h' ? gw(e) : gh(e))
+    const sorted = [...sels].sort((a, b) => (startOf(a) + sizeOf(a) / 2) - (startOf(b) + sizeOf(b) / 2))
     const first = sorted[0], last = sorted[sorted.length - 1]
-    const start = axis === 'h' ? gx(first) : ry(first)
-    const end = axis === 'h' ? gx(last) : ry(last)
-    const gap = (end - start) / (sorted.length - 1)
-    const pos = new Map(sorted.map((e, i) => [e.id, Math.round(start + gap * i)]))
+    // True distribute: keep the first + last fixed and make the GAPS BETWEEN EDGES equal.
+    const firstEdge = startOf(first), lastEdge = startOf(last) + sizeOf(last)
+    const innerW = sorted.reduce((sum, e) => sum + sizeOf(e), 0)
+    const gap = (lastEdge - firstEdge - innerW) / (sorted.length - 1)
+    const pos = new Map<string, number>()
+    let cursor = firstEdge
+    for (const e of sorted) { pos.set(e.id, Math.round(cursor)); cursor += sizeOf(e) + gap }
     setEls(p => p.map(e => (pos.has(e.id) ? { ...e, ...(axis === 'h' ? patchX(pos.get(e.id)!) : patchYDisp(e, pos.get(e.id)!)) } : e)))
     touch()
   }
@@ -1580,6 +1591,9 @@ export default function CanvasEditor({
       let sdx = dx, sdy = dy
       let gxLine: number | null = null
       let gyLine: number | null = null
+      // Distance-label descriptors for this frame (only populated for a single-element,
+      // non-grid drag). Computed below and flushed to state alongside the guide lines.
+      let nextSpacing: { axis: 'x' | 'y'; mid: number; from: number; to: number; gap: number; equal: boolean }[] = []
       if (d.starts.length === 1) {
         const s0 = d.starts[0]
         const me = elsRef.current.find(el => el.id === s0.id)
@@ -1612,6 +1626,49 @@ export default function CanvasEditor({
                 const hit = mys.findIndex(m => Math.abs(m - line) <= T)
                 if (hit >= 0) { ny = Math.max(0, ny + line - mys[hit]); gyLine = line; break }
               }
+            }
+            // EQUAL-GAP snapping + DISTANCE LABELS (additive; runs only when the grid is off).
+            // Footer-pinned elements are excluded both as the dragged element and as neighbours
+            // so the band-local desktop y never produces a mis-placed snap or label. On the phone
+            // artboard everything shares the my frame, so footers are fine there.
+            const footerSafe = (el: CanvasElement) => d.m || (el.pin ?? '') !== 'footer'
+            if (footerSafe(me)) {
+              const peers = allOthers.filter(footerSafe)
+              // --- Horizontal: neighbours in the dragged element's ROW (vertical overlap). ---
+              const meTop = ny, meBot = ny + ah(me), meLeft = nx, meRight = nx + aw(me)
+              const rowPeers = peers.filter(el => ay(el) < meBot && ay(el) + ah(el) > meTop)
+              let L: CanvasElement | undefined, R: CanvasElement | undefined
+              for (const el of rowPeers) {
+                if (ax(el) + aw(el) <= meLeft) { if (!L || ax(el) + aw(el) > ax(L) + aw(L)) L = el }
+                if (ax(el) >= meRight) { if (!R || ax(el) < ax(R)) R = el }
+              }
+              let xEqual = false
+              // Only apply the equal-gap snap on an axis that didn't already edge-snap.
+              if (L && R && gxLine === null) {
+                const centeredLeft = (ax(L) + aw(L)) + (((ax(R) - (ax(L) + aw(L))) - aw(me)) / 2)
+                if (Math.abs(nx - centeredLeft) <= T) { nx = Math.round(centeredLeft); xEqual = true }
+              }
+              // Recompute edges after a possible snap, then emit one label per side.
+              const fLeft = nx, fRight = nx + aw(me)
+              const rowMid = Math.round(ny + ah(me) / 2)
+              if (L) { const lr = ax(L) + aw(L); const g = fLeft - lr; if (g >= 0) nextSpacing.push({ axis: 'x', mid: rowMid, from: lr, to: fLeft, gap: Math.round(g), equal: xEqual }) }
+              if (R) { const g = ax(R) - fRight; if (g >= 0) nextSpacing.push({ axis: 'x', mid: rowMid, from: fRight, to: ax(R), gap: Math.round(g), equal: xEqual }) }
+              // --- Vertical: neighbours in the dragged element's COLUMN (horizontal overlap). ---
+              const colPeers = peers.filter(el => ax(el) < fRight && ax(el) + aw(el) > fLeft)
+              let A: CanvasElement | undefined, B: CanvasElement | undefined
+              for (const el of colPeers) {
+                if (ay(el) + ah(el) <= meTop) { if (!A || ay(el) + ah(el) > ay(A) + ah(A)) A = el }
+                if (ay(el) >= meBot) { if (!B || ay(el) < ay(B)) B = el }
+              }
+              let yEqual = false
+              if (A && B && gyLine === null) {
+                const centeredTop = (ay(A) + ah(A)) + (((ay(B) - (ay(A) + ah(A))) - ah(me)) / 2)
+                if (Math.abs(ny - centeredTop) <= T) { ny = Math.max(0, Math.round(centeredTop)); yEqual = true }
+              }
+              const fTop = ny, fBot = ny + ah(me)
+              const colMid = Math.round(fLeft + aw(me) / 2)
+              if (A) { const ab = ay(A) + ah(A); const g = fTop - ab; if (g >= 0) nextSpacing.push({ axis: 'y', mid: colMid, from: ab, to: fTop, gap: Math.round(g), equal: yEqual }) }
+              if (B) { const g = ay(B) - fBot; if (g >= 0) nextSpacing.push({ axis: 'y', mid: colMid, from: fBot, to: ay(B), gap: Math.round(g), equal: yEqual }) }
             }
           }
           sdx = nx - s0.x
@@ -1648,6 +1705,7 @@ export default function CanvasEditor({
         }
       }
       setGuides({ x: gxLine, y: gyLine })
+      setSpacing(nextSpacing)
       const startMap = new Map(d.starts.map(s => [s.id, s]))
       setEls(p => p.map(el => {
         const s = startMap.get(el.id)
@@ -1656,7 +1714,7 @@ export default function CanvasEditor({
         return { ...el, ...(d.m ? { mx: nx, my: ny } : { x: nx, y: ny }) }
       }))
     }
-    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setGuides({ x: null, y: null }); setMarquee(null); if (d.kind !== 'marquee') touch() }
+    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setGuides({ x: null, y: null }); setSpacing([]); setMarquee(null); if (d.kind !== 'marquee') touch() }
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -3608,6 +3666,26 @@ export default function CanvasEditor({
               )}
               {guides.x !== null && <div style={{ position: 'absolute', left: cqv(guides.x), top: 0, width: 1, height: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
               {guides.y !== null && <div style={{ position: 'absolute', top: cqv(guides.y), left: 0, height: 1, width: '100%', background: '#3b82f6', pointerEvents: 'none', zIndex: 5 }} />}
+              {/* Distance labels while dragging one element — a thin connector across the gap with a
+                  little px pill at its midpoint. Equal pairs use the editor accent, others a neutral
+                  grey. Coordinates are in the active frame's design px (same as the elements), so cqv()
+                  places them exactly like the guide lines. Non-interactive. */}
+              {spacing.map((s, i) => {
+                const col = s.equal ? ui : '#8a8f99'
+                const mid = (s.from + s.to) / 2
+                const line = s.axis === 'x'
+                  ? { left: cqv(s.from), top: cqv(s.mid), width: cqv(s.to - s.from), height: 0, borderTop: `1px dashed ${col}` }
+                  : { left: cqv(s.mid), top: cqv(s.from), width: 0, height: cqv(s.to - s.from), borderLeft: `1px dashed ${col}` }
+                const pill = s.axis === 'x'
+                  ? { left: cqv(mid), top: cqv(s.mid), transform: 'translate(-50%,-50%)' }
+                  : { left: cqv(s.mid), top: cqv(mid), transform: 'translate(-50%,-50%)' }
+                return (
+                  <div key={`sp${i}`} style={{ pointerEvents: 'none', zIndex: 6 }}>
+                    <div style={{ position: 'absolute', ...line }} />
+                    <div style={{ position: 'absolute', ...pill, background: col, color: '#fff', fontSize: 10, lineHeight: 1, fontWeight: 600, padding: '2px 5px', borderRadius: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }}>{s.gap}</div>
+                  </div>
+                )
+              })}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
               {showRulers && !editingMobile && (
                 <>
