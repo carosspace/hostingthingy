@@ -9,6 +9,7 @@ import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
+import { SECTION_TEMPLATES, SECTION_CATEGORY_LABELS, SECTION_CATEGORY_ORDER, type SectionTemplate } from '@/lib/sites/sectionTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
 import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction } from '../../actions'
@@ -461,6 +462,7 @@ export default function CanvasEditor({
   const [zoom, setZoom] = useState(1) // desktop canvas zoom; pan by scrolling the viewport
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null) // right-click menu position
   const [showTemplates, setShowTemplates] = useState(false) // template gallery modal
+  const [showSections, setShowSections] = useState(false) // ready-made-section gallery modal
   const setZoomClamped = (z: number) => setZoom(Math.min(3, Math.max(0.25, Math.round(z * 100) / 100)))
   // Zoom so the whole (often tall) page fits the viewport height; never past 100%.
   const fitToScreen = () => {
@@ -1600,6 +1602,63 @@ export default function CanvasEditor({
     setSelectedIds([])
     setEditingId('')
     setShowTemplates(false)
+    touch()
+  }
+  // Drop a ready-made SECTION (a pre-arranged group from sectionTemplates) onto the CURRENT
+  // page at the viewport. tpl.build(accent) returns elements laid out from y=0; we re-mint ids,
+  // give them one shared groupId, stack them above the current top z, and offset the whole group
+  // so its bounding-box top-centre lands where the owner is looking (viewportCenter), clamped on
+  // the canvas. One snapshot()+touch() = one undo step; the group is selected after insert.
+  const insertSection = (tpl: SectionTemplate) => {
+    const src = tpl.build(accent)
+    if (!src.length) return
+    snapshot(true)
+    let z = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    const gid = 'g' + Math.random().toString(36).slice(2, 8)
+    // Source bounding box (in the template's own y=0-down desktop coords).
+    const minX = Math.min(...src.map(e => e.x))
+    const maxX = Math.max(...src.map(e => e.x + e.w))
+    const minY = Math.min(...src.map(e => e.y))
+    const maxY = Math.max(...src.map(e => e.y + e.h))
+    const grpW = maxX - minX, grpH = maxY - minY
+    // Where to put the group's top-left on the desktop canvas. When the phone artboard is the
+    // active frame, viewportCenter is in phone space, so fall back to a sensible desktop drop
+    // (mirrors place()/addTemplate). Footer-pinned sections keep their pinned y from the template.
+    const c = viewportCenter()
+    let dx: number, dy: number
+    if (editingMobile) {
+      dx = Math.max(0, Math.min(minX, CANVAS_W - grpW)) - minX
+      dy = 140 - minY
+    } else {
+      const targetLeft = Math.max(0, Math.min(Math.round(c.x - grpW / 2), CANVAS_W - grpW))
+      const targetTop = Math.max(0, Math.round(c.y - grpH / 2))
+      dx = targetLeft - minX
+      dy = targetTop - minY
+    }
+    const group: CanvasElement[] = src.map(e => {
+      const x = e.x + dx
+      // Footer-pinned elements keep their template y (an offset within the footer band); the
+      // group's dx still shifts them horizontally to stay aligned with the rest.
+      const y = e.pin === 'footer' ? e.y : e.y + dy
+      const el: CanvasElement = { ...e, id: 'e' + idc.current++, x, y, z: ++z, groupId: gid }
+      // Only seed phone coords when actually editing the phone artboard (so the section lands
+      // where the owner is looking on it). When inserting from the desktop frame onto a
+      // custom-phone page, LEAVE mx/my/mw/mh unset: CanvasView auto-scales each element by MR
+      // (el.x*MR, el.w*MR), which keeps the whole section proportional and full-bleed bands
+      // full-bleed — a per-element seed would distort those.
+      if (mobileCustom && editingMobile) {
+        const mw = Math.min(el.w, MOBILE_W - 24)
+        el.mw = mw
+        el.mh = el.h
+        el.mx = Math.max(0, Math.min(Math.round(c.x - mw / 2) + (x - (minX + dx)), MOBILE_W - mw))
+        el.my = Math.max(0, Math.round(e.pin === 'footer' ? e.y : c.y - grpH / 2 + (e.y - minY)))
+      }
+      return el
+    })
+    setEls(p => [...p, ...group])
+    setSelectedIds(group.map(e => e.id))
+    setEditingId('')
+    setShowSections(false)
     touch()
   }
   // Read a file straight to a data URL (used for SVGs, which we keep vector rather
@@ -2857,6 +2916,11 @@ export default function CanvasEditor({
         )}
         {lib && panelTab === 'elements' && (
           <div className="space-y-3">
+            <div>
+              <p style={labelCss}>Ready-made sections</p>
+              <button type="button" onClick={() => setShowSections(true)} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2 rounded-sm w-full mt-1">✦ Browse sections</button>
+              <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed">Drop a beautiful pre-designed section (hero, services, pricing, FAQ…) onto this page — already in your fonts and colour.</p>
+            </div>
             <div>
               <p style={labelCss}>Page menu</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
@@ -4378,6 +4442,7 @@ export default function CanvasEditor({
                   <p style={{ fontSize: 13, color: 'rgba(20,20,28,0.42)', maxWidth: 320, lineHeight: 1.5 }}>Add a heading, picture or button from the panel — or start from a ready-made template.</p>
                   <div style={{ display: 'flex', gap: 8, pointerEvents: 'auto', flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
                     <button type="button" onClick={() => { setFocusMode(false); setPanelTab('elements') }} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2 rounded-sm">+ Add an element</button>
+                    <button type="button" onClick={() => { setFocusMode(false); setShowSections(true) }} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm" style={{ background: '#fff' }}>✦ Add a section</button>
                     <button type="button" onClick={() => { setFocusMode(false); setShowTemplates(true) }} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-3 py-2 rounded-sm" style={{ background: '#fff' }}>🎨 Start from a template</button>
                   </div>
                 </div>
@@ -4482,6 +4547,47 @@ export default function CanvasEditor({
               ))}
             </div>
             <p className="font-body text-ash/50 text-[11px] mt-3">Pick one to drop it onto your canvas — then change the words, colours and images. (Undoable.)</p>
+          </div>
+        </div>
+      )}
+
+      {showSections && (
+        <div onClick={() => setShowSections(false)} style={{ position: 'fixed', inset: 0, zIndex: 150, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} className="rounded-lg p-5 flex flex-col" style={{ background: '#faf7f2', width: 'min(860px, 95vw)', maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: '#9a7d2e' }}>Add a ready-made section</span>
+              <button type="button" onClick={() => setShowSections(false)} style={{ fontSize: 16, color: '#888', lineHeight: 1 }}>×</button>
+            </div>
+            <p className="font-body text-ash/50 text-[11px] mb-3">Drops onto this page where you’re looking — in your fonts &amp; colour. Then change the words and images. (Undoable.)</p>
+            <div style={{ overflowY: 'auto', paddingRight: 4 }}>
+              {SECTION_CATEGORY_ORDER.map(cat => {
+                const items = SECTION_TEMPLATES.filter(s => s.category === cat)
+                if (!items.length) return null
+                return (
+                  <div key={cat} className="mb-4">
+                    <p className="font-label mb-2" style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: '#9a7d2e' }}>{SECTION_CATEGORY_LABELS[cat]}</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
+                      {items.map(tpl => {
+                        // Strip footer-pin for the THUMBNAIL only (insertSection keeps it): CanvasView
+                        // places pinned elements at the body bottom (~y900), off the top of the 150px
+                        // preview clip, so a footer section would otherwise render blank.
+                        const elements = tpl.build(accent).map(e => (e.pin ? { ...e, pin: undefined } : e))
+                        const ph = Math.max(140, ...elements.map(e => e.y + e.h)) + 30
+                        const prev: PageCanvas = { h: ph, bg: '#ffffff', width: 'full', elements }
+                        return (
+                          <button key={tpl.key} type="button" onClick={() => insertSection(tpl)} className="text-left rounded-md overflow-hidden hover:opacity-95" style={{ border: '1px solid rgba(0,0,0,0.12)', background: '#fff' }}>
+                            <div style={{ height: 150, overflow: 'hidden', background: '#fff', pointerEvents: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                              <CanvasView canvas={prev} accent={accent} siteSlug={siteSlug} contactEmail={contactEmail} safeHref={h => h} navPages={navPages} />
+                            </div>
+                            <div className="px-2.5 py-2 font-label" style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: '#5a513f' }}>{tpl.name}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
