@@ -8,6 +8,7 @@ import {
   Inter,
   Fraunces,
   Montserrat,
+  Jost,
 } from "next/font/google";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ const lora = Lora({ subsets: ["latin"], style: ["normal", "italic"], variable: "
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap", preload: false });
 const fraunces = Fraunces({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-fraunces", display: "swap", preload: false });
 const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat", display: "swap", preload: false });
+const jost = Jost({ subsets: ["latin"], variable: "--font-jost", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: "Hosting Thingy — Sacred hosting for your work",
@@ -53,7 +55,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${ebGaramond.variable} ${cinzel.variable} ${playfair.variable} ${lora.variable} ${inter.variable} ${fraunces.variable} ${montserrat.variable}`}
+      className={`${cormorant.variable} ${ebGaramond.variable} ${cinzel.variable} ${playfair.variable} ${lora.variable} ${inter.variable} ${fraunces.variable} ${montserrat.variable} ${jost.variable}`}
     >
       <body className="bg-background text-parchment font-body min-h-screen">
         {children}

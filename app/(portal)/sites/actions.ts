@@ -13,6 +13,7 @@ import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/l
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
+import { isGoogleFamily } from '@/lib/sites/googleFonts'
 import type {
   SiteContent,
   BookingCopy,
@@ -1024,6 +1025,15 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     }
     return undefined
   }
+  // A valid fontFamily is a role, an uploaded brand font, OR a whitelisted Google family.
+  // `google:<Family>` is only accepted when the family is in GOOGLE_FONT_NAMES, so no arbitrary
+  // string ever flows into the Google Fonts URL. Anything else collapses to undefined (= the role default).
+  const fontFamilyOf = (raw: unknown): string | undefined => {
+    const ff = String(raw ?? '').trim()
+    if (['display', 'body', 'label'].includes(ff) || /^custom:[a-z0-9]{1,12}$/i.test(ff)) return ff
+    if (ff.startsWith('google:') && isGoogleFamily(ff.slice(7))) return ff
+    return undefined
+  }
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
@@ -1032,8 +1042,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
-    const ff = String(e?.fontFamily ?? '').trim()
-    const fontFamily = ['display', 'body', 'label'].includes(ff) || /^custom:[a-z0-9]{1,12}$/i.test(ff) ? ff : undefined
+    const fontFamily = fontFamilyOf(e?.fontFamily)
     const ct = String(e?.ctaType)
     const ctaType = (['booking', 'email', 'link'].includes(ct) ? ct : undefined) as CtaType | undefined
     return {
@@ -1149,10 +1158,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     for (const key of TEXT_STYLE_KEYS) {
       const s = src[key] as Record<string, unknown> | undefined
       if (!s || typeof s !== 'object') continue
-      const ff = String(s.fontFamily ?? '').trim()
       out[key] = {
         fontSize: num(s.fontSize, 6, 400, 24),
-        fontFamily: ['display', 'body', 'label'].includes(ff) || /^custom:[a-z0-9]{1,12}$/i.test(ff) ? ff : undefined,
+        fontFamily: fontFamilyOf(s.fontFamily),
         weight: s.weight ? num(s.weight, 100, 900, 400) : undefined,
         italic: s.italic ? true : undefined,
         lineHeight: lineH(s.lineHeight),

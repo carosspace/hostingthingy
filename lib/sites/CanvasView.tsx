@@ -8,6 +8,7 @@ import { ContactForm } from './ContactForm'
 import { embedSrc } from './embed'
 import { Banner } from './Banner'
 import { Popup } from './Popup'
+import { googleStack, usedGoogleFamilies, googleHref } from './googleFonts'
 
 // Wrap an element's content so it can reveal on scroll and react to hover. Reveal
 // sits on the outer wrapper, hover on an inner one, so their transforms never fight
@@ -21,7 +22,7 @@ function withMotion(el: CanvasElement, child: ReactNode): ReactNode {
   return node
 }
 
-const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
+const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : f && f.startsWith('google:') ? googleStack(f.slice(7)) : 'var(--font-display)')
 // A design-pixel value as a container-query-width unit (scales the canvas with the viewport).
 const cq = (px: number) => `${(px / CANVAS_W) * 100}cqw`
 const cqm = (px: number) => `${(px / MOBILE_W) * 100}cqw`
@@ -246,6 +247,18 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
       {canvas.banner?.text && <Banner banner={canvas.banner} safeHref={safeHref} />}
     <div className={canvas.width === 'contained' ? 'max-w-5xl mx-auto' : ''}>
       {canvas.fonts && canvas.fonts.length > 0 && <style dangerouslySetInnerHTML={{ __html: fontFaceCss(canvas.fonts) }} />}
+      {/* On-demand Google Fonts: one stylesheet for ONLY the families this page actually uses. */}
+      {(() => {
+        const gf = usedGoogleFamilies(canvas)
+        if (!gf.length) return null
+        return (
+          <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+            <link rel="stylesheet" href={googleHref(gf)} />
+          </>
+        )
+      })()}
       {/* Desktop / tablet: the full canvas */}
       <div className="hidden md:block">
         <AbsoluteCanvas els={desktopEls} cqf={cq} topOf={desktopTop} designW={CANVAS_W} designH={desktopH} bg={bg} bgVideo={canvas.bgVideo} inner={inner} />

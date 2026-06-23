@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as R
 import { createPortal } from 'react-dom'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
+import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
@@ -14,7 +15,78 @@ import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, sugg
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
-const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : 'var(--font-display)')
+const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : f && f.startsWith('google:') ? googleStack(f.slice(7)) : 'var(--font-display)')
+
+// On-demand Google font loading for the EDITOR preview: inject a per-family <link> into the
+// document head exactly once per family (deduped by id). typeof-document guard keeps it SSR-safe.
+function ensureGoogleFont(family: string) {
+  if (typeof document === 'undefined' || !isGoogleFamily(family)) return
+  const id = 'gf-' + family.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  if (document.getElementById(id)) return
+  const link = document.createElement('link')
+  link.id = id
+  link.rel = 'stylesheet'
+  link.href = googleHref([family])
+  document.head.appendChild(link)
+}
+
+// One row in the Google-font picker. Lazily loads its own font face only when it scrolls into
+// view (IntersectionObserver → ensureGoogleFont), so opening the picker never fetches all ~230
+// at once. The name renders in its own family once loaded.
+function GoogleFontRow({ font, active, onPick }: { font: GoogleFont; active: boolean; onPick: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { ensureGoogleFont(font.name); setLoaded(true); io.disconnect() }
+    }, { rootMargin: '120px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [font.name])
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onPick}
+      title={font.name}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 5, border: 'none', background: active ? 'rgba(168,92,54,0.12)' : 'transparent', cursor: 'pointer' }}
+    >
+      <span style={{ fontFamily: loaded ? googleStack(font.name) : 'inherit', fontSize: 15, color: '#2a2a2a', lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{font.name}</span>
+      <span style={{ fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase', color: '#b0b0b8', flexShrink: 0 }}>{font.cat}</span>
+    </button>
+  )
+}
+
+// A searchable Google-font picker: a filter box + a scrollable result list. Each row renders the
+// family in its own face (lazily loaded on scroll). `value` is the current fontFamily; selecting a
+// row calls onPick('google:'+name). Used by the element inspector and the global text styles.
+function GoogleFontPicker({ value, onPick }: { value?: string; onPick: (ff: string) => void }) {
+  const [q, setQ] = useState('')
+  const current = value && value.startsWith('google:') ? value.slice(7) : ''
+  const needle = q.trim().toLowerCase()
+  const results = needle ? GOOGLE_FONTS.filter(f => f.name.toLowerCase().includes(needle)) : GOOGLE_FONTS
+  return (
+    <div style={{ width: '100%' }}>
+      <input
+        value={q}
+        onChange={e => setQ(e.target.value)}
+        placeholder={current ? `Google font · ${current}` : 'Search Google fonts…'}
+        style={{ ...inputCss, fontSize: 12, padding: '5px 8px' }}
+      />
+      <div style={{ marginTop: 4, maxHeight: 220, overflowY: 'auto', border: '1px solid #ececef', borderRadius: 6, padding: 2, background: '#fff' }}>
+        {results.length === 0 ? (
+          <p style={{ fontSize: 11, color: '#9aa0ab', padding: '8px 8px' }}>No fonts match “{q}”.</p>
+        ) : (
+          results.map(f => (
+            <GoogleFontRow key={f.name} font={f} active={current === f.name} onPick={() => onPick('google:' + f.name)} />
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
 const inputCss: CSSProperties = { background: '#fff', color: '#1f2430', border: '1px solid #e6e6e9', borderRadius: 8, fontSize: 13, padding: '7px 10px', width: '100%' }
 const labelCss: CSSProperties = { fontSize: 10, letterSpacing: 0.4, textTransform: 'uppercase', fontWeight: 600, color: '#9aa0ab' }
 const swatchCss: CSSProperties = { width: 28, height: 24, border: '1px solid rgba(0,0,0,0.2)', borderRadius: 4, background: 'transparent', padding: 0 }
@@ -408,6 +480,18 @@ export default function CanvasEditor({
   // style re-syncs every linked element here, so the public renderer never changes.
   const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
   const [styleOpen, setStyleOpen] = useState<TextStyleKey | ''>('') // which global style is being edited in the Design panel
+  // Warm the editor preview: load every Google family currently applied — on page elements, in a
+  // text style, or inside a saved component master — so it renders in its real face. Mirrors
+  // usedGoogleFamilies() (the public render) so the editor matches the live page. Deduped by
+  // ensureGoogleFont; only used families load.
+  useEffect(() => {
+    const fams = new Set<string>()
+    const add = (ff?: string) => { if (ff && ff.startsWith('google:')) fams.add(ff.slice(7)) }
+    els.forEach(e => add(e.fontFamily))
+    for (const c of components) for (const e of c.elements || []) add(e.fontFamily)
+    for (const k of Object.keys(textStyles)) add(textStyles[k]?.fontFamily)
+    fams.forEach(ensureGoogleFont)
+  }, [els, textStyles, components])
   const [banner, setBanner] = useState<SiteBanner | null>(initial?.banner ?? null) // optional announcement bar above the page
   const [popup, setPopup] = useState<SitePopup | null>(initial?.popup ?? null) // optional one-time modal
   const [critique, setCritique] = useState<DesignCritique | null>(null) // AI design review result
@@ -2872,15 +2956,19 @@ export default function CanvasEditor({
                         <span style={{ fontSize: 11, color: '#666', width: 26 }}>{s.fontSize}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <select value={s.fontFamily || 'display'} onChange={e => editStyle(key, { fontFamily: e.target.value })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                        {(() => { const isG = (s.fontFamily || '').startsWith('google:'); return (
+                        <select value={isG ? '' : (s.fontFamily || 'display')} onChange={e => { if (e.target.value) editStyle(key, { fontFamily: e.target.value }) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                           <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                          {isG && <option value="">{s.fontFamily!.slice(7)} (Google)</option>}
                           {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
                         </select>
+                        ) })()}
                         <select value={s.weight ?? 400} onChange={e => editStyle(key, { weight: Number(e.target.value) })} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
                           <option value={300}>Light</option><option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={900}>Black</option>
                         </select>
                         <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? ui : '#888', width: 22 }}>I</button>
                       </div>
+                      <GoogleFontPicker value={s.fontFamily} onPick={ff => editStyle(key, { fontFamily: ff })} />
                       <div className="flex items-center gap-2">
                         <span style={labelCss}>Colour</span>
                         {colorField(s.color, v => editStyle(key, { color: v }), '#111111')}
@@ -3156,15 +3244,31 @@ export default function CanvasEditor({
                     <button key={a} type="button" title={a} onClick={() => update(sel.id, { align: a })} style={{ fontSize: 10, padding: '2px 10px', borderRadius: 3, border: `1px solid ${sel.align === a ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.align === a ? ui : 'transparent', color: sel.align === a ? '#fff' : '#666' }}>{a[0].toUpperCase()}</button>
                   ))}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span style={labelCss}>Font</span>
-                  <select value={sel.fontFamily || 'display'} onChange={e => update(sel.id, { fontFamily: e.target.value })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
-                    <option value="display">Title font</option>
-                    <option value="body">Body font</option>
-                    <option value="label">Label font</option>
-                    {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
-                  </select>
-                </div>
+                {(() => {
+                  // Set the selected element's fontFamily. If it's linked to a global text style,
+                  // edit the STYLE (so every linked text updates together, like the role buttons);
+                  // otherwise set it on the element directly.
+                  const setFont = (ff: string) => {
+                    if (sel.styleRef) editStyle(sel.styleRef as TextStyleKey, { fontFamily: ff })
+                    else update(sel.id, { fontFamily: ff })
+                  }
+                  const isGoogle = (sel.fontFamily || '').startsWith('google:')
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span style={labelCss}>Font</span>
+                        <select value={isGoogle ? '' : (sel.fontFamily || 'display')} onChange={e => { if (e.target.value) setFont(e.target.value) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                          <option value="display">Title font</option>
+                          <option value="body">Body font</option>
+                          <option value="label">Label font</option>
+                          {isGoogle && <option value="">{sel.fontFamily!.slice(7)} (Google)</option>}
+                          {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
+                        </select>
+                      </div>
+                      <GoogleFontPicker value={sel.fontFamily} onPick={setFont} />
+                    </div>
+                  )
+                })()}
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Jump to</span>
                   <select value={sel.anchorTo || ''} onChange={e => update(sel.id, { anchorTo: e.target.value || undefined })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto', maxWidth: 150 }} title="On the live site, clicking scrolls to this element">

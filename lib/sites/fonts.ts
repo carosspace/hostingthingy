@@ -81,6 +81,20 @@ export const FONT_SYSTEMS: FontSystem[] = [
     body: 'var(--font-montserrat), system-ui, sans-serif',
     label: 'var(--font-montserrat), sans-serif',
   },
+  {
+    key: 'cormorant-jost',
+    name: 'Cormorant + Jost',
+    display: 'var(--font-cormorant), Georgia, serif',
+    body: 'var(--font-jost), system-ui, sans-serif',
+    label: 'var(--font-jost), sans-serif',
+  },
+  {
+    key: 'jost-clean',
+    name: 'Jost clean',
+    display: 'var(--font-jost), system-ui, sans-serif',
+    body: 'var(--font-jost), system-ui, sans-serif',
+    label: 'var(--font-jost), sans-serif',
+  },
 ]
 
 // All system keys (for validation / pickers).
