@@ -1259,7 +1259,7 @@ function httpUrl(v: unknown): string | undefined {
 }
 
 // Patch one page's fields and re-mirror the home page's content onto the top level.
-async function patchCanvasPage(id: string, pageSlug: string, patch: Partial<SitePage>): Promise<void> {
+async function patchCanvasPage(id: string, pageSlug: string, patch: Partial<SitePage>, revalidate = true): Promise<void> {
   const base: SiteContent = (await getSite(id))?.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
   const updatedPages: SitePage[] = getPages(base).map(p => (p.slug === pageSlug ? { ...p, ...patch } : p))
   const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
@@ -1270,13 +1270,20 @@ async function patchCanvasPage(id: string, pageSlug: string, patch: Partial<Site
     sections: home.sections,
     pages: updatedPages,
   })
-  revalidatePath(`/sites/${id}/design`)
-  revalidatePath(`/sites/${id}`)
+  // The editor's continuous auto-save passes revalidate=false: revalidating
+  // /sites/[id]/design would re-render that (open) page, bump site.updatedAt, change
+  // the CanvasEditor's React key and REMOUNT it mid-edit — a visible "jump". The page
+  // is force-dynamic so it re-fetches on the next visit/navigation regardless.
+  // AI-generate / canvas-switch keep the default so the editor refreshes to new content.
+  if (revalidate) {
+    revalidatePath(`/sites/${id}/design`)
+    revalidatePath(`/sites/${id}`)
+  }
 }
 
-async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined): Promise<void> {
+async function setPageCanvas(id: string, pageSlug: string, canvas: PageCanvas | undefined, revalidate = true): Promise<void> {
   // Setting a canvas also reveals it (canvasHidden=false) so the page shows it.
-  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: canvas ? false : undefined })
+  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: canvas ? false : undefined }, revalidate)
 }
 
 // Save the current free-canvas page.
@@ -1292,7 +1299,10 @@ export async function saveCanvasAction(formData: FormData): Promise<void> {
   } catch {
     // ignore bad payload
   }
-  await setPageCanvas(id, pageSlug, sanitizeCanvas(raw))
+  // revalidate=false: continuous auto-save must NOT refresh /sites/[id]/design, or the
+  // editor remounts mid-edit (the "jump"). The editor holds the live state; the page is
+  // force-dynamic so it re-fetches fresh on the next navigation anyway.
+  await setPageCanvas(id, pageSlug, sanitizeCanvas(raw), false)
 }
 
 // Turn a page into a blank free canvas.
