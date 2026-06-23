@@ -3006,6 +3006,54 @@ export default function CanvasEditor({
                 </div>
               )}
             </div>
+            {/* Page add-ons — moved here from the Design tab so they sit with the things you add */}
+            <div className="h-px bg-gold/15 mt-1" />
+            {Section('banner', 'Announcement bar', (
+              <>
+                <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? ui : 'rgba(0,0,0,0.15)'}`, background: banner ? ui : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
+                {banner && (
+                  <div className="mt-1.5 space-y-1.5">
+                    <input value={banner.text} onChange={e => { setBanner({ ...banner, text: e.target.value }); touch() }} placeholder="Your announcement…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Bar</span>
+                      {colorField(banner.bg, v => { setBanner({ ...banner, bg: v }); touch() }, '#141414')}
+                      <span style={labelCss}>Text</span>
+                      {colorField(banner.color, v => { setBanner({ ...banner, color: v }); touch() }, '#ffffff')}
+                    </div>
+                    <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
+                    <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
+                  </div>
+                )}
+              </>
+            ))}
+            <div className="h-px bg-gold/15 mt-1" />
+            {Section('popup', 'Popup', (
+              <>
+                <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? ui : 'rgba(0,0,0,0.15)'}`, background: popup ? ui : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
+                {popup && (
+                  <div className="mt-1.5 space-y-1.5">
+                    <input value={popup.title || ''} onChange={e => { setPopup({ ...popup, title: e.target.value || undefined }); touch() }} placeholder="Title (optional)" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+                    <textarea value={popup.text} onChange={e => { setPopup({ ...popup, text: e.target.value }); touch() }} rows={2} placeholder="Your message…" style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'none' }} />
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Card</span>
+                      {colorField(popup.bg, v => { setPopup({ ...popup, bg: v }); touch() }, '#ffffff')}
+                      <span style={labelCss}>Text</span>
+                      {colorField(popup.color, v => { setPopup({ ...popup, color: v }); touch() }, '#1a1612')}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input value={popup.ctaLabel || ''} onChange={e => { setPopup({ ...popup, ctaLabel: e.target.value || undefined }); touch() }} placeholder="Button" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
+                      <input value={popup.ctaHref || ''} onChange={e => { setPopup({ ...popup, ctaHref: e.target.value || undefined }); touch() }} placeholder="Button link (https://…)" style={{ ...inputCss, fontSize: 11, flex: 1.4 }} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Delay</span>
+                      <input type="range" min={0} max={60} value={popup.delay ?? 2} onChange={e => { setPopup({ ...popup, delay: Number(e.target.value) }); touch() }} style={{ flex: 1 }} />
+                      <span style={{ fontSize: 11, color: '#666', width: 30 }}>{popup.delay ?? 2}s</span>
+                    </div>
+                    <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows once per visitor, {popup.delay ?? 2}s after they arrive. They can close it.</p>
+                  </div>
+                )}
+              </>
+            ))}
           </div>
         )}
 
@@ -3050,6 +3098,26 @@ export default function CanvasEditor({
             <textarea value={aiPageDesc} onChange={e => setAiPageDesc(e.target.value)} rows={3} placeholder="Describe this page — e.g. Reiki, soul readings and meditation circles in Lisbon." style={{ ...inputCss, resize: 'none', fontSize: 12 }} />
             <button type="button" disabled={aiPageBusy || !aiPageDesc.trim()} onClick={runAiCanvas} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{aiPageBusy ? 'Writing…' : '✨ Generate'}</button>
           </div>
+        ))}
+
+        {/* 2b ── Design my whole site with AI (sits with the per-page AI writer) */}
+        <div className="h-px bg-gold/15" />
+        {Section('sitelook', '✨ Design my whole site with AI', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Describe the feeling and AI picks fonts, colours and a background — applied to every page.</p>
+            <input
+              type="text"
+              value={aiVibe}
+              onChange={e => setAiVibe(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void designWholeSite() } }}
+              placeholder="Describe the vibe — calm, earthy, elegant…"
+              maxLength={300}
+              disabled={aiDesigning}
+              style={{ ...inputCss, fontSize: 12, padding: '6px 8px', width: '100%' }}
+            />
+            <button type="button" onClick={designWholeSite} disabled={aiDesigning || !aiVibe.trim()} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2 rounded-sm mt-1.5">{aiDesigning ? 'Designing…' : 'Design it'}</button>
+            {aiDesignErr && <p className="font-body text-[11px] mt-1.5" style={{ color: '#b4532e' }}>{aiDesignErr}</p>}
+          </>
         ))}
 
         {/* 3 ── Page width */}
@@ -3366,78 +3434,7 @@ export default function CanvasEditor({
           </>
         ))}
 
-        {/* 17 ── Announcement bar */}
-        <div className="h-px bg-gold/15" />
-        {Section('banner', 'Announcement bar', (
-          <>
-            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? ui : 'rgba(0,0,0,0.15)'}`, background: banner ? ui : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
-            {banner && (
-              <div className="mt-1.5 space-y-1.5">
-                <input value={banner.text} onChange={e => { setBanner({ ...banner, text: e.target.value }); touch() }} placeholder="Your announcement…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
-                <div className="flex items-center gap-2">
-                  <span style={labelCss}>Bar</span>
-                  {colorField(banner.bg, v => { setBanner({ ...banner, bg: v }); touch() }, '#141414')}
-                  <span style={labelCss}>Text</span>
-                  {colorField(banner.color, v => { setBanner({ ...banner, color: v }); touch() }, '#ffffff')}
-                </div>
-                <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
-                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
-              </div>
-            )}
-          </>
-        ))}
-
-        {/* 18 ── Popup */}
-        <div className="h-px bg-gold/15" />
-        {Section('popup', 'Popup', (
-          <>
-            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? ui : 'rgba(0,0,0,0.15)'}`, background: popup ? ui : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
-            {popup && (
-              <div className="mt-1.5 space-y-1.5">
-                <input value={popup.title || ''} onChange={e => { setPopup({ ...popup, title: e.target.value || undefined }); touch() }} placeholder="Title (optional)" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
-                <textarea value={popup.text} onChange={e => { setPopup({ ...popup, text: e.target.value }); touch() }} rows={2} placeholder="Your message…" style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'none' }} />
-                <div className="flex items-center gap-2">
-                  <span style={labelCss}>Card</span>
-                  {colorField(popup.bg, v => { setPopup({ ...popup, bg: v }); touch() }, '#ffffff')}
-                  <span style={labelCss}>Text</span>
-                  {colorField(popup.color, v => { setPopup({ ...popup, color: v }); touch() }, '#1a1612')}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <input value={popup.ctaLabel || ''} onChange={e => { setPopup({ ...popup, ctaLabel: e.target.value || undefined }); touch() }} placeholder="Button" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
-                  <input value={popup.ctaHref || ''} onChange={e => { setPopup({ ...popup, ctaHref: e.target.value || undefined }); touch() }} placeholder="Button link (https://…)" style={{ ...inputCss, fontSize: 11, flex: 1.4 }} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span style={labelCss}>Delay</span>
-                  <input type="range" min={0} max={60} value={popup.delay ?? 2} onChange={e => { setPopup({ ...popup, delay: Number(e.target.value) }); touch() }} style={{ flex: 1 }} />
-                  <span style={{ fontSize: 11, color: '#666', width: 30 }}>{popup.delay ?? 2}s</span>
-                </div>
-                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows once per visitor, {popup.delay ?? 2}s after they arrive. They can close it.</p>
-              </div>
-            )}
-          </>
-        ))}
-
-        {/* 19 ── Design my whole site with AI */}
-        <div className="h-px bg-gold/15" />
-        {Section('sitelook', '✨ Design my whole site with AI', (
-          <>
-            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Describe the feeling and AI picks fonts, colours and a background — applied to every page.</p>
-            <input
-              type="text"
-              value={aiVibe}
-              onChange={e => setAiVibe(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void designWholeSite() } }}
-              placeholder="Describe the vibe — calm, earthy, elegant…"
-              maxLength={300}
-              disabled={aiDesigning}
-              style={{ ...inputCss, fontSize: 12, padding: '6px 8px', width: '100%' }}
-            />
-            <button type="button" onClick={designWholeSite} disabled={aiDesigning || !aiVibe.trim()} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2 rounded-sm mt-1.5">{aiDesigning ? 'Designing…' : 'Design it'}</button>
-            {aiDesignErr && <p className="font-body text-[11px] mt-1.5" style={{ color: '#b4532e' }}>{aiDesignErr}</p>}
-          </>
-        ))}
-
-        {/* 20 ── Apply this look to all pages + inherit (plain controls, not collapsed) */}
+        {/* ── Apply this look to all pages + inherit (plain controls, not collapsed) */}
         <div className="h-px bg-gold/15" />
         <button type="button" onClick={applyLookToAllPages} disabled={applyingLook} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2.5 rounded-sm">{applyingLook ? 'Applying…' : '✦ Apply this look to all pages'}</button>
         <label className="flex items-start gap-2 font-body text-ash/70 text-[12px] leading-snug cursor-pointer">
