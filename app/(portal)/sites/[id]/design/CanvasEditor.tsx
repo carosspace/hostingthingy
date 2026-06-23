@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
@@ -456,9 +456,24 @@ export default function CanvasEditor({
     fd.set('canvas', '1')
     await addPageAction(fd)
   }
-  const [aiPageOpen, setAiPageOpen] = useState(false) // the "write this page with AI" prompt popover
   const [aiPageDesc, setAiPageDesc] = useState('')
   const [aiPageBusy, setAiPageBusy] = useState(false)
+  // Which Design-panel accordion sections are open. Persisted so it survives reload; default closed.
+  const [openSec, setOpenSec] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {}
+    try { return JSON.parse(localStorage.getItem('cveditor:designSections') || '{}') } catch { return {} }
+  })
+  const setSec = (id: string, on: boolean) => setOpenSec(prev => {
+    if (!!prev[id] === on) return prev
+    const next = { ...prev, [id]: on }
+    try { localStorage.setItem('cveditor:designSections', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
+  const toggleSec = (id: string) => setOpenSec(prev => {
+    const next = { ...prev, [id]: !prev[id] }
+    try { localStorage.setItem('cveditor:designSections', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
   const [zoom, setZoom] = useState(1) // desktop canvas zoom; pan by scrolling the viewport
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null) // right-click menu position
   const [showTemplates, setShowTemplates] = useState(false) // template gallery modal
@@ -1725,13 +1740,19 @@ export default function CanvasEditor({
         if (r.canvas.bg) setBg(r.canvas.bg)
         setSelectedIds([])
         setEditingId('')
-        setAiPageOpen(false)
+        setSec('aiPage', false)
         setAiPageDesc('')
         touch()
       }
     } finally {
       setAiPageBusy(false)
     }
+  }
+  // Toolbar "✨ AI" trigger: jump to the Design panel and open its per-page AI writer.
+  const openAiPageSection = () => {
+    // Toggle: a second press (while already showing it) collapses the section.
+    if (openSec.aiPage && panelTab === 'design') { setSec('aiPage', false); return }
+    setPanelTab('design'); setSelectedIds([]); setEditingId(''); setSec('aiPage', true)
   }
   // Rewrite a text/button element's words with AI from a plain-language instruction.
   const runAiText = async (id: string, instruction: string) => {
@@ -2683,6 +2704,20 @@ export default function CanvasEditor({
   const colorField = (value: string | undefined, onChange: (v: string) => void, fallback: string) => (
     <ColorField value={value} onChange={onChange} fallback={fallback} palette={palette} />
   )
+  // A collapsible Design-panel section: a header button (title + caret) that toggles
+  // `openSec[id]`; the body renders only when open. Default closed; state persisted.
+  const Section = (id: string, title: string, body: ReactNode) => {
+    const open = !!openSec[id]
+    return (
+      <div>
+        <button type="button" onClick={() => toggleSec(id)} className="w-full flex items-center justify-between gap-2 text-left" title={open ? 'Collapse' : 'Expand'}>
+          <span style={labelCss}>{title}</span>
+          <span style={{ ...labelCss, color: '#b6bbc4' }}>{open ? '▾' : '▸'}</span>
+        </button>
+        {open && <div className="mt-2">{body}</div>}
+      </div>
+    )
+  }
   // A compact on/off multi-stop gradient editor, reused for boxes, buttons, text and
   // the page background. 2 stops use from/to; 3-6 stops use an explicit `stops` list
   // (kept in user order; gradientCss sorts by position at render time).
@@ -2807,24 +2842,15 @@ export default function CanvasEditor({
             </div>
           </div>
         )}
-        {/* Write-with-AI + switch to the block editor */}
+        {/* Write-with-AI (opens the Design panel's section) + switch to the block editor */}
         <div className="flex items-center gap-1.5">
-          <button type="button" onClick={() => setAiPageOpen(o => !o)} title="Write this page with AI" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border px-2 py-1.5 rounded-sm" style={{ borderColor: aiPageOpen ? ui : 'rgba(103,144,93,0.4)', background: aiPageOpen ? ui : 'transparent', color: aiPageOpen ? '#fff' : ui }}>✨ AI</button>
+          <button type="button" onClick={openAiPageSection} title="Write this page with AI" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border px-2 py-1.5 rounded-sm" style={{ borderColor: openSec.aiPage && panelTab === 'design' ? ui : 'rgba(103,144,93,0.4)', background: openSec.aiPage && panelTab === 'design' ? ui : 'transparent', color: openSec.aiPage && panelTab === 'design' ? '#fff' : ui }}>✨ AI</button>
           <form action={clearCanvasAction} className="flex-1">
             <input type="hidden" name="id" value={siteId} />
             <input type="hidden" name="pageSlug" value={pageSlug} />
             <button type="submit" title="Switch this page to the block editor — your free-canvas layout is saved and you can switch back anytime" className="w-full font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">▤ Blocks</button>
           </form>
         </div>
-        {aiPageOpen && (
-          <div className="rounded-sm p-2.5 flex flex-col gap-2" style={{ background: 'rgba(168,92,54,0.07)', border: '1px solid rgba(168,92,54,0.25)' }}>
-            <textarea value={aiPageDesc} onChange={e => setAiPageDesc(e.target.value)} rows={3} placeholder="Describe this page — e.g. Reiki, soul readings and meditation circles in Lisbon." style={{ ...inputCss, resize: 'none', fontSize: 12 }} />
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={aiPageBusy || !aiPageDesc.trim()} onClick={runAiCanvas} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{aiPageBusy ? 'Writing…' : '✨ Generate'}</button>
-              <span className="font-body text-ash/50 text-[10px] leading-tight">Lays it out on the canvas — replaces what&rsquo;s here (undoable).</span>
-            </div>
-          </div>
-        )}
         <div className="flex items-center gap-1.5">
           <button type="button" onClick={undo} title="Undo (Ctrl+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↩ Undo</button>
           <button type="button" onClick={redo} title="Redo (Ctrl+Shift+Z)" className="flex-1 font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2 py-1.5 rounded-sm">↪ Redo</button>
@@ -3014,20 +3040,388 @@ export default function CanvasEditor({
         )}
 
         {lib && panelTab === 'design' && (<>
+        {/* 1 ── Template (plain button, not an accordion) */}
         <button type="button" onClick={() => setShowTemplates(true)} className="font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-2.5 rounded-sm">🎨 Start from a template</button>
 
-        {/* ─────────────── Site look ─────────────── */}
-        <div className="h-px bg-gold/15" />
-        <div className="rounded-md" style={{ border: `1px solid ${ui}40`, background: `${ui}0a`, padding: 12 }}>
-          <div className="flex items-center justify-between">
-            <p className="font-label text-[10px] tracking-[2px] uppercase" style={{ color: ui, fontWeight: 700 }}>✦ Site look</p>
+        {/* 2 ── Design this page with AI (per-page writer, surfaced from the toolbar) */}
+        {Section('aiPage', '✨ Design this page with AI', (
+          <div className="space-y-2">
+            <p className="font-body text-ash/50 text-[11px] leading-relaxed">Describe this page and AI lays it out on the canvas — replaces what&rsquo;s here (undoable).</p>
+            <textarea value={aiPageDesc} onChange={e => setAiPageDesc(e.target.value)} rows={3} placeholder="Describe this page — e.g. Reiki, soul readings and meditation circles in Lisbon." style={{ ...inputCss, resize: 'none', fontSize: 12 }} />
+            <button type="button" disabled={aiPageBusy || !aiPageDesc.trim()} onClick={runAiCanvas} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{aiPageBusy ? 'Writing…' : '✨ Generate'}</button>
           </div>
-          <p className="font-body text-ash/55 text-[11px] mt-1 mb-2.5 leading-relaxed">Set this page&rsquo;s background, fonts, brand colours and button/link styles in one place — then apply the look to every page.</p>
+        ))}
 
-          {/* Design my whole site with AI */}
-          <div className="rounded-sm" style={{ border: `1px solid ${ui}40`, background: '#fff', padding: 10, marginBottom: 10 }}>
-            <p style={labelCss}>✨ Design my whole site with AI</p>
-            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">Describe the feeling and AI picks fonts, colours and a background — applied to every page.</p>
+        {/* 3 ── Page width */}
+        <div className="h-px bg-gold/15" />
+        {Section('width', 'Page width', (
+          <div className="flex items-center gap-1.5">
+            {(['full', 'contained'] as const).map(w => (
+              <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? ui : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? ui : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
+            ))}
+          </div>
+        ))}
+
+        {/* 4 ── Movement */}
+        <div className="h-px bg-gold/15" />
+        {Section('movement', 'Movement', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">One click sets how the whole page comes alive as visitors scroll. You can still fine-tune any element under its Motion settings.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {([['calm', 'Calm'], ['playful', 'Playful'], ['energetic', 'Energetic'], ['none', 'None']] as ['calm' | 'playful' | 'energetic' | 'none', string][]).map(([k, lbl]) => (
+                <button key={k} type="button" onClick={() => applyMood(k)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{lbl}</button>
+              ))}
+            </div>
+          </>
+        ))}
+
+        {/* 5 ── Page transitions */}
+        <div className="h-px bg-gold/15" />
+        {Section('transitions', 'Page transitions', (
+          <>
+            <div className="flex items-center gap-1.5">
+              {([['fade', 'Fade'], ['slide', 'Slide up'], ['none', 'Off']] as [PageTransitionKind, string][]).map(([k, lbl]) => {
+                const on = pageTransition === k
+                return (
+                  <button key={k} type="button" onClick={() => changePageTransition(k)} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm" style={{ border: `1px solid ${on ? ui : 'rgba(0,0,0,0.15)'}`, background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
+                )
+              })}
+            </div>
+            <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A gentle animation as each page loads — applied across the whole site.</p>
+          </>
+        ))}
+
+        {/* 6 ── Quick looks */}
+        <div className="h-px bg-gold/15" />
+        {Section('quicklooks', 'Quick looks', (
+          <div className="flex flex-wrap gap-1.5">
+            {PRESET_LOOKS.map(p => (
+              <button key={p.name} type="button" onClick={() => applyPresetLook(p)} title={`Apply the “${p.name}” look`} className="inline-flex items-center gap-1.5 rounded-sm px-2 py-1.5" style={{ border: '1px solid rgba(0,0,0,0.15)', background: '#fff' }}>
+                <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', background: p.bg, flex: 'none' }} />
+                <span style={{ fontFamily: p.fontRoles.display.startsWith('google:') ? googleStack(p.fontRoles.display.slice(7)) : undefined, fontSize: 12, color: '#2a2a2a' }}>{p.name}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {/* 7 ── Background */}
+        <div className="h-px bg-gold/15" />
+        {Section('background', 'Background', (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <ColorField value={bg || ''} onChange={v => { setBg(v); touch() }} fallback="#ffffff" palette={palette} />
+              {bg && <button type="button" onClick={() => { setBg(''); touch() }} style={{ fontSize: 11, color: '#999' }}>×</button>}
+              <button type="button" onClick={pickBg} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{bgImage ? 'Change photo' : '+ Photo'}</button>
+              {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
+            </div>
+            {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
+            <div className="flex flex-wrap gap-1.5">
+              {([{ c: '#ffffff' }, { c: '#000000' }, { c: '#f5f5f4' }, { c: '#e7e7e4' }, { c: '#1f2430' }, { g: { from: '#fbeaf0', to: '#e4f0fb', angle: 135, stops: [{ color: '#fbeaf0', at: 0 }, { color: '#f3ecfa', at: 50 }, { color: '#e4f0fb', at: 100 }] } }, { g: { from: '#fce9d8', to: '#e7f3ea', angle: 160, stops: [{ color: '#fce9d8', at: 0 }, { color: '#f7e3ec', at: 45 }, { color: '#e7f3ea', at: 100 }] } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
+                <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
+              ))}
+            </div>
+            {(bg || bgGrad || bgImage) && (
+              <div className="flex items-center gap-2">
+                <span style={labelCss}>Opacity</span>
+                <input type="range" min={0} max={100} value={bgOpacity} onChange={e => { setBgOpacity(Number(e.target.value)); touch() }} style={{ flex: 1 }} />
+                <span style={{ fontSize: 11, color: '#666', width: 32 }}>{bgOpacity}%</span>
+              </div>
+            )}
+            <input value={bgVideo} onChange={e => { setBgVideo(e.target.value); touch() }} placeholder="Background video URL (https://…mp4)" style={{ ...inputCss, fontSize: 11, marginTop: 4 }} />
+          </div>
+        ))}
+
+        {/* 8 ── Font style */}
+        <div className="h-px bg-gold/15" />
+        {Section('fontstyle', 'Font style', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {FONT_SYSTEMS.map(f => {
+                const on = fontSys === f.key
+                return (
+                  <button key={f.key} type="button" onClick={() => { setFontSys(f.key); touch() }} title={f.name} style={{ ...fontVars(f.key), textAlign: 'left', padding: '6px 9px', borderRadius: 5, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff' } as CSSProperties}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, color: '#222', display: 'block', lineHeight: 1.15 }}>Aa</span>
+                    <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#777', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ))}
+
+        {/* 9 ── Fonts — Title / Body / Accent (the three role-override pickers) */}
+        <div className="h-px bg-gold/15" />
+        {Section('fonts', 'Fonts — Title / Body / Accent', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Pick any font for titles, body text and small labels — used everywhere on this page. Leave a row to follow the font style above.</p>
+            {([['display', 'Title font'], ['body', 'Body font'], ['label', 'Accent / labels']] as ['display' | 'body' | 'label', string][]).map(([role, lbl]) => {
+              const cur = fontRoles[role]
+              return (
+                <div key={role} className="mb-2">
+                  <div className="flex items-center justify-between">
+                    <span style={labelCss}>{lbl}</span>
+                    {cur && <button type="button" onClick={() => { setFontRoles(r => ({ ...r, [role]: undefined })); touch() }} className="font-body text-[10px] text-gold/70 hover:text-gold">↺ follow font style</button>}
+                  </div>
+                  <GoogleFontPicker value={cur} onPick={ff => { setFontRoles(r => ({ ...r, [role]: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+                </div>
+              )
+            })}
+          </>
+        ))}
+
+        {/* 10 ── Buttons & links */}
+        <div className="h-px bg-gold/15" />
+        {Section('buttonslinks', 'Buttons & links', (
+          <>
+            <p style={labelCss}>Buttons</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new buttons you add.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span style={labelCss}>Fill</span>
+              {colorField(buttonStyle.fill, v => { setButtonStyle(s => ({ ...s, fill: v })); touch() }, '#111111')}
+              <span style={labelCss}>Text</span>
+              {colorField(buttonStyle.color, v => { setButtonStyle(s => ({ ...s, color: v })); touch() }, '#ffffff')}
+            </div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span style={labelCss}>Radius</span>
+              <input type="range" min={0} max={40} value={buttonStyle.radius ?? 6} onChange={e => { setButtonStyle(s => ({ ...s, radius: Number(e.target.value) })); touch() }} style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: '#666', width: 26 }}>{buttonStyle.radius ?? 6}</span>
+            </div>
+            <div className="mt-1.5">
+              <select value={(buttonStyle.fontFamily || '').startsWith('google:') ? '' : (buttonStyle.fontFamily || '')} onChange={e => { setButtonStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+                <option value="">Default (label font)</option>
+                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                {(buttonStyle.fontFamily || '').startsWith('google:') && <option value="">{buttonStyle.fontFamily!.slice(7)} (Google)</option>}
+              </select>
+              <GoogleFontPicker value={buttonStyle.fontFamily} onPick={ff => { setButtonStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+            </div>
+            <p style={{ ...labelCss, marginTop: 10 }}>Links</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new text links you add.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span style={labelCss}>Colour</span>
+              {colorField(linkStyle.color, v => { setLinkStyle(s => ({ ...s, color: v })); touch() }, '#9a7d2e')}
+            </div>
+            <div className="mt-1.5">
+              <select value={(linkStyle.fontFamily || '').startsWith('google:') ? '' : (linkStyle.fontFamily || '')} onChange={e => { setLinkStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
+                <option value="">Default (label font)</option>
+                <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                {(linkStyle.fontFamily || '').startsWith('google:') && <option value="">{linkStyle.fontFamily!.slice(7)} (Google)</option>}
+              </select>
+              <GoogleFontPicker value={linkStyle.fontFamily} onPick={ff => { setLinkStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
+            </div>
+          </>
+        ))}
+
+        {/* 11 ── Text styles (its inner per-style expanders stay working) */}
+        <div className="h-px bg-gold/15" />
+        {Section('textstyles', 'Text styles', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Set Heading, Body and the rest once — every text you&rsquo;ve linked to a style updates together. Link a text from its own panel.</p>
+            <div className="space-y-1">
+              {TEXT_STYLE_KEYS.map(key => {
+                const s = textStyles[key] || defaultTextStyles()[key]
+                const open = styleOpen === key
+                const usedBy = els.filter(e => e.styleRef === key).length
+                return (
+                  <div key={key} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
+                    <button type="button" onClick={() => setStyleOpen(open ? '' : key)} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left">
+                      <span style={{ fontFamily: fontVar(s.fontFamily), fontSize: Math.min(s.fontSize, 20), fontWeight: s.weight ?? 400, fontStyle: s.italic ? 'italic' : undefined, color: '#2a2a2a', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{TEXT_STYLE_LABELS[key]}</span>
+                      <span className="font-body text-ash/40 text-[10px] shrink-0">{usedBy > 0 ? `${usedBy} linked ` : ''}{open ? '▴' : '▾'}</span>
+                    </button>
+                    {open && (
+                      <div className="px-2.5 pb-2.5 pt-1 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                        <div className="flex items-center gap-2">
+                          <span style={labelCss}>Size</span>
+                          <input type="range" min={10} max={120} value={s.fontSize} onChange={e => editStyle(key, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
+                          <span style={{ fontSize: 11, color: '#666', width: 26 }}>{s.fontSize}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(() => { const isG = (s.fontFamily || '').startsWith('google:'); return (
+                          <select value={isG ? '' : (s.fontFamily || 'display')} onChange={e => { if (e.target.value) editStyle(key, { fontFamily: e.target.value }) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                            <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
+                            {isG && <option value="">{s.fontFamily!.slice(7)} (Google)</option>}
+                            {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
+                          </select>
+                          ) })()}
+                          <select value={s.weight ?? 400} onChange={e => editStyle(key, { weight: Number(e.target.value) })} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
+                            <option value={300}>Light</option><option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={900}>Black</option>
+                          </select>
+                          <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? ui : '#888', width: 22 }}>I</button>
+                        </div>
+                        <GoogleFontPicker value={s.fontFamily} onPick={ff => editStyle(key, { fontFamily: ff })} />
+                        <div className="flex items-center gap-2">
+                          <span style={labelCss}>Colour</span>
+                          {colorField(s.color, v => editStyle(key, { color: v }), '#111111')}
+                          <span style={labelCss}>Lines</span>
+                          <input type="range" min={0.8} max={2.4} step={0.05} value={s.lineHeight ?? 1.3} onChange={e => editStyle(key, { lineHeight: Number(e.target.value) })} style={{ flex: 1 }} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span style={labelCss}>Spacing</span>
+                          <input type="range" min={-5} max={30} value={s.letterSpacing ?? 0} onChange={e => editStyle(key, { letterSpacing: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Letter spacing" />
+                          <span style={{ fontSize: 11, color: '#666', width: 24 }}>{s.letterSpacing ?? 0}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        ))}
+
+        {/* 12 ── Brand fonts (upload) */}
+        <div className="h-px bg-gold/15" />
+        {Section('brandfonts', 'Brand fonts', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-2 leading-relaxed">Upload your own fonts (.woff2/.woff/.ttf/.otf), then pick them in any text or button.</p>
+            <div className="flex flex-col gap-1">
+              {fonts.map(f => (
+                <div key={f.id} className="flex items-center gap-2">
+                  <span style={{ fontFamily: `'cvf-${f.id}', sans-serif`, fontSize: 14, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#3a2e20' }}>{f.name}</span>
+                  <button type="button" title="Remove" onClick={() => { setFonts(p => p.filter(x => x.id !== f.id)); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>×</button>
+                </div>
+              ))}
+              {fonts.length < MAX_FONTS && (
+                <button type="button" onClick={fontPick} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">+ Upload font</button>
+              )}
+            </div>
+          </>
+        ))}
+
+        {/* 13 ── Brand palette (colours + suggest) */}
+        <div className="h-px bg-gold/15" />
+        {Section('palette', 'Brand palette', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-2 leading-relaxed">Save your colours here, then click a swatch beside any colour. Change a swatch and everything using it updates.</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {palette.map((c, i) => (
+                <span key={i} className="inline-flex items-center">
+                  <input type="color" value={c} onChange={e => { snapshot(); setPalette(p => p.map((x, j) => (j === i ? e.target.value : x))); touch() }} style={{ ...swatch, width: 26, height: 26 }} title={`Brand ${i + 1}`} />
+                  <button type="button" onClick={() => removePaletteColor(i)} title="Remove" style={{ fontSize: 11, color: '#b3402f', marginLeft: 1 }}>×</button>
+                </span>
+              ))}
+              {palette.length < MAX_PALETTE && (
+                <button type="button" onClick={() => { snapshot(true); setPalette(p => [...p, accent]); touch() }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Colour</button>
+              )}
+              <button type="button" onClick={suggestPalette} disabled={paletteBusy} title="Let AI suggest a cohesive palette" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{paletteBusy ? 'Mixing…' : '✦ Suggest'}</button>
+            </div>
+          </>
+        ))}
+
+        {/* 14 ── Brand voice */}
+        <div className="h-px bg-gold/15" />
+        {Section('voice', 'Brand voice', (
+          <>
+            {voiceSaved && <span className="font-label text-[9px] tracking-[1px] uppercase text-gold/70">✓ Saved</span>}
+            <textarea value={brandVoice} onChange={e => setBrandVoice(e.target.value)} onBlur={saveBrandVoice} rows={3} maxLength={600} placeholder="e.g. Warm, grounded and a little poetic. Speaks to overwhelmed founders. Calm, never hype-y; short sentences; British spelling." style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'vertical', marginTop: 6 }} />
+            <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">Used across this whole site — every AI rewrite, copy suggestion &amp; design review will sound like you.</p>
+          </>
+        ))}
+
+        {/* 15 ── Design review */}
+        <div className="h-px bg-gold/15" />
+        {Section('review', 'Design review', (
+          <>
+            <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{critiquing ? 'Reviewing…' : '✦ Review my page'}</button>
+            <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A kind second pair of eyes — hierarchy, contrast, spacing &amp; warmth.</p>
+            {critiqueErr && <p className="font-body text-[11px] mt-2" style={{ color: '#b4532e' }}>{critiqueErr}</p>}
+            {critique && (
+              <div className="mt-2.5 space-y-2">
+                <p className="font-body text-[12px] italic leading-relaxed" style={{ color: '#5a5a5a' }}>{critique.summary}</p>
+                {critique.findings.map((f, i) => {
+                  const c = f.severity === 'praise' ? '#3b7d4f' : f.severity === 'fix' ? '#b4532e' : '#9a7b1f'
+                  return (
+                    <div key={i} className="flex gap-2">
+                      <span style={{ flex: 'none', marginTop: 5, width: 6, height: 6, borderRadius: 999, background: c }} />
+                      <p className="font-body text-[12px] leading-relaxed" style={{ color: '#3a3a3a' }}>
+                        <span style={{ color: c, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginRight: 6, fontWeight: 600 }}>{f.area}</span>
+                        {f.note}
+                      </p>
+                    </div>
+                  )
+                })}
+                <div className="flex items-center gap-3 flex-wrap pt-0.5">
+                  {!!critique.edits?.length && (
+                    <button type="button" onClick={applyCritique} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-1.5 rounded-sm">✦ Apply {critique.edits.length} suggested change{critique.edits.length > 1 ? 's' : ''}</button>
+                  )}
+                  <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
+                </div>
+                {!!critique.edits?.length && <p className="font-body text-ash/45 text-[10.5px] leading-relaxed">Applies safe colour/size/alignment tweaks to the elements above — Ctrl/⌘+Z to undo.</p>}
+              </div>
+            )}
+          </>
+        ))}
+
+        {/* 16 ── Polish copy (+ fill alt text) */}
+        <div className="h-px bg-gold/15" />
+        {Section('polish', 'Polish copy', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Rewrite every heading &amp; paragraph in one go — same meaning, new tone, in your brand voice.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {([['warmer', 'Warmer'], ['calmer', 'Calmer'], ['more premium', 'Premium'], ['punchier', 'Punchier']] as [string, string][]).map(([tone, lbl]) => (
+                <button key={tone} type="button" onClick={() => polishCopy(tone)} disabled={!!polishBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{polishBusy === tone ? '…' : lbl}</button>
+              ))}
+            </div>
+            <button type="button" onClick={fillAllAlt} disabled={altAllBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm mt-2">{altAllBusy ? 'Writing alt text…' : '✦ Fill missing alt text'}</button>
+          </>
+        ))}
+
+        {/* 17 ── Announcement bar */}
+        <div className="h-px bg-gold/15" />
+        {Section('banner', 'Announcement bar', (
+          <>
+            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? ui : 'rgba(0,0,0,0.15)'}`, background: banner ? ui : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
+            {banner && (
+              <div className="mt-1.5 space-y-1.5">
+                <input value={banner.text} onChange={e => { setBanner({ ...banner, text: e.target.value }); touch() }} placeholder="Your announcement…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Bar</span>
+                  {colorField(banner.bg, v => { setBanner({ ...banner, bg: v }); touch() }, '#141414')}
+                  <span style={labelCss}>Text</span>
+                  {colorField(banner.color, v => { setBanner({ ...banner, color: v }); touch() }, '#ffffff')}
+                </div>
+                <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
+              </div>
+            )}
+          </>
+        ))}
+
+        {/* 18 ── Popup */}
+        <div className="h-px bg-gold/15" />
+        {Section('popup', 'Popup', (
+          <>
+            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? ui : 'rgba(0,0,0,0.15)'}`, background: popup ? ui : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
+            {popup && (
+              <div className="mt-1.5 space-y-1.5">
+                <input value={popup.title || ''} onChange={e => { setPopup({ ...popup, title: e.target.value || undefined }); touch() }} placeholder="Title (optional)" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
+                <textarea value={popup.text} onChange={e => { setPopup({ ...popup, text: e.target.value }); touch() }} rows={2} placeholder="Your message…" style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'none' }} />
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Card</span>
+                  {colorField(popup.bg, v => { setPopup({ ...popup, bg: v }); touch() }, '#ffffff')}
+                  <span style={labelCss}>Text</span>
+                  {colorField(popup.color, v => { setPopup({ ...popup, color: v }); touch() }, '#1a1612')}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input value={popup.ctaLabel || ''} onChange={e => { setPopup({ ...popup, ctaLabel: e.target.value || undefined }); touch() }} placeholder="Button" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
+                  <input value={popup.ctaHref || ''} onChange={e => { setPopup({ ...popup, ctaHref: e.target.value || undefined }); touch() }} placeholder="Button link (https://…)" style={{ ...inputCss, fontSize: 11, flex: 1.4 }} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Delay</span>
+                  <input type="range" min={0} max={60} value={popup.delay ?? 2} onChange={e => { setPopup({ ...popup, delay: Number(e.target.value) }); touch() }} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 30 }}>{popup.delay ?? 2}s</span>
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows once per visitor, {popup.delay ?? 2}s after they arrive. They can close it.</p>
+              </div>
+            )}
+          </>
+        ))}
+
+        {/* 19 ── Design my whole site with AI */}
+        <div className="h-px bg-gold/15" />
+        {Section('sitelook', '✨ Design my whole site with AI', (
+          <>
+            <p className="font-body text-ash/50 text-[11px] mb-1.5 leading-relaxed">Describe the feeling and AI picks fonts, colours and a background — applied to every page.</p>
             <input
               type="text"
               value={aiVibe}
@@ -3040,354 +3434,16 @@ export default function CanvasEditor({
             />
             <button type="button" onClick={designWholeSite} disabled={aiDesigning || !aiVibe.trim()} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2 rounded-sm mt-1.5">{aiDesigning ? 'Designing…' : 'Design it'}</button>
             {aiDesignErr && <p className="font-body text-[11px] mt-1.5" style={{ color: '#b4532e' }}>{aiDesignErr}</p>}
-          </div>
+          </>
+        ))}
 
-          {/* Theme presets */}
-          <p style={labelCss}>Quick looks</p>
-          <div className="flex flex-wrap gap-1.5 mt-1.5 mb-1">
-            {PRESET_LOOKS.map(p => (
-              <button key={p.name} type="button" onClick={() => applyPresetLook(p)} title={`Apply the “${p.name}” look`} className="inline-flex items-center gap-1.5 rounded-sm px-2 py-1.5" style={{ border: '1px solid rgba(0,0,0,0.15)', background: '#fff' }}>
-                <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', background: p.bg, flex: 'none' }} />
-                <span style={{ fontFamily: p.fontRoles.display.startsWith('google:') ? googleStack(p.fontRoles.display.slice(7)) : undefined, fontSize: 12, color: '#2a2a2a' }}>{p.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Fonts: the three role-override pickers */}
-          <p style={{ ...labelCss, marginTop: 10 }}>Fonts</p>
-          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">Pick any font for titles, body text and small labels — used everywhere on this page. Leave a row to follow the font style below.</p>
-          {([['display', 'Title font'], ['body', 'Body font'], ['label', 'Accent / labels']] as ['display' | 'body' | 'label', string][]).map(([role, lbl]) => {
-            const cur = fontRoles[role]
-            return (
-              <div key={role} className="mb-2">
-                <div className="flex items-center justify-between">
-                  <span style={labelCss}>{lbl}</span>
-                  {cur && <button type="button" onClick={() => { setFontRoles(r => ({ ...r, [role]: undefined })); touch() }} className="font-body text-[10px] text-gold/70 hover:text-gold">↺ follow font style</button>}
-                </div>
-                <GoogleFontPicker value={cur} onPick={ff => { setFontRoles(r => ({ ...r, [role]: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
-              </div>
-            )
-          })}
-
-          {/* Buttons */}
-          <p style={{ ...labelCss, marginTop: 6 }}>Buttons</p>
-          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new buttons you add.</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span style={labelCss}>Fill</span>
-            {colorField(buttonStyle.fill, v => { setButtonStyle(s => ({ ...s, fill: v })); touch() }, '#111111')}
-            <span style={labelCss}>Text</span>
-            {colorField(buttonStyle.color, v => { setButtonStyle(s => ({ ...s, color: v })); touch() }, '#ffffff')}
-          </div>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span style={labelCss}>Radius</span>
-            <input type="range" min={0} max={40} value={buttonStyle.radius ?? 6} onChange={e => { setButtonStyle(s => ({ ...s, radius: Number(e.target.value) })); touch() }} style={{ flex: 1 }} />
-            <span style={{ fontSize: 11, color: '#666', width: 26 }}>{buttonStyle.radius ?? 6}</span>
-          </div>
-          <div className="mt-1.5">
-            <select value={(buttonStyle.fontFamily || '').startsWith('google:') ? '' : (buttonStyle.fontFamily || '')} onChange={e => { setButtonStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
-              <option value="">Default (label font)</option>
-              <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
-              {(buttonStyle.fontFamily || '').startsWith('google:') && <option value="">{buttonStyle.fontFamily!.slice(7)} (Google)</option>}
-            </select>
-            <GoogleFontPicker value={buttonStyle.fontFamily} onPick={ff => { setButtonStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
-          </div>
-
-          {/* Links */}
-          <p style={{ ...labelCss, marginTop: 10 }}>Links</p>
-          <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">The default style for new text links you add.</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span style={labelCss}>Colour</span>
-            {colorField(linkStyle.color, v => { setLinkStyle(s => ({ ...s, color: v })); touch() }, '#9a7d2e')}
-          </div>
-          <div className="mt-1.5">
-            <select value={(linkStyle.fontFamily || '').startsWith('google:') ? '' : (linkStyle.fontFamily || '')} onChange={e => { setLinkStyle(s => ({ ...s, fontFamily: e.target.value || undefined })); touch() }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px' }}>
-              <option value="">Default (label font)</option>
-              <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
-              {(linkStyle.fontFamily || '').startsWith('google:') && <option value="">{linkStyle.fontFamily!.slice(7)} (Google)</option>}
-            </select>
-            <GoogleFontPicker value={linkStyle.fontFamily} onPick={ff => { setLinkStyle(s => ({ ...s, fontFamily: ff })); ensureGoogleFont(ff.slice(7)); touch() }} />
-          </div>
-
-          <p className="font-body text-ash/45 text-[10.5px] mt-2.5 leading-relaxed">Background, brand colours and text styles for the look are set in the sections below.</p>
-
-          {/* Apply to all pages + inherit */}
-          <div className="h-px bg-gold/15 my-2.5" />
-          <button type="button" onClick={applyLookToAllPages} disabled={applyingLook} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2.5 rounded-sm">{applyingLook ? 'Applying…' : '✦ Apply this look to all pages'}</button>
-          <label className="flex items-start gap-2 mt-2 font-body text-ash/70 text-[12px] leading-snug cursor-pointer">
-            <input type="checkbox" checked={inheritLook} onChange={e => toggleInheritLook(e.target.checked)} style={{ accentColor: ui, marginTop: 2 }} />
-            <span>New pages inherit this look</span>
-          </label>
-        </div>
-
+        {/* 20 ── Apply this look to all pages + inherit (plain controls, not collapsed) */}
         <div className="h-px bg-gold/15" />
-        <div>
-          <div className="flex items-center justify-between">
-            <p style={labelCss}>Design review</p>
-            <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{critiquing ? 'Reviewing…' : '✦ Review my page'}</button>
-          </div>
-          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A kind second pair of eyes — hierarchy, contrast, spacing &amp; warmth.</p>
-          {critiqueErr && <p className="font-body text-[11px] mt-2" style={{ color: '#b4532e' }}>{critiqueErr}</p>}
-          {critique && (
-            <div className="mt-2.5 space-y-2">
-              <p className="font-body text-[12px] italic leading-relaxed" style={{ color: '#5a5a5a' }}>{critique.summary}</p>
-              {critique.findings.map((f, i) => {
-                const c = f.severity === 'praise' ? '#3b7d4f' : f.severity === 'fix' ? '#b4532e' : '#9a7b1f'
-                return (
-                  <div key={i} className="flex gap-2">
-                    <span style={{ flex: 'none', marginTop: 5, width: 6, height: 6, borderRadius: 999, background: c }} />
-                    <p className="font-body text-[12px] leading-relaxed" style={{ color: '#3a3a3a' }}>
-                      <span style={{ color: c, fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, marginRight: 6, fontWeight: 600 }}>{f.area}</span>
-                      {f.note}
-                    </p>
-                  </div>
-                )
-              })}
-              <div className="flex items-center gap-3 flex-wrap pt-0.5">
-                {!!critique.edits?.length && (
-                  <button type="button" onClick={applyCritique} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-2.5 py-1.5 rounded-sm">✦ Apply {critique.edits.length} suggested change{critique.edits.length > 1 ? 's' : ''}</button>
-                )}
-                <button type="button" onClick={reviewDesign} disabled={critiquing} className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 hover:text-gold disabled:opacity-50">↻ Review again</button>
-              </div>
-              {!!critique.edits?.length && <p className="font-body text-ash/45 text-[10.5px] leading-relaxed">Applies safe colour/size/alignment tweaks to the elements above — Ctrl/⌘+Z to undo.</p>}
-            </div>
-          )}
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Polish copy</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">Rewrite every heading &amp; paragraph in one go — same meaning, new tone, in your brand voice.</p>
-          <div className="flex flex-wrap gap-1.5">
-            {([['warmer', 'Warmer'], ['calmer', 'Calmer'], ['more premium', 'Premium'], ['punchier', 'Punchier']] as [string, string][]).map(([tone, lbl]) => (
-              <button key={tone} type="button" onClick={() => polishCopy(tone)} disabled={!!polishBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{polishBusy === tone ? '…' : lbl}</button>
-            ))}
-          </div>
-          <button type="button" onClick={fillAllAlt} disabled={altAllBusy} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm mt-2">{altAllBusy ? 'Writing alt text…' : '✦ Fill missing alt text'}</button>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <div className="flex items-center justify-between">
-            <p style={labelCss}>Brand voice</p>
-            {voiceSaved && <span className="font-label text-[9px] tracking-[1px] uppercase text-gold/70">✓ Saved</span>}
-          </div>
-          <textarea value={brandVoice} onChange={e => setBrandVoice(e.target.value)} onBlur={saveBrandVoice} rows={3} maxLength={600} placeholder="e.g. Warm, grounded and a little poetic. Speaks to overwhelmed founders. Calm, never hype-y; short sentences; British spelling." style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'vertical', marginTop: 6 }} />
-          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">Used across this whole site — every AI rewrite, copy suggestion &amp; design review will sound like you.</p>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Page transitions</p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {([['fade', 'Fade'], ['slide', 'Slide up'], ['none', 'Off']] as [PageTransitionKind, string][]).map(([k, lbl]) => {
-              const on = pageTransition === k
-              return (
-                <button key={k} type="button" onClick={() => changePageTransition(k)} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm" style={{ border: `1px solid ${on ? ui : 'rgba(0,0,0,0.15)'}`, background: on ? ui : 'transparent', color: on ? '#fff' : '#666' }}>{lbl}</button>
-              )
-            })}
-          </div>
-          <p className="font-body text-ash/50 text-[11px] mt-1 leading-relaxed">A gentle animation as each page loads — applied across the whole site.</p>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Font style</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">The title, subtitle &amp; body fonts for this page.</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {FONT_SYSTEMS.map(f => {
-              const on = fontSys === f.key
-              return (
-                <button key={f.key} type="button" onClick={() => { setFontSys(f.key); touch() }} title={f.name} style={{ ...fontVars(f.key), textAlign: 'left', padding: '6px 9px', borderRadius: 5, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff' } as CSSProperties}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: 17, color: '#222', display: 'block', lineHeight: 1.15 }}>Aa</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#777', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <div className="flex items-center justify-between">
-            <p style={labelCss}>Announcement bar</p>
-            <button type="button" onClick={() => { setBanner(banner ? null : { text: 'Free shipping this week ✦' }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${banner ? ui : 'rgba(0,0,0,0.15)'}`, background: banner ? ui : 'transparent', color: banner ? '#fff' : '#666' }}>{banner ? 'On' : 'Off'}</button>
-          </div>
-          {banner && (
-            <div className="mt-1.5 space-y-1.5">
-              <input value={banner.text} onChange={e => { setBanner({ ...banner, text: e.target.value }); touch() }} placeholder="Your announcement…" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
-              <div className="flex items-center gap-2">
-                <span style={labelCss}>Bar</span>
-                {colorField(banner.bg, v => { setBanner({ ...banner, bg: v }); touch() }, '#141414')}
-                <span style={labelCss}>Text</span>
-                {colorField(banner.color, v => { setBanner({ ...banner, color: v }); touch() }, '#ffffff')}
-              </div>
-              <input value={banner.href || ''} onChange={e => { setBanner({ ...banner, href: e.target.value || undefined }); touch() }} placeholder="Optional link (https://…)" style={{ ...inputCss, width: '100%', fontSize: 11 }} />
-              <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows a thin bar across the top of this page. Visitors can dismiss it.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <div className="flex items-center justify-between">
-            <p style={labelCss}>Popup</p>
-            <button type="button" onClick={() => { setPopup(popup ? null : { text: 'Join the list for 10% off ✦', title: 'Welcome', ctaLabel: 'Sign up', delay: 3 }); touch() }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${popup ? ui : 'rgba(0,0,0,0.15)'}`, background: popup ? ui : 'transparent', color: popup ? '#fff' : '#666' }}>{popup ? 'On' : 'Off'}</button>
-          </div>
-          {popup && (
-            <div className="mt-1.5 space-y-1.5">
-              <input value={popup.title || ''} onChange={e => { setPopup({ ...popup, title: e.target.value || undefined }); touch() }} placeholder="Title (optional)" style={{ ...inputCss, width: '100%', fontSize: 12 }} />
-              <textarea value={popup.text} onChange={e => { setPopup({ ...popup, text: e.target.value }); touch() }} rows={2} placeholder="Your message…" style={{ ...inputCss, width: '100%', fontSize: 12, resize: 'none' }} />
-              <div className="flex items-center gap-2">
-                <span style={labelCss}>Card</span>
-                {colorField(popup.bg, v => { setPopup({ ...popup, bg: v }); touch() }, '#ffffff')}
-                <span style={labelCss}>Text</span>
-                {colorField(popup.color, v => { setPopup({ ...popup, color: v }); touch() }, '#1a1612')}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input value={popup.ctaLabel || ''} onChange={e => { setPopup({ ...popup, ctaLabel: e.target.value || undefined }); touch() }} placeholder="Button" style={{ ...inputCss, fontSize: 12, flex: 1 }} />
-                <input value={popup.ctaHref || ''} onChange={e => { setPopup({ ...popup, ctaHref: e.target.value || undefined }); touch() }} placeholder="Button link (https://…)" style={{ ...inputCss, fontSize: 11, flex: 1.4 }} />
-              </div>
-              <div className="flex items-center gap-2">
-                <span style={labelCss}>Delay</span>
-                <input type="range" min={0} max={60} value={popup.delay ?? 2} onChange={e => { setPopup({ ...popup, delay: Number(e.target.value) }); touch() }} style={{ flex: 1 }} />
-                <span style={{ fontSize: 11, color: '#666', width: 30 }}>{popup.delay ?? 2}s</span>
-              </div>
-              <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Shows once per visitor, {popup.delay ?? 2}s after they arrive. They can close it.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Page width</p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {(['full', 'contained'] as const).map(w => (
-              <button key={w} type="button" onClick={() => { setPageWidth(w); touch() }} style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, padding: '4px 10px', borderRadius: 3, border: `1px solid ${pageWidth === w ? ui : 'rgba(0,0,0,0.15)'}`, background: pageWidth === w ? ui : 'transparent', color: pageWidth === w ? '#fff' : '#666' }}>{w === 'full' ? 'Full width' : 'Contained'}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Movement</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">One click sets how the whole page comes alive as visitors scroll. You can still fine-tune any element under its Motion settings.</p>
-          <div className="flex flex-wrap gap-1.5">
-            {([['calm', 'Calm'], ['playful', 'Playful'], ['energetic', 'Energetic'], ['none', 'None']] as ['calm' | 'playful' | 'energetic' | 'none', string][]).map(([k, lbl]) => (
-              <button key={k} type="button" onClick={() => applyMood(k)} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{lbl}</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Text styles</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-1.5 leading-relaxed">Set Heading, Body and the rest once — every text you&rsquo;ve linked to a style updates together. Link a text from its own panel.</p>
-          <div className="space-y-1">
-            {TEXT_STYLE_KEYS.map(key => {
-              const s = textStyles[key] || defaultTextStyles()[key]
-              const open = styleOpen === key
-              const usedBy = els.filter(e => e.styleRef === key).length
-              return (
-                <div key={key} className="rounded-sm" style={{ border: '1px solid rgba(0,0,0,0.1)' }}>
-                  <button type="button" onClick={() => setStyleOpen(open ? '' : key)} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left">
-                    <span style={{ fontFamily: fontVar(s.fontFamily), fontSize: Math.min(s.fontSize, 20), fontWeight: s.weight ?? 400, fontStyle: s.italic ? 'italic' : undefined, color: '#2a2a2a', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{TEXT_STYLE_LABELS[key]}</span>
-                    <span className="font-body text-ash/40 text-[10px] shrink-0">{usedBy > 0 ? `${usedBy} linked ` : ''}{open ? '▴' : '▾'}</span>
-                  </button>
-                  {open && (
-                    <div className="px-2.5 pb-2.5 pt-1 space-y-1.5" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                      <div className="flex items-center gap-2">
-                        <span style={labelCss}>Size</span>
-                        <input type="range" min={10} max={120} value={s.fontSize} onChange={e => editStyle(key, { fontSize: Number(e.target.value) })} style={{ flex: 1 }} />
-                        <span style={{ fontSize: 11, color: '#666', width: 26 }}>{s.fontSize}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(() => { const isG = (s.fontFamily || '').startsWith('google:'); return (
-                        <select value={isG ? '' : (s.fontFamily || 'display')} onChange={e => { if (e.target.value) editStyle(key, { fontFamily: e.target.value }) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
-                          <option value="display">Title font</option><option value="body">Body font</option><option value="label">Label font</option>
-                          {isG && <option value="">{s.fontFamily!.slice(7)} (Google)</option>}
-                          {fonts.map(f => <option key={f.id} value={`custom:${f.id}`}>{f.name}</option>)}
-                        </select>
-                        ) })()}
-                        <select value={s.weight ?? 400} onChange={e => editStyle(key, { weight: Number(e.target.value) })} style={{ ...inputCss, fontSize: 11, padding: '3px 4px', width: 'auto' }}>
-                          <option value={300}>Light</option><option value={400}>Regular</option><option value={500}>Medium</option><option value={600}>Semibold</option><option value={700}>Bold</option><option value={900}>Black</option>
-                        </select>
-                        <button type="button" title="Italic" onClick={() => editStyle(key, { italic: !s.italic })} style={{ fontStyle: 'italic', fontSize: 13, color: s.italic ? ui : '#888', width: 22 }}>I</button>
-                      </div>
-                      <GoogleFontPicker value={s.fontFamily} onPick={ff => editStyle(key, { fontFamily: ff })} />
-                      <div className="flex items-center gap-2">
-                        <span style={labelCss}>Colour</span>
-                        {colorField(s.color, v => editStyle(key, { color: v }), '#111111')}
-                        <span style={labelCss}>Lines</span>
-                        <input type="range" min={0.8} max={2.4} step={0.05} value={s.lineHeight ?? 1.3} onChange={e => editStyle(key, { lineHeight: Number(e.target.value) })} style={{ flex: 1 }} />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span style={labelCss}>Spacing</span>
-                        <input type="range" min={-5} max={30} value={s.letterSpacing ?? 0} onChange={e => editStyle(key, { letterSpacing: Number(e.target.value) || undefined })} style={{ flex: 1 }} title="Letter spacing" />
-                        <span style={{ fontSize: 11, color: '#666', width: 24 }}>{s.letterSpacing ?? 0}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div className="space-y-1.5">
-          <p style={labelCss}>Page background</p>
-          <div className="flex items-center gap-2 mt-1.5">
-            <ColorField value={bg || ''} onChange={v => { setBg(v); touch() }} fallback="#ffffff" palette={palette} />
-            {bg && <button type="button" onClick={() => { setBg(''); touch() }} style={{ fontSize: 11, color: '#999' }}>×</button>}
-            <button type="button" onClick={pickBg} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">{bgImage ? 'Change photo' : '+ Photo'}</button>
-            {bgImage && <button type="button" onClick={() => { setBgImage(''); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>remove</button>}
-          </div>
-          {gradientControls(bgGrad, g => { setBgGrad(g); touch() })}
-          <div className="flex flex-wrap gap-1.5">
-            {([{ c: '#ffffff' }, { c: '#000000' }, { c: '#f5f5f4' }, { c: '#e7e7e4' }, { c: '#1f2430' }, { g: { from: '#fbeaf0', to: '#e4f0fb', angle: 135, stops: [{ color: '#fbeaf0', at: 0 }, { color: '#f3ecfa', at: 50 }, { color: '#e4f0fb', at: 100 }] } }, { g: { from: '#fce9d8', to: '#e7f3ea', angle: 160, stops: [{ color: '#fce9d8', at: 0 }, { color: '#f7e3ec', at: 45 }, { color: '#e7f3ea', at: 100 }] } }] as { c?: string; g?: Gradient }[]).map((p, i) => (
-              <button key={i} type="button" title="Apply this background" onClick={() => { if (p.c) { setBg(p.c); setBgGrad(null) } else if (p.g) { setBgGrad(p.g); setBg('') } touch() }} style={{ width: 26, height: 26, borderRadius: 5, border: '1px solid rgba(0,0,0,0.2)', background: p.c || gradientCss(p.g) || '#fff' }} />
-            ))}
-          </div>
-          {(bg || bgGrad || bgImage) && (
-            <div className="flex items-center gap-2">
-              <span style={labelCss}>Opacity</span>
-              <input type="range" min={0} max={100} value={bgOpacity} onChange={e => { setBgOpacity(Number(e.target.value)); touch() }} style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, color: '#666', width: 32 }}>{bgOpacity}%</span>
-            </div>
-          )}
-          <input value={bgVideo} onChange={e => { setBgVideo(e.target.value); touch() }} placeholder="Background video URL (https://…mp4)" style={{ ...inputCss, fontSize: 11, marginTop: 4 }} />
-        </div>
-
-        <div className="h-px bg-gold/15" />
-        <div>
-          <p style={labelCss}>Brand palette</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Save your colours here, then click a swatch beside any colour. Change a swatch and everything using it updates.</p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {palette.map((c, i) => (
-              <span key={i} className="inline-flex items-center">
-                <input type="color" value={c} onChange={e => { snapshot(); setPalette(p => p.map((x, j) => (j === i ? e.target.value : x))); touch() }} style={{ ...swatch, width: 26, height: 26 }} title={`Brand ${i + 1}`} />
-                <button type="button" onClick={() => removePaletteColor(i)} title="Remove" style={{ fontSize: 11, color: '#b3402f', marginLeft: 1 }}>×</button>
-              </span>
-            ))}
-            {palette.length < MAX_PALETTE && (
-              <button type="button" onClick={() => { snapshot(true); setPalette(p => [...p, accent]); touch() }} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ Colour</button>
-            )}
-            <button type="button" onClick={suggestPalette} disabled={paletteBusy} title="Let AI suggest a cohesive palette" className="font-label text-[9px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 disabled:opacity-50 px-2.5 py-1.5 rounded-sm">{paletteBusy ? 'Mixing…' : '✦ Suggest'}</button>
-          </div>
-          <p style={{ ...labelCss, marginTop: 10 }}>Brand fonts</p>
-          <p className="font-body text-ash/50 text-[11px] mt-1 mb-2 leading-relaxed">Upload your own fonts (.woff2/.woff/.ttf/.otf), then pick them in any text or button.</p>
-          <div className="flex flex-col gap-1">
-            {fonts.map(f => (
-              <div key={f.id} className="flex items-center gap-2">
-                <span style={{ fontFamily: `'cvf-${f.id}', sans-serif`, fontSize: 14, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#3a2e20' }}>{f.name}</span>
-                <button type="button" title="Remove" onClick={() => { setFonts(p => p.filter(x => x.id !== f.id)); touch() }} style={{ fontSize: 11, color: '#b3402f' }}>×</button>
-              </div>
-            ))}
-            {fonts.length < MAX_FONTS && (
-              <button type="button" onClick={fontPick} className="font-label text-[9px] tracking-[1px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm self-start">+ Upload font</button>
-            )}
-          </div>
-        </div>
+        <button type="button" onClick={applyLookToAllPages} disabled={applyingLook} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2.5 rounded-sm">{applyingLook ? 'Applying…' : '✦ Apply this look to all pages'}</button>
+        <label className="flex items-start gap-2 font-body text-ash/70 text-[12px] leading-snug cursor-pointer">
+          <input type="checkbox" checked={inheritLook} onChange={e => toggleInheritLook(e.target.checked)} style={{ accentColor: ui, marginTop: 2 }} />
+          <span>New pages inherit this look</span>
+        </label>
         </>)}
 
         {lib && panelTab === 'elements' && (
