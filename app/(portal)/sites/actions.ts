@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, aiMobileLayout, type GeneratedPage, type DesignCritique, type MobileEmphasis } from '@/lib/sites/generate'
+import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, aiMobileLayout, aiSiteLook, type GeneratedPage, type DesignCritique, type MobileEmphasis } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -13,7 +13,7 @@ import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/l
 import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
-import { isGoogleFamily } from '@/lib/sites/googleFonts'
+import { isGoogleFamily, GOOGLE_FONTS } from '@/lib/sites/googleFonts'
 import type {
   SiteContent,
   SiteLook,
@@ -1363,20 +1363,6 @@ export async function saveCanvasAction(formData: FormData): Promise<void> {
 
 // --- Site Look (one look applied across all pages) --------------------------
 
-// The look-defining token fields of a canvas (the bits "Apply to all pages" copies). Pulled
-// out so applySiteLookAction, addPageAction and the SiteLook ⇄ canvas mapping all agree.
-const SITE_LOOK_FIELDS = ['bg', 'bgGradient', 'bgImage', 'bgOpacity', 'fontSystem', 'fontRoles', 'textStyles', 'palette', 'buttonStyle', 'linkStyle'] as const
-
-// The look tokens of a page's canvas, as a plain object. EVERY look field is set (absent ones
-// to undefined) so spreading this onto a target canvas reliably REPLACES that page's look —
-// including clearing a field the source page doesn't use (apply-to-all is replace-by-design).
-function lookTokensFromCanvas(canvas: PageCanvas): Partial<PageCanvas> {
-  const out: Record<string, unknown> = {}
-  const src = canvas as unknown as Record<string, unknown>
-  for (const k of SITE_LOOK_FIELDS) out[k] = src[k]
-  return out as Partial<PageCanvas>
-}
-
 // A SiteLook's tokens as canvas fields (SiteLook.bgGradient → canvas.bgGradient, etc.). Used
 // to seed a new page's canvas when "new pages inherit this look" is on. (bgGradient may be
 // null in SiteLook; sanitizeCanvas turns an invalid/absent gradient into undefined.)
@@ -1418,11 +1404,39 @@ function restyleElementForLook(el: CanvasElement, look: SiteLook): CanvasElement
   return el
 }
 
+// Apply a canonical SiteLook to EVERY page of a site's content, returning the new content:
+// set content.siteLook = look, overwrite the look-token fields on every canvas page, and
+// restyle existing button/link elements to match. Preserves each page's elements/layout and
+// everything else (footgun: spread the content, page + canvas; only the look fields are
+// replaced, and savedDesigns/booking/etc. ride along on the content spread). Shared by both
+// "Apply this look to all pages" and "Design my whole site with AI" so the page-rewrite logic
+// lives in exactly one place. Does NOT touch inheritLook (callers set that as they please).
+function applyLookToContent(content: SiteContent, look: SiteLook): SiteContent {
+  const pages = getPages(content)
+  // The look's tokens as canvas fields (every SITE_LOOK_FIELD set, so applying REPLACES the
+  // page's look — including clearing a field the look doesn't use).
+  const tokens = siteLookCanvasTokens(look)
+  const updatedPages: SitePage[] = pages.map(p => {
+    if (!p.canvas) return p
+    const restyled = p.canvas.elements.map(el => restyleElementForLook(el, look))
+    return { ...p, canvas: { ...p.canvas, ...tokens, elements: restyled } as PageCanvas }
+  })
+  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+  return {
+    ...content, // footgun: spread the whole content so savedDesigns/booking/etc. survive
+    siteLook: look,
+    headline: home.headline,
+    subheadline: home.subheadline,
+    sections: home.sections,
+    pages: updatedPages,
+  }
+}
+
 // Apply the SOURCE page's look (background, fonts, colours, text styles, button/link styles)
 // to EVERY page: set content.siteLook to it, overwrite the look-token fields on every page's
 // canvas, and restyle existing button/link elements to match. Preserves each page's
-// elements/layout and everything else (footgun: spread the page + canvas, only replace the
-// look fields). Also persists the "new pages inherit this look" flag.
+// elements/layout and everything else (via the shared applyLookToContent). Also persists the
+// "new pages inherit this look" flag.
 export async function applySiteLookAction(formData: FormData): Promise<{ ok: boolean }> {
   const user = await getCurrentUser()
   if (!user) return { ok: false }
@@ -1439,7 +1453,6 @@ export async function applySiteLookAction(formData: FormData): Promise<{ ok: boo
   if (!source?.canvas) return { ok: false }
 
   // The canonical look = the source page's sanitised look tokens.
-  const tokens = lookTokensFromCanvas(source.canvas)
   const look: SiteLook = {
     bg: source.canvas.bg,
     bgGradient: source.canvas.bgGradient ?? null,
@@ -1456,24 +1469,82 @@ export async function applySiteLookAction(formData: FormData): Promise<{ ok: boo
   // "new pages inherit this look": persisted alongside the look (the checkbox posts it).
   const inheritLook = String(formData.get('inheritLook') ?? '') === '1'
 
-  // Overwrite the look fields on every canvas page; preserve elements + layout + everything
-  // else, then restyle existing button/link elements to the new look.
-  const updatedPages: SitePage[] = pages.map(p => {
-    if (!p.canvas) return p
-    const restyled = p.canvas.elements.map(el => restyleElementForLook(el, look))
-    return { ...p, canvas: { ...p.canvas, ...tokens, elements: restyled } as PageCanvas }
-  })
-  const home = updatedPages.find(p => p.slug === '') ?? updatedPages[0]
+  await saveSiteContent(id, { ...applyLookToContent(content, look), inheritLook })
+  revalidatePath(`/sites/${id}/design`)
+  revalidatePath(`/sites/${id}`)
+  return { ok: true }
+}
 
-  await saveSiteContent(id, {
-    ...content, // footgun: spread the whole content so savedDesigns/booking/etc. survive
-    siteLook: look,
-    inheritLook,
-    headline: home.headline,
-    subheadline: home.subheadline,
-    sections: home.sections,
-    pages: updatedPages,
+// "Design my whole site with AI": the owner types a vibe, the model picks a font pairing,
+// palette, background and button/link colours, and we apply it to every page via the SAME
+// shared core as applySiteLookAction (footgun-safe — elements/geometry/savedDesigns/booking
+// survive). Validates fonts against the Google whitelist and colours against /^#rrggbb/i,
+// falling back to sensible in-set defaults so bad AI output can never crash or wipe the site.
+// Leaves inheritLook untouched.
+export async function aiDesignSiteAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'auth' }
+  const id = String(formData.get('id') ?? '')
+  if (!id) return { ok: false, error: 'notfound' }
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site?.content) return { ok: false, error: 'notfound' }
+  const content = site.content
+  const vibe = String(formData.get('vibe') ?? '').trim().slice(0, 300)
+  if (!vibe) return { ok: false, error: 'empty' }
+
+  let designed
+  try {
+    designed = await aiSiteLook({
+      siteName: site.name,
+      brandVoice: content.brandVoice,
+      vibe,
+      fontNames: GOOGLE_FONTS.map(f => f.name),
+    })
+  } catch {
+    return { ok: false, error: 'ai' }
+  }
+
+  // Fonts: only a whitelisted Google family may become a `google:` value (so nothing arbitrary
+  // ever reaches the font URL); otherwise fall back to a tasteful default that IS in the set.
+  const fontRole = (name: string, fallback: string): string =>
+    `google:${isGoogleFamily(name) ? name : fallback}`
+  const fontRoles = {
+    display: fontRole(designed.display, 'Cormorant Garamond'),
+    body: fontRole(designed.body, 'Jost'),
+    label: fontRole(designed.label, 'Jost'),
+  }
+
+  // Colours: keep only real #rrggbb hexes; drop bad palette entries, default bad single colours.
+  const isHex = (v: string) => /^#[0-9a-f]{6}$/i.test(v)
+  const palette = designed.palette.filter(isHex)
+  const bg = isHex(designed.bg) ? designed.bg : '#ffffff'
+  const buttonFill = isHex(designed.buttonFill) ? designed.buttonFill : '#111111'
+  const buttonText = isHex(designed.buttonText) ? designed.buttonText : '#ffffff'
+  const linkColor = isHex(designed.linkColor) ? designed.linkColor : '#9a7d2e'
+
+  // Keep the existing button radius if a look already set one, else a sensible default.
+  const existingRadius = content.siteLook?.buttonStyle?.radius
+  const look: SiteLook = {
+    bg,
+    fontRoles,
+    palette: palette.length ? palette : undefined,
+    buttonStyle: { fill: buttonFill, color: buttonText, radius: existingRadius ?? 8 },
+    linkStyle: { color: linkColor },
+    // textStyles / bgImage / bgGradient intentionally left unset (undefined).
+  }
+
+  const next = applyLookToContent(content, look)
+  // The AI chooses fonts + colours, not images. Keep each page's existing background photo /
+  // gradient so "design my whole site" refreshes the theme without silently deleting hero
+  // images (applyLookToContent would otherwise overwrite them with the look's empty values).
+  const origCanvas = new Map(getPages(content).map(p => [p.slug, p.canvas]))
+  next.pages = (next.pages ?? []).map(p => {
+    const orig = origCanvas.get(p.slug)
+    return p.canvas && orig && (orig.bgImage || orig.bgGradient)
+      ? { ...p, canvas: { ...p.canvas, bgImage: orig.bgImage, bgGradient: orig.bgGradient } }
+      : p
   })
+  await saveSiteContent(id, next)
   revalidatePath(`/sites/${id}/design`)
   revalidatePath(`/sites/${id}`)
   return { ok: true }

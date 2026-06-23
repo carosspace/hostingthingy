@@ -499,6 +499,103 @@ export async function aiPalette(opts: { siteName: string; brandVoice?: string })
   return { colors }
 }
 
+// "Design my whole site" — given a free-text vibe, pick a tasteful font pairing (display/body/
+// label), a 5-colour palette, a page background, and button/link colours. Fonts MUST come from
+// the supplied allow-list (the Google Fonts whitelist) so nothing arbitrary reaches the font URL;
+// the caller re-validates against GOOGLE_FONT_NAMES anyway. Same Sonnet + forced-tool-use idiom
+// as the rest of this file. Throws on unusable output so the caller can show a retry.
+export async function aiSiteLook(opts: {
+  siteName: string
+  brandVoice?: string
+  vibe: string
+  fontNames: string[]
+}): Promise<{ display: string; body: string; label: string; palette: string[]; bg: string; buttonFill: string; buttonText: string; linkColor: string }> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  // Hand the model the exact allowed family names; it must echo three of them verbatim.
+  const allowed = opts.fontNames.map(n => String(n).trim()).filter(Boolean)
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 700,
+    system:
+      'You are an expert brand designer who dresses a whole website to match a feeling. You choose a tasteful, ' +
+      'cohesive type pairing and a harmonious colour scheme that fit the requested vibe — calm and considered, never ' +
+      'harsh or clashing. The DISPLAY font is for big headings, the BODY font for paragraphs (must stay highly readable ' +
+      'at small sizes), and the LABEL font for small caps / labels. Pair them with contrast (e.g. an expressive serif or ' +
+      'display heading over a clean sans body); the three may repeat if one family genuinely suits every role. You MUST ' +
+      'pick each font EXACTLY from the allowed list you are given — copy the family name verbatim, never invent one. ' +
+      'Ensure the page background and the button/link colours have comfortable, readable contrast against each other.',
+    tools: [
+      {
+        name: 'design_site',
+        description: 'Provide a complete site look (fonts, palette, background and button/link colours) for the vibe.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            display: { type: 'string', description: 'The heading font — EXACTLY one family name from the allowed list.' },
+            body: { type: 'string', description: 'The paragraph font — EXACTLY one family name from the allowed list (readable at small sizes).' },
+            label: { type: 'string', description: 'The small-caps / label font — EXACTLY one family name from the allowed list.' },
+            palette: { type: 'array', description: 'Exactly 5 harmonious #rrggbb hex colours, ordered anchor/dark first to light last.', items: { type: 'string' } },
+            bg: { type: 'string', description: 'The page background colour as #rrggbb hex.' },
+            buttonFill: { type: 'string', description: 'The primary button fill colour as #rrggbb hex.' },
+            buttonText: { type: 'string', description: 'The button text colour as #rrggbb hex (readable on buttonFill).' },
+            linkColor: { type: 'string', description: 'The text-link colour as #rrggbb hex (readable on bg).' },
+          },
+          required: ['display', 'body', 'label', 'palette', 'bg', 'buttonFill', 'buttonText', 'linkColor'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'design_site' },
+    messages: [
+      {
+        role: 'user',
+        content:
+          `Design the whole look for the website "${opts.siteName}".\n\nThe vibe to capture: ${opts.vibe}` +
+          `${voiceLine(opts.brandVoice) ? `\n\nBrand voice: ${opts.brandVoice!.trim().slice(0, 600)}` : ''}` +
+          `\n\nChoose each font EXACTLY from this allowed list (copy the name verbatim):\n${allowed.join(', ')}` +
+          `\n\nReturn the display/body/label fonts, a 5-colour palette, a page background colour, and the button fill, button text and link colours.`,
+      },
+    ],
+  })
+
+  if (message.stop_reason === 'max_tokens') throw new Error('The site look ran long — please try again.')
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return a site look. Please try again.')
+  const input = block.input as {
+    display?: string
+    body?: string
+    label?: string
+    palette?: string[]
+    bg?: string
+    buttonFill?: string
+    buttonText?: string
+    linkColor?: string
+  }
+
+  const hex = (v: unknown): string => {
+    const s = String(v ?? '').trim()
+    if (!/^#[0-9a-f]{6}$/i.test(s)) throw new Error('The site look had an unusable colour. Please try again.')
+    return s
+  }
+  const fam = (v: unknown): string => {
+    const s = String(v ?? '').trim()
+    if (!s) throw new Error('The site look was missing a font. Please try again.')
+    return s
+  }
+  const palette = (input.palette ?? []).map(c => String(c).trim()).filter(c => /^#[0-9a-f]{6}$/i.test(c)).slice(0, 5)
+  if (palette.length < 3) throw new Error('The site look palette was not usable. Please try again.')
+
+  return {
+    display: fam(input.display),
+    body: fam(input.body),
+    label: fam(input.label),
+    palette,
+    bg: hex(input.bg),
+    buttonFill: hex(input.buttonFill),
+    buttonText: hex(input.buttonText),
+    linkColor: hex(input.linkColor),
+  }
+}
+
 export interface GeneratedPage {
   headline: string
   subheadline: string

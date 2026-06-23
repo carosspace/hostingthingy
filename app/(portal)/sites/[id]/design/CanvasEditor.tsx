@@ -11,7 +11,7 @@ import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/site
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, setSiteLookOptionAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction } from '../../actions'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -392,6 +392,9 @@ export default function CanvasEditor({
   // Whether new pages inherit the canonical Site Look (persisted site-wide via applySiteLookAction).
   const [inheritLook, setInheritLook] = useState<boolean>(initialInheritLook)
   const [applyingLook, setApplyingLook] = useState(false) // "Apply to all pages" in flight
+  const [aiVibe, setAiVibe] = useState('') // the "Design my whole site" vibe prompt
+  const [aiDesigning, setAiDesigning] = useState(false) // "Design my whole site with AI" in flight
+  const [aiDesignErr, setAiDesignErr] = useState('') // shown when the AI design call fails
   const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -1873,6 +1876,30 @@ export default function CanvasEditor({
     }
   }
 
+  // "Design my whole site with AI": flush the editor first (so this page's work is persisted),
+  // then let the AI pick fonts + colours + background from the typed vibe and apply the look to
+  // every page server-side; reload to show it everywhere. Footgun-safe server-side.
+  const designWholeSite = async () => {
+    if (aiDesigning) return
+    const vibe = aiVibe.trim()
+    if (!vibe) return
+    if (!window.confirm('Redesign your whole site for this vibe? This restyles the fonts, colours and button/link styles across every page (your background photos are kept). It replaces the current look — there’s no undo.')) return
+    setAiDesignErr('')
+    setAiDesigning(true)
+    try {
+      await (window as unknown as { __cvFlush?: () => Promise<void> }).__cvFlush?.()
+      const fd = new FormData()
+      fd.set('id', siteId)
+      fd.set('vibe', vibe)
+      const r = await aiDesignSiteAction(fd)
+      if (r?.ok) window.location.reload()
+      else { setAiDesigning(false); setAiDesignErr('Couldn’t design it — try again.') }
+    } catch {
+      setAiDesigning(false)
+      setAiDesignErr('Couldn’t design it — try again.')
+    }
+  }
+
   // Toggle "new pages inherit this look" (persisted site-wide, separate from the page canvas save).
   const toggleInheritLook = (on: boolean) => {
     setInheritLook(on)
@@ -2932,6 +2959,24 @@ export default function CanvasEditor({
             <p className="font-label text-[10px] tracking-[2px] uppercase" style={{ color: ui, fontWeight: 700 }}>✦ Site look</p>
           </div>
           <p className="font-body text-ash/55 text-[11px] mt-1 mb-2.5 leading-relaxed">Set this page&rsquo;s background, fonts, brand colours and button/link styles in one place — then apply the look to every page.</p>
+
+          {/* Design my whole site with AI */}
+          <div className="rounded-sm" style={{ border: `1px solid ${ui}40`, background: '#fff', padding: 10, marginBottom: 10 }}>
+            <p style={labelCss}>✨ Design my whole site with AI</p>
+            <p className="font-body text-ash/50 text-[11px] mt-0.5 mb-1.5 leading-relaxed">Describe the feeling and AI picks fonts, colours and a background — applied to every page.</p>
+            <input
+              type="text"
+              value={aiVibe}
+              onChange={e => setAiVibe(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void designWholeSite() } }}
+              placeholder="Describe the vibe — calm, earthy, elegant…"
+              maxLength={300}
+              disabled={aiDesigning}
+              style={{ ...inputCss, fontSize: 12, padding: '6px 8px', width: '100%' }}
+            />
+            <button type="button" onClick={designWholeSite} disabled={aiDesigning || !aiVibe.trim()} className="w-full font-label text-[10px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight disabled:opacity-50 px-3 py-2 rounded-sm mt-1.5">{aiDesigning ? 'Designing…' : 'Design it'}</button>
+            {aiDesignErr && <p className="font-body text-[11px] mt-1.5" style={{ color: '#b4532e' }}>{aiDesignErr}</p>}
+          </div>
 
           {/* Theme presets */}
           <p style={labelCss}>Quick looks</p>
