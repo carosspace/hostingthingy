@@ -336,6 +336,9 @@ export default function CanvasEditor({
   const [drawCur, setDrawCur] = useState<{ x: number; y: number }[] | null>(null) // live stroke (mirror of curRef)
   const drawActive = useRef(false)
   const curRef = useRef<{ x: number; y: number }[]>([])
+  // On-screen width of the canvas in CSS px (tracked via ResizeObserver). Lets the rulers
+  // pick a tick interval that keeps labels readable at the current zoom (design-px → screen-px).
+  const [canvasPxW, setCanvasPxW] = useState(0)
   const idc = useRef(
     (initial?.elements ?? []).reduce((m, e) => {
       const n = parseInt(String(e.id).replace(/\D/g, ''), 10)
@@ -354,6 +357,53 @@ export default function CanvasEditor({
   const [guidesX, setGuidesX] = useState<number[]>(initial?.guidesX ?? [])
   const [guidesY, setGuidesY] = useState<number[]>(initial?.guidesY ?? [])
   const [showRulers, setShowRulers] = useState(!!(initial?.guidesX?.length || initial?.guidesY?.length))
+  // Measurement unit for the rulers + distance readouts (editor-only, per browser). Design px
+  // map to physical units at 96dpi. Default px; loaded from localStorage after mount.
+  const [unit, setUnit] = useState<'px' | 'mm' | 'cm' | 'in'>('px')
+  useEffect(() => { try { const u = localStorage.getItem('cveditor:unit'); if (u === 'px' || u === 'mm' || u === 'cm' || u === 'in') setUnit(u) } catch { /* ignore */ } }, [])
+  const setUnitPersist = (u: 'px' | 'mm' | 'cm' | 'in') => { setUnit(u); try { localStorage.setItem('cveditor:unit', u) } catch { /* ignore */ } }
+  // Keep the on-screen canvas width current (zoom, panel toggles, window resize) so the
+  // ruler tick interval can stay legible. Cheap: one observer, fires only on size change.
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(entries => { const w = entries[0]?.contentRect.width; if (w) setCanvasPxW(w) })
+    ro.observe(el)
+    setCanvasPxW(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [device, mobileCustom, focusMode])
+  // Convert a DESIGN-px length to the chosen unit, rounded sensibly, with the unit suffix.
+  const fmtUnit = (px: number): string => {
+    if (unit === 'px') return `${Math.round(px)}px`
+    if (unit === 'mm') return `${Math.round((px * 25.4) / 96)}mm`
+    if (unit === 'cm') return `${((px * 2.54) / 96).toFixed(1)}cm`
+    return `${(px / 96).toFixed(1)}in` // inches
+  }
+  // Plain number (no unit suffix) in the chosen unit — for compact ruler tick labels.
+  const fmtUnitNum = (px: number): string => {
+    if (unit === 'px') return `${Math.round(px)}`
+    if (unit === 'mm') return `${Math.round((px * 25.4) / 96)}`
+    if (unit === 'cm') return `${((px * 2.54) / 96).toFixed(1)}`
+    return `${(px / 96).toFixed(1)}`
+  }
+  // Tick positions (design px) for a ruler of `len` design px. Picks a step from a nice
+  // ladder so adjacent MINOR ticks sit ≥ ~14px apart and MAJOR (labelled) ticks ≥ ~46px
+  // apart on screen at the current scale (design-px → screen-px). Returns the minor step,
+  // how many minors make a major, and the tick list. Cheap, called per ruler.
+  const rulerTicks = (len: number, scale: number): { minor: number; majorEvery: number; ticks: number[] } => {
+    const ladder = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000]
+    const s = scale > 0 ? scale : 0.5
+    // Minor step: smallest ladder value whose on-screen gap is at least ~14px.
+    let minor = ladder.find(v => v * s >= 14) ?? ladder[ladder.length - 1]
+    // Hard cap on tick count (tall pages): bump the step up the ladder until ≤ ~600 ticks.
+    while (len / minor > 600) { const next = ladder.find(v => v > minor); if (!next) { minor = Math.ceil(len / 600 / 100) * 100; break } minor = next }
+    // Major step: smallest ladder value (≥ minor) whose on-screen gap is at least ~46px.
+    const major = ladder.find(v => v >= minor && v * s >= 46) ?? minor * 5
+    const majorEvery = Math.max(1, Math.round(major / minor))
+    const ticks: number[] = []
+    for (let v = 0; v <= len + 0.5; v += minor) ticks.push(Math.round(v))
+    return { minor, majorEvery, ticks }
+  }
   // Global text styles (Heading/Body/…): a text element links via styleRef; editing a
   // style re-syncs every linked element here, so the public renderer never changes.
   const [textStyles, setTextStyles] = useState<Record<string, TextStyleProps>>(initial?.textStyles ?? defaultTextStyles())
@@ -408,6 +458,9 @@ export default function CanvasEditor({
   // cross-axis centre of the connector. Footer-pinned elements are excluded (their desktop y is
   // band-local, so a label drawn at their stored y would land in the wrong place).
   const [spacing, setSpacing] = useState<{ axis: 'x' | 'y'; mid: number; from: number; to: number; gap: number; equal: boolean }[]>([])
+  // True while a move/resize/marquee drag is in progress — used to hide the static
+  // selection-measurement overlay (which only makes sense at rest).
+  const [dragging, setDragging] = useState(false)
 
   // The body grows continuously; footer-pinned elements then sit below it (see
   // canvasLayout). bodyBottom is where the footer band starts on the desktop canvas.
@@ -451,6 +504,40 @@ export default function CanvasEditor({
   const topOf = (e: CanvasElement) => (!editingMobile && e.pin === 'footer' ? bodyBottom + e.y : gy(e))
   const mobileH = Math.max(700, ...els.filter(e => !(e.hidden || e.mHidden)).map(e => (e.my ?? Math.round((e.pin === 'footer' ? bodyBottom + e.y : e.y) * MR)) + (e.mh ?? Math.round(e.h * MR)) + 60), 0)
   const CH = editingMobile ? mobileH : desktopH
+
+  // Selection-measurement overlay: when exactly ONE element is selected and nothing is being
+  // dragged, draw guide lines from its edges out to both rulers (labelled with the edge's
+  // position) plus the gap to the nearest neighbour on each side (a labelled bracket — "how
+  // far apart the sections are"). All coordinates are in the active frame's displayed design
+  // px (same space as cqv()), in the chosen unit. O(n); footer-pinned elements use their
+  // DISPLAYED y so the labels line up with what's on screen. Non-interactive overlay.
+  const selMeasure = (() => {
+    if (!sel || dragging) return null
+    const L = gx(sel), R = gx(sel) + gw(sel), T = topOf(sel), B = topOf(sel) + gh(sel)
+    if (gw(sel) <= 0 || gh(sel) <= 0) return null
+    // Other on-screen elements (skip self, hidden, and footer-pinned to stay safe).
+    const others = els.filter(e => e.id !== sel.id && !e.hidden && !(editingMobile && e.mHidden) && !(!editingMobile && e.pin === 'footer'))
+    const hOverlap = (a: number, b: number) => Math.min(R, b) - Math.max(L, a) > 0 // x-ranges overlap
+    const vOverlap = (a: number, b: number) => Math.min(B, b) - Math.max(T, a) > 0 // y-ranges overlap
+    let above: { gap: number; mid: number; from: number; to: number } | null = null
+    let below: { gap: number; mid: number; from: number; to: number } | null = null
+    let left: { gap: number; mid: number; from: number; to: number } | null = null
+    let right: { gap: number; mid: number; from: number; to: number } | null = null
+    for (const e of others) {
+      const eL = gx(e), eR = gx(e) + gw(e), eT = topOf(e), eB = topOf(e) + gh(e)
+      // Vertical neighbours share a horizontal overlap with the selection.
+      if (hOverlap(eL, eR)) {
+        if (eB <= T) { const gap = T - eB; if (!above || gap < above.gap) above = { gap, mid: (Math.max(L, eL) + Math.min(R, eR)) / 2, from: eB, to: T } }
+        if (eT >= B) { const gap = eT - B; if (!below || gap < below.gap) below = { gap, mid: (Math.max(L, eL) + Math.min(R, eR)) / 2, from: B, to: eT } }
+      }
+      // Horizontal neighbours share a vertical overlap.
+      if (vOverlap(eT, eB)) {
+        if (eR <= L) { const gap = L - eR; if (!left || gap < left.gap) left = { gap, mid: (Math.max(T, eT) + Math.min(B, eB)) / 2, from: eR, to: L } }
+        if (eL >= R) { const gap = eL - R; if (!right || gap < right.gap) right = { gap, mid: (Math.max(T, eT) + Math.min(B, eB)) / 2, from: R, to: eL } }
+      }
+    }
+    return { L, R, T, B, above, below, left, right }
+  })()
 
   const touch = () => { dirty.current = true; setSaved(false) }
   // Push the current state onto the undo stack. Rapid edits within 500ms coalesce into one.
@@ -534,7 +621,9 @@ export default function CanvasEditor({
     if (!el) return
     snapshot(true)
     const maxZ = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
-    const copy: CanvasElement = { ...el, id: 'e' + idc.current++, z: maxZ + 1, locked: undefined, ...patchXY(gx(el) + 16, gy(el) + 16) }
+    // Land the copy at the visible viewport centre instead of nudged off the original.
+    const { dx, dy } = pasteOffset([el])
+    const copy: CanvasElement = { ...el, id: 'e' + idc.current++, z: maxZ + 1, locked: undefined, ...patchXY(gx(el) + dx, gy(el) + dy) }
     setEls(p => [...p, copy])
     setSelectedIds([copy.id])
     touch()
@@ -699,6 +788,9 @@ export default function CanvasEditor({
     if (!clip.current.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+    // One shared delta lands the pasted group's bbox centre at the visible viewport centre,
+    // preserving the relative layout of a multi-element paste.
+    const { dx, dy } = pasteOffset(clip.current)
     const gmap = new Map<string, string>()
     // old id → new id, so a copied child's parentId can be re-pointed at its copied group.
     const idmap = new Map<string, string>()
@@ -707,7 +799,7 @@ export default function CanvasEditor({
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
       const nid = 'e' + idc.current++
       idmap.set(s.id, nid)
-      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + dx, gy(s) + dy) }
     })
     // Rewrite parentId to the copied group's new id; drop it if the group wasn't copied too.
     for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
@@ -752,6 +844,8 @@ export default function CanvasEditor({
     if (!block.els.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, x) => Math.max(m, x.z ?? 0), 0)
+    // Drop the block centred on the visible viewport (group bbox centre), not at the top.
+    const { dx, dy } = pasteOffset(block.els)
     const gmap = new Map<string, string>()
     // old id → new id, so a child block element re-points its parentId at its copied group.
     const idmap = new Map<string, string>()
@@ -762,7 +856,7 @@ export default function CanvasEditor({
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
       const nid = 'e' + idc.current++
       idmap.set(s.id, nid)
-      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + 20, gy(s) + 20) }
+      return { ...s, id: nid, z: ++z, groupId: gid, ...patchXY(gx(s) + dx, gy(s) + dy) }
     })
     // Rewrite parentId to the copied group's new id; drop it if the group wasn't in the block.
     for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
@@ -791,6 +885,8 @@ export default function CanvasEditor({
     if (!src.length) return
     snapshot(true)
     let z = elsRef.current.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
+    // Shared delta lands the duplicated group's bbox centre at the visible viewport centre.
+    const { dx, dy } = pasteOffset(src)
     // Re-id any shared group so the duplicated set is its own group, not merged with the original.
     const gmap = new Map<string, string>()
     // old id → new id, so a duplicated child re-points its parentId at its duplicated group.
@@ -800,7 +896,7 @@ export default function CanvasEditor({
       if (gid) { let ng = gmap.get(gid); if (!ng) { ng = 'g' + Math.random().toString(36).slice(2, 8); gmap.set(gid, ng) } gid = ng }
       const nid = 'e' + idc.current++
       idmap.set(e.id, nid)
-      return { ...e, id: nid, z: ++z, groupId: gid, ...patchXY(gx(e) + 16, gy(e) + 16) }
+      return { ...e, id: nid, z: ++z, groupId: gid, ...patchXY(gx(e) + dx, gy(e) + dy) }
     })
     // Rewrite parentId to the duplicated group's new id; drop it if the group wasn't duplicated.
     for (const c of copies) if (c.parentId) c.parentId = idmap.get(c.parentId)
@@ -1067,17 +1163,61 @@ export default function CanvasEditor({
     touch()
   }
 
+  // The DESIGN-space coordinate at the centre of the visible canvas viewport, so newly
+  // added / pasted elements land where the owner is actually looking (not the top of a
+  // long page). Uses live DOM geometry (handles zoom + scroll); falls back to a sensible
+  // top-area position if the canvas isn't measurable yet. Coordinates are in the active
+  // frame (desktop or the custom-phone artboard), matching the elements' own x/y.
+  const viewportCenter = (): { x: number; y: number } => {
+    const vp = viewportRef.current
+    const cv = canvasRef.current
+    if (!vp || !cv) return { x: Math.round(CW / 2), y: 140 }
+    const cr = cv.getBoundingClientRect()
+    const vr = vp.getBoundingClientRect()
+    const scale = cr.width / CW // design-px → on-screen px (accounts for zoom)
+    if (!scale || !isFinite(scale)) return { x: Math.round(CW / 2), y: 140 }
+    // Screen-y of the viewport's visible centre, relative to the canvas top.
+    const midScreenY = vr.top + vr.height / 2 - cr.top
+    const cx = vr.left + vr.width / 2 - cr.left
+    const y = Math.max(0, Math.min(midScreenY / scale, CH))
+    const x = Math.max(0, Math.min(cx / scale, CW))
+    return { x: Math.round(x), y: Math.round(y) }
+  }
+  // For paste / duplicate / insert: shift a source group so its bounding-box centre lands
+  // at the visible viewport centre, preserving every element's relative position. Returns
+  // the (dx, dy) to add to each source element's active-frame x/y. X via gx; Y via topOf
+  // (the DISPLAYED y) so a footer-pinned source is measured in the same full-canvas space
+  // as viewportCenter() — otherwise duplicating a footer element lands off-position. Works
+  // on both the desktop and custom-phone artboards. O(n).
+  const pasteOffset = (src: CanvasElement[]): { dx: number; dy: number } => {
+    if (!src.length) return { dx: 20, dy: 20 }
+    const minX = Math.min(...src.map(e => gx(e))), maxX = Math.max(...src.map(e => gx(e) + gw(e)))
+    const minY = Math.min(...src.map(e => topOf(e))), maxY = Math.max(...src.map(e => topOf(e) + gh(e)))
+    const c = viewportCenter()
+    return { dx: Math.round(c.x - (minX + maxX) / 2), dy: Math.round(c.y - (minY + maxY) / 2) }
+  }
   const place = (partial: Partial<CanvasElement> & { type: CanvasElementType }) => {
     snapshot(true)
     const maxZ = els.reduce((m, e) => Math.max(m, e.z ?? 0), 0)
     const n = els.length
-    const el: CanvasElement = { id: 'e' + idc.current++, x: 120 + (n % 5) * 24, y: 120 + (n % 8) * 24, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
+    // Centre the new element on the visible viewport (clamped to the page) rather than
+    // the top-of-page cascade, so it appears where the owner is looking. viewportCenter()
+    // returns coords in the active frame (desktop or the custom-phone artboard).
+    const ew = partial.w ?? 400, eh = partial.h ?? 80
+    const c = viewportCenter()
+    // Desktop x/y default to the viewport centre (overridden by an explicit partial.x/y,
+    // e.g. full-width line/section presets that pin x:0). When editing the phone artboard,
+    // viewportCenter is in phone space, so keep a sensible desktop default for that branch.
+    const deskX = editingMobile ? Math.max(0, Math.min(120 + (n % 5) * 24, CANVAS_W - ew)) : Math.max(0, Math.min(Math.round(c.x - ew / 2), CANVAS_W - ew))
+    const deskY = editingMobile ? 120 + (n % 8) * 24 : Math.max(0, Math.round(c.y - eh / 2))
+    const el: CanvasElement = { id: 'e' + idc.current++, x: deskX, y: deskY, w: 400, h: 80, z: maxZ + 1, opacity: 100, ...partial }
     // When the page has a custom phone layout, also give the new element sensible
-    // phone coords so it lands on-screen there (it exists on both devices).
+    // phone coords so it lands on-screen there (it exists on both devices). While the
+    // phone artboard is the active frame, drop it at the visible viewport centre.
     if (mobileCustom) {
       const mw = Math.min(el.w, MOBILE_W - 40)
-      el.mx = 20
-      el.my = 40 + (n % 8) * 22
+      el.mx = editingMobile ? Math.max(0, Math.min(Math.round(c.x - mw / 2), MOBILE_W - mw)) : 20
+      el.my = editingMobile ? Math.max(0, Math.round(c.y - el.h / 2)) : 40 + (n % 8) * 22
       el.mw = mw
       el.mh = el.h
     }
@@ -1719,7 +1859,7 @@ export default function CanvasEditor({
         return { ...el, ...(d.m ? { mx: nx, my: ny } : { x: nx, y: ny }) }
       }))
     }
-    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setGuides({ x: null, y: null }); setSpacing([]); setMarquee(null); if (d.kind !== 'marquee') touch() }
+    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setDragging(false); setGuides({ x: null, y: null }); setSpacing([]); setMarquee(null); if (d.kind !== 'marquee') touch() }
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -1854,6 +1994,7 @@ export default function CanvasEditor({
     if (mode === 'resize') {
       setSelectedIds([el.id])
       snapshot(true)
+      setDragging(true)
       dragRef.current = { kind: 'resize', id: el.id, px: e.clientX, py: e.clientY, scale, m: editingMobile, w: gw(el), h: gh(el), ar: gh(el) > 0 ? gw(el) / gh(el) : 1, dir }
       return
     }
@@ -1874,6 +2015,7 @@ export default function CanvasEditor({
       .map(id => cur.find(x => x.id === id))
       .filter((m): m is CanvasElement => !!m && !m.locked)
       .map(m => ({ id: m.id, x: gx(m), y: gy(m) }))
+    setDragging(true)
     dragRef.current = { kind: 'move', px: e.clientX, py: e.clientY, scale, m: editingMobile, starts }
   }
   // --- Freehand draw mode ----------------------------------------------------------------
@@ -2299,7 +2441,8 @@ export default function CanvasEditor({
       {!focusMode && (
       <div className="lg:sticky lg:top-2 lg:shrink-0 flex gap-2.5 mb-4 lg:mb-0">
         <div className="flex flex-col gap-1.5 shrink-0">
-          {([['pages', '▭', 'Pages'], ['design', '◍', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '⤒', 'Uploads'], ['layers', '▤', 'Layers']] as const).map(([key, icon, lbl]) => {
+          {/* Layers + Pages are grouped together at the end of the rail. */}
+          {([['design', '◍', 'Design'], ['elements', '＋', 'Add'], ['text', 'T', 'Text'], ['uploads', '⤒', 'Uploads'], ['layers', '▤', 'Layers'], ['pages', '▭', 'Pages']] as const).map(([key, icon, lbl]) => {
             const on = lib && panelTab === key
             return (
               <button key={key} type="button" onClick={() => { setPanelTab(key); setSelectedIds([]); setEditingId('') }} title={lbl}
@@ -3648,7 +3791,7 @@ export default function CanvasEditor({
                 <button type="button" onClick={() => setZoom(1)} title="Reset to 100%" className="font-label text-[10px] tracking-[1px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 54, height: 24 }}>{Math.round(zoom * 100)}%</button>
                 <button type="button" onClick={() => setZoomClamped(zoom + 0.1)} title="Zoom in" className="font-label text-[12px] text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ width: 26, height: 24, lineHeight: '22px' }}>+</button>
                 {!editingMobile && <button type="button" onClick={fitToScreen} title="Fit the whole page on screen" className="font-label text-[9px] tracking-[1px] uppercase text-gold border border-gold/30 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>⤢ Fit</button>}
-                {!editingMobile && <button type="button" onClick={() => setShowRulers(v => !v)} title="Rulers & guides — click a ruler to drop a guide elements snap to" className="font-label text-[9px] tracking-[1px] uppercase rounded-sm border" style={{ height: 24, padding: '0 8px', borderColor: showRulers ? ui : 'rgba(0,0,0,0.2)', background: showRulers ? ui : 'transparent', color: showRulers ? '#fff' : '#a98', }}>📐 Rulers</button>}
+                {!editingMobile && <button type="button" onClick={() => setShowRulers(v => !v)} title="Measurement rulers & guides — ticks with px/mm/cm/in labels; click a ruler to drop a guide elements snap to" className="font-label text-[9px] tracking-[1px] uppercase rounded-sm border" style={{ height: 24, padding: '0 8px', borderColor: showRulers ? ui : 'rgba(0,0,0,0.2)', background: showRulers ? ui : 'transparent', color: showRulers ? '#fff' : '#a98', }}>📐 Rulers</button>}
                 {!editingMobile && showRulers && (guidesX.length > 0 || guidesY.length > 0) && <button type="button" onClick={() => { setGuidesX([]); setGuidesY([]); touch() }} title="Remove all guides" className="font-label text-[9px] tracking-[1px] uppercase text-gold/70 border border-gold/20 hover:bg-gold/10 rounded-sm" style={{ height: 24, padding: '0 8px' }}>Clear</button>}
               </div>
             )}
@@ -3730,7 +3873,59 @@ export default function CanvasEditor({
                 )
               })}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
-              {showRulers && !editingMobile && (
+              {/* Selection measurements (one element, at rest): edge→ruler position lines + the
+                  gap to the nearest neighbour on each side, labelled in the chosen unit. */}
+              {!editingMobile && selMeasure && (() => {
+                const sm = selMeasure
+                const accentCol = ui, gapCol = '#8a8f99'
+                const lblBase: CSSProperties = { position: 'absolute', color: '#fff', fontSize: 10, lineHeight: 1, fontWeight: 600, padding: '2px 5px', borderRadius: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }
+                return (
+                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 8 }}>
+                    {/* left & right edges → TOP ruler (vertical position lines, x labelled).
+                        Labels sit just below the ruler band so they stay visible when rulers are on. */}
+                    {[sm.L, sm.R].map((x, i) => (
+                      <div key={`mx${i}`}>
+                        <div style={{ position: 'absolute', left: cqv(x), top: 0, width: 0, height: cqv(sm.T), borderLeft: `1px dashed ${accentCol}`, opacity: 0.7 }} />
+                        <div style={{ ...lblBase, left: cqv(x), top: showRulers ? 21 : 2, transform: 'translateX(-50%)', background: accentCol }}>{fmtUnit(x)}</div>
+                      </div>
+                    ))}
+                    {/* top & bottom edges → LEFT ruler (horizontal position lines, y labelled) */}
+                    {[sm.T, sm.B].map((y, i) => (
+                      <div key={`my${i}`}>
+                        <div style={{ position: 'absolute', top: cqv(y), left: 0, height: 0, width: cqv(sm.L), borderTop: `1px dashed ${accentCol}`, opacity: 0.7 }} />
+                        <div style={{ ...lblBase, top: cqv(y), left: showRulers ? 21 : 2, transform: 'translateY(-50%)', background: accentCol }}>{fmtUnit(y)}</div>
+                      </div>
+                    ))}
+                    {/* nearest-neighbour gaps: a bracket + distance, per side */}
+                    {sm.above && (<>
+                      <div style={{ position: 'absolute', left: cqv(sm.above.mid), top: cqv(sm.above.from), width: 0, height: cqv(sm.above.to - sm.above.from), borderLeft: `1px solid ${gapCol}` }} />
+                      <div style={{ ...lblBase, left: cqv(sm.above.mid), top: cqv((sm.above.from + sm.above.to) / 2), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.above.gap)}</div>
+                    </>)}
+                    {sm.below && (<>
+                      <div style={{ position: 'absolute', left: cqv(sm.below.mid), top: cqv(sm.below.from), width: 0, height: cqv(sm.below.to - sm.below.from), borderLeft: `1px solid ${gapCol}` }} />
+                      <div style={{ ...lblBase, left: cqv(sm.below.mid), top: cqv((sm.below.from + sm.below.to) / 2), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.below.gap)}</div>
+                    </>)}
+                    {sm.left && (<>
+                      <div style={{ position: 'absolute', left: cqv(sm.left.from), top: cqv(sm.left.mid), height: 0, width: cqv(sm.left.to - sm.left.from), borderTop: `1px solid ${gapCol}` }} />
+                      <div style={{ ...lblBase, left: cqv((sm.left.from + sm.left.to) / 2), top: cqv(sm.left.mid), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.left.gap)}</div>
+                    </>)}
+                    {sm.right && (<>
+                      <div style={{ position: 'absolute', left: cqv(sm.right.from), top: cqv(sm.right.mid), height: 0, width: cqv(sm.right.to - sm.right.from), borderTop: `1px solid ${gapCol}` }} />
+                      <div style={{ ...lblBase, left: cqv((sm.right.from + sm.right.to) / 2), top: cqv(sm.right.mid), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.right.gap)}</div>
+                    </>)}
+                  </div>
+                )
+              })()}
+              {showRulers && !editingMobile && (() => {
+                // Both rulers: tick marks at nice design-px intervals, labels on major ticks
+                // (in the chosen unit), kept legible at the current zoom. They overlay the
+                // top + left canvas edges and use cqv() so ticks track the canvas content as it
+                // scrolls/zooms. The strips still drop draggable guides (existing behaviour).
+                const RB = 18 // ruler band thickness, px
+                const scale = canvasPxW > 0 ? canvasPxW / CANVAS_W : 0.5 // design-px → screen-px
+                const tx = rulerTicks(CANVAS_W, scale)
+                const ty = rulerTicks(desktopH, scale)
+                return (
                 <>
                   {/* persistent guide lines (snap targets; editor-only, never published) */}
                   {guidesX.map((g, i) => (
@@ -3739,30 +3934,58 @@ export default function CanvasEditor({
                   {guidesY.map((g, i) => (
                     <div key={`gy${i}`} style={{ position: 'absolute', top: cqv(g), left: 0, height: 1, width: '100%', background: '#12b5c9', opacity: 0.75, pointerEvents: 'none', zIndex: 7 }} />
                   ))}
-                  {/* top ruler — click to drop a vertical guide; ◆ removes one */}
+                  {/* TOP ruler — tick marks + major-tick labels; click to drop a vertical guide; ◆ removes one */}
                   <div
                     onPointerDown={e => e.stopPropagation()}
                     onClick={e => { const r = e.currentTarget.getBoundingClientRect(); if (r.width) addGuide('x', ((e.clientX - r.left) / r.width) * CANVAS_W) }}
                     title="Click to drop a vertical guide"
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 16, background: 'rgba(24,22,30,0.6)', backgroundImage: `repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 1px, transparent 1px ${cqv(50)})`, cursor: 'crosshair', zIndex: 40 }}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: RB, background: 'rgba(24,22,30,0.72)', cursor: 'crosshair', zIndex: 40, overflow: 'hidden' }}
                   >
+                    {tx.ticks.map((v, i) => {
+                      const major = i % tx.majorEvery === 0
+                      return (
+                        <div key={`tx${i}`} style={{ position: 'absolute', left: cqv(v), top: 0, pointerEvents: 'none' }}>
+                          <div style={{ position: 'absolute', left: 0, top: major ? 0 : RB - 5, width: 1, height: major ? RB : 5, background: major ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.3)' }} />
+                          {major && v > 0 && <span style={{ position: 'absolute', left: 3, top: 1, fontSize: 8, lineHeight: 1, color: 'rgba(255,255,255,0.82)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }}>{fmtUnitNum(v)}</span>}
+                        </div>
+                      )
+                    })}
                     {guidesX.map((g, i) => (
-                      <button key={`nx${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('x', i) }} title="Remove this guide" style={{ position: 'absolute', left: cqv(g), top: 0, transform: 'translateX(-50%)', width: 14, height: 16, lineHeight: '15px', padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
+                      <button key={`nx${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('x', i) }} title="Remove this guide" style={{ position: 'absolute', left: cqv(g), top: 0, transform: 'translateX(-50%)', width: 14, height: RB, lineHeight: `${RB - 1}px`, padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
                     ))}
                   </div>
-                  {/* left ruler — click to drop a horizontal guide */}
+                  {/* LEFT ruler — tick marks + major-tick labels; click to drop a horizontal guide */}
                   <div
                     onPointerDown={e => e.stopPropagation()}
                     onClick={e => { const r = e.currentTarget.getBoundingClientRect(); if (r.height) addGuide('y', ((e.clientY - r.top) / r.height) * desktopH) }}
                     title="Click to drop a horizontal guide"
-                    style={{ position: 'absolute', top: 0, left: 0, width: 16, height: '100%', background: 'rgba(24,22,30,0.6)', backgroundImage: `repeating-linear-gradient(0deg, rgba(255,255,255,0.22) 0 1px, transparent 1px ${cqv(50)})`, cursor: 'crosshair', zIndex: 40 }}
+                    style={{ position: 'absolute', top: 0, left: 0, width: RB, height: '100%', background: 'rgba(24,22,30,0.72)', cursor: 'crosshair', zIndex: 40, overflow: 'hidden' }}
                   >
+                    {ty.ticks.map((v, i) => {
+                      const major = i % ty.majorEvery === 0
+                      return (
+                        <div key={`ty${i}`} style={{ position: 'absolute', top: cqv(v), left: 0, pointerEvents: 'none' }}>
+                          <div style={{ position: 'absolute', top: 0, left: major ? 0 : RB - 5, height: 1, width: major ? RB : 5, background: major ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.3)' }} />
+                          {major && v > 0 && <span style={{ position: 'absolute', left: 1, top: 2, fontSize: 8, lineHeight: 1, color: 'rgba(255,255,255,0.82)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', writingMode: 'vertical-rl', whiteSpace: 'nowrap' }}>{fmtUnitNum(v)}</span>}
+                        </div>
+                      )
+                    })}
                     {guidesY.map((g, i) => (
-                      <button key={`ny${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('y', i) }} title="Remove this guide" style={{ position: 'absolute', top: cqv(g), left: 0, transform: 'translateY(-50%)', width: 16, height: 14, lineHeight: '14px', padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
+                      <button key={`ny${i}`} type="button" onClick={ev => { ev.stopPropagation(); removeGuide('y', i) }} title="Remove this guide" style={{ position: 'absolute', top: cqv(g), left: 0, transform: 'translateY(-50%)', width: RB, height: 14, lineHeight: '14px', padding: 0, border: 0, background: 'transparent', color: '#12b5c9', cursor: 'pointer', fontSize: 11, zIndex: 41 }}>◆</button>
                     ))}
                   </div>
+                  {/* corner — unit picker at the rulers' intersection */}
+                  <div onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 0, left: 0, width: RB, height: RB, zIndex: 42 }}>
+                    <select value={unit} onChange={e => setUnitPersist(e.target.value as 'px' | 'mm' | 'cm' | 'in')} title="Ruler units" style={{ width: RB, height: RB, background: 'rgba(18,181,201,0.9)', color: '#fff', border: 0, fontSize: 7.5, fontWeight: 700, textAlign: 'center', cursor: 'pointer', padding: 0, appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none', textTransform: 'uppercase' }}>
+                      <option value="px">px</option>
+                      <option value="mm">mm</option>
+                      <option value="cm">cm</option>
+                      <option value="in">in</option>
+                    </select>
+                  </div>
                 </>
-              )}
+                )
+              })()}
               {els.length === 0 && !drawMode && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, pointerEvents: 'none', zIndex: 3, padding: 24, textAlign: 'center' }}>
                   <div style={{ fontSize: 30, opacity: 0.4, lineHeight: 1 }}>✎</div>
