@@ -291,53 +291,74 @@ export default async function SiteDetailPage({
             Payments aren&rsquo;t enabled on the platform yet. Once they&rsquo;re switched on, you&rsquo;ll be able
             to connect your own Stripe account here and take payments on your site.
           </p>
-        ) : !site.stripeAccountId || !site.stripeChargesEnabled ? (
-          <>
-            <p className="font-body text-ash/60 text-xs mb-4">
-              Connect your own Stripe account to take payments on your site. Money goes straight to you —
-              you&rsquo;re the merchant of record.
-            </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <form action={connectStripeAction}>
-                <input type="hidden" name="id" value={site.id} />
-                <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">
-                  {site.stripeAccountId ? 'Finish setup on Stripe' : 'Connect Stripe to take payments'}
-                </button>
-              </form>
-              {site.stripeAccountId && (
-                <form action={refreshStripeStatusFormAction}>
-                  <input type="hidden" name="id" value={site.id} />
-                  <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
-                    Refresh status
-                  </button>
-                </form>
-              )}
-            </div>
-            {site.stripeAccountId && (
-              <p className="font-body text-ash/50 text-[11px] mt-3">
-                You&rsquo;ve started connecting — finish the steps on Stripe to start taking payments.
-              </p>
-            )}
-          </>
         ) : (
           <>
-            <p className="font-body text-sm mb-4" style={{ color: '#3f7d4f' }}>
-              ✓ Stripe connected — you can take payments.
+            {/* PRIMARY: payments work out of the box via the owner's own Stripe (direct charge). */}
+            <p className="font-body text-sm mb-1" style={{ color: '#3f7d4f' }}>
+              ✓ Payments are on
             </p>
-            <div className="flex flex-wrap items-center gap-3">
-              <form action={stripeLoginLinkAction}>
-                <input type="hidden" name="id" value={site.id} />
-                <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
-                  Open Stripe dashboard ↗
-                </button>
-              </form>
-              <form action={disconnectStripeAction}>
-                <input type="hidden" name="id" value={site.id} />
-                <button className="font-label text-[10px] tracking-[3px] uppercase border border-red-500/30 text-red-400 hover:bg-red-500/10 px-5 py-3 rounded-sm transition-colors">
-                  Disconnect
-                </button>
-              </form>
-            </div>
+            <p className="font-body text-ash/60 text-sm">
+              Buy buttons on this site charge straight to your Stripe account. No extra setup needed.
+            </p>
+
+            {/* SECONDARY / advanced: route this site's payments to a SEPARATE Stripe account (for a
+                different seller). Optional — left untouched for sites that opted in. */}
+            <details className="mt-5 border-t border-gold/10 pt-4">
+              <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold/60 cursor-pointer select-none">
+                Use a separate Stripe account for this site
+              </summary>
+              <div className="mt-4">
+                {!site.stripeAccountId || !site.stripeChargesEnabled ? (
+                  <>
+                    <p className="font-body text-ash/60 text-xs mb-4">
+                      Optional. Connect a different Stripe account so this site&rsquo;s payments go to another
+                      seller — they become the merchant of record instead of you.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <form action={connectStripeAction}>
+                        <input type="hidden" name="id" value={site.id} />
+                        <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+                          {site.stripeAccountId ? 'Finish setup on Stripe' : 'Connect a separate Stripe'}
+                        </button>
+                      </form>
+                      {site.stripeAccountId && (
+                        <form action={refreshStripeStatusFormAction}>
+                          <input type="hidden" name="id" value={site.id} />
+                          <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
+                            Refresh status
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                    {site.stripeAccountId && (
+                      <p className="font-body text-ash/50 text-[11px] mt-3">
+                        You&rsquo;ve started connecting — finish the steps on Stripe to route this site&rsquo;s payments there.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="font-body text-sm mb-4" style={{ color: '#3f7d4f' }}>
+                      ✓ A separate Stripe account is connected — this site&rsquo;s payments go there.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <form action={stripeLoginLinkAction}>
+                        <input type="hidden" name="id" value={site.id} />
+                        <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
+                          Open Stripe dashboard ↗
+                        </button>
+                      </form>
+                      <form action={disconnectStripeAction}>
+                        <input type="hidden" name="id" value={site.id} />
+                        <button className="font-label text-[10px] tracking-[3px] uppercase border border-red-500/30 text-red-400 hover:bg-red-500/10 px-5 py-3 rounded-sm transition-colors">
+                          Disconnect
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                )}
+              </div>
+            </details>
           </>
         )}
       </section>

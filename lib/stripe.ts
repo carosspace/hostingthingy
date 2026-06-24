@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 
-// Platform Stripe client + Connect helpers (multi-tenant Stripe Connect, stage 1).
+// Platform Stripe client + checkout/webhook helpers.
 //
 // SERVER-ONLY. STRIPE_SECRET_KEY is read here and must NEVER reach the client — do
 // not import this from a Client Component.
@@ -9,13 +9,16 @@ import Stripe from 'stripe'
 // STRIPE_SECRET_KEY, `stripeConfigured()` is false, `getStripe()` returns null, and every
 // helper no-ops and returns null instead of throwing. Nothing here throws at import time
 // or at call time, so the dashboard renders a calm "payments aren't enabled" note and no
-// server action errors. Once STRIPE_SECRET_KEY is set (and Connect is enabled on the
-// platform's Stripe account), the same helpers do the real work.
+// server action errors. Once STRIPE_SECRET_KEY is set, the same helpers do the real work.
 //
-// Model: each site owner connects THEIR OWN Stripe Express connected account; they are
-// the merchant of record. Checkout (stage 2) runs as a DIRECT CHARGE on the connected
-// account (the `{ stripeAccount }` request option), with an optional application fee to
-// the platform.
+// TWO CHARGE MODELS:
+//   • DEFAULT — direct charge on the PLATFORM owner's own account: createDirectCheckout
+//     (a plain Checkout Session, no { stripeAccount }), verified by STRIPE_WEBHOOK_SECRET.
+//     This is what powers Buy buttons out of the box (money settles to the owner).
+//   • OPT-IN — Stripe Connect (a separate seller's own Express connected account):
+//     createExpressAccount / onboarding / createConnectCheckout run the session as a DIRECT
+//     CHARGE on the connected account (the `{ stripeAccount }` option), with an optional
+//     application fee; verified by STRIPE_CONNECT_WEBHOOK_SECRET.
 
 // Pinned to the version bundled with the installed `stripe` package (17.x → acacia).
 const STRIPE_API_VERSION = '2025-02-24.acacia'
@@ -164,12 +167,73 @@ export async function createConnectCheckout(opts: ConnectCheckoutOptions): Promi
   }
 }
 
+export interface DirectCheckoutOptions {
+  amountCents: number
+  currency: string
+  productName: string
+  quantity?: number
+  customerEmail?: string
+  successUrl: string
+  cancelUrl: string
+  metadata?: Record<string, string>
+}
+
+// Create a Checkout Session as a NORMAL charge on the PLATFORM's own Stripe account: a plain
+// `stripe.checkout.sessions.create(params)` with NO `{ stripeAccount }` request option and NO
+// application fee. The platform (the owner's single Stripe) is the merchant of record and the
+// money settles to it — no per-site Connect onboarding required. This is the SIMPLE model used
+// when a site has no connected account. Returns the hosted checkout URL, or null if unconfigured
+// / on error. Same dormant-safety as createConnectCheckout: returns null when getStripe() is null.
+export async function createDirectCheckout(opts: DirectCheckoutOptions): Promise<string | null> {
+  const stripe = getStripe()
+  if (!stripe) return null
+  try {
+    const quantity = opts.quantity && opts.quantity > 0 ? Math.floor(opts.quantity) : 1
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          quantity,
+          price_data: {
+            currency: opts.currency,
+            unit_amount: opts.amountCents,
+            product_data: { name: opts.productName },
+          },
+        },
+      ],
+      ...(opts.customerEmail ? { customer_email: opts.customerEmail } : {}),
+      success_url: opts.successUrl,
+      cancel_url: opts.cancelUrl,
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+    })
+    return session.url
+  } catch {
+    return null
+  }
+}
+
 // Verify + parse a Connect webhook payload against STRIPE_CONNECT_WEBHOOK_SECRET. Returns
 // null if unconfigured (no key or no webhook secret) or if the signature is invalid — the
 // caller (stage 2 webhook route) must treat null as "reject". Never throws.
 export function constructWebhookEvent(body: string, sig: string): Stripe.Event | null {
   const stripe = getStripe()
   const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+  if (!stripe || !secret || !sig) return null
+  try {
+    return stripe.webhooks.constructEvent(body, sig, secret)
+  } catch {
+    return null
+  }
+}
+
+// Verify + parse a webhook payload from the PLATFORM ACCOUNT's own endpoint against
+// STRIPE_WEBHOOK_SECRET (distinct from the Connect secret). Direct charges on the platform
+// account deliver here. Returns null if unconfigured (no key or no webhook secret) or if the
+// signature is invalid — the caller must treat null as "reject". Never throws.
+export function constructAccountWebhookEvent(body: string, sig: string): Stripe.Event | null {
+  const stripe = getStripe()
+  const secret = process.env.STRIPE_WEBHOOK_SECRET
   if (!stripe || !secret || !sig) return null
   try {
     return stripe.webhooks.constructEvent(body, sig, secret)

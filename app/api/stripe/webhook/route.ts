@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
-import { constructWebhookEvent } from '@/lib/stripe'
+import { constructAccountWebhookEvent, constructWebhookEvent } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
-// The Stripe Connect webhook. Verifies the signature against STRIPE_CONNECT_WEBHOOK_SECRET
-// (constructWebhookEvent), then records sales + syncs the owner's connect status using the
+// The Stripe webhook. Accepts events from EITHER endpoint: the platform ACCOUNT's own webhook
+// (STRIPE_WEBHOOK_SECRET — direct charges on the owner's Stripe) OR the Connect webhook
+// (STRIPE_CONNECT_WEBHOOK_SECRET — charges on a site's separate connected account). It verifies
+// the signature against each secret in turn, then records sales + syncs connect status using the
 // SERVICE-ROLE client (no user session). DORMANT-safe: with payments unconfigured the event
 // can't be verified, so it 400s and nothing runs. The only failure that returns 400 is a bad
 // signature; handled + ignored events both return 200 so Stripe stops retrying.
@@ -19,7 +21,9 @@ export async function POST(req: Request) {
   const body = await req.text()
   const sig = req.headers.get('stripe-signature') || ''
 
-  const event = constructWebhookEvent(body, sig)
+  // Verify against EITHER secret. Try the platform-account secret first (direct charges), then the
+  // Connect secret. Whichever verifies wins; if BOTH return null the signature is bad/unconfigured.
+  const event = constructAccountWebhookEvent(body, sig) || constructWebhookEvent(body, sig)
   // null = unconfigured OR an invalid signature → reject. This is the ONLY 400 path.
   if (!event) return NextResponse.json({ error: 'invalid_signature' }, { status: 400 })
 
@@ -33,16 +37,38 @@ export async function POST(req: Request) {
       const session = event.data.object as Stripe.Checkout.Session
       const siteId = session.metadata?.siteId
       const sessionId = session.id
-      // The Connect event carries the connected account that actually processed the charge.
+      // Treat a pay-button checkout as a sale: kind 'pay', or ABSENT (back-compat with sessions
+      // created before metadata.kind existed). Anything else with a kind is some other flow.
+      const kind = session.metadata?.kind
+      const isPay = !kind || kind === 'pay'
+      // On a Connect event this carries the connected account that processed the charge; on a
+      // direct charge to the platform account it is ABSENT.
       const eventAccount = (event as Stripe.Event & { account?: string }).account || null
       // Need both the attribution (siteId) + the idempotency key (session id) to record a sale.
-      if (siteId && sessionId) {
-        // Bind the sale to the account that processed it: the site named in OUR metadata must be the
-        // one whose connected account === event.account. Without this, another connected-account
-        // owner could create a session with metadata.siteId pointing at someone else's site and
-        // pollute that site's sales records. (No money ever moves cross-tenant either way.)
-        const { data: site } = await admin.from('sites').select('stripe_account_id').eq('id', siteId).maybeSingle()
-        if (site && eventAccount && site.stripe_account_id === eventAccount) {
+      if (isPay && siteId && sessionId) {
+        // Load the named site once; it must still exist to record a sale against it (guards against a
+        // site deleted between checkout-start and webhook-delivery — avoids an orphan/FK-violating row).
+        const { data: site } = await admin.from('sites').select('id, stripe_account_id').eq('id', siteId).maybeSingle()
+        // Decide whether this is a Connect charge (bind to the connected account) or a direct charge
+        // on the platform account (no account to bind to). `recordable` gates the insert.
+        let recordable = false
+        if (!site) {
+          // The site is gone — nothing to attribute the sale to. Drop it (still ack 200).
+          recordable = false
+        } else if (eventAccount) {
+          // CONNECT: bind the sale to the account that processed it — the site named in OUR metadata
+          // must be the one whose connected account === event.account. Without this, another
+          // connected-account owner could create a session with metadata.siteId pointing at someone
+          // else's site and pollute that site's sales records. (No money moves cross-tenant either way.)
+          recordable = site.stripe_account_id === eventAccount
+        } else {
+          // DIRECT: the charge ran on the PLATFORM's own account — there's no connected account to
+          // match against, so record it against metadata.siteId as-is. The session was created by
+          // our own server (amount + siteId are server-authoritative), so there's no cross-tenant risk.
+          recordable = true
+        }
+
+        if (recordable) {
           const amountCents = typeof session.amount_total === 'number' ? session.amount_total : 0
           const currency = (session.currency || 'eur').toLowerCase()
           const email = session.customer_details?.email || session.customer_email || null
