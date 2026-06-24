@@ -6,6 +6,7 @@ import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
+import PagesPanelBar from './PagesPanelBar'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,7 +74,9 @@ export default async function DesignPage({
         <h1 className="font-display text-3xl italic text-parchment mt-2">Design your website</h1>
       </div>
 
-      {/* Pages & menu */}
+      {/* Pages & menu — hidden until the editor's "Pages" tab is clicked on a free-canvas page;
+          always shown on a block page (no Pages tab there to reveal it). */}
+      <PagesPanelBar toggleable={!!(current.canvas && !current.canvasHidden)}>
       <div className="space-y-3 border-b border-gold/10 pb-4">
         <PageTabs
           siteId={site.id}
@@ -188,6 +191,7 @@ export default async function DesignPage({
           </div>
         </details>
       </div>
+      </PagesPanelBar>
 
       {/* On a free-canvas page the "Write with AI" + block/canvas switch live inside the
           editor (top-left). On a block page they stay here. */}

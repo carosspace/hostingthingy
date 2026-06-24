@@ -410,6 +410,13 @@ export default function CanvasEditor({
   // Which tool category the left panel shows (Canva-style). Selecting an element
   // overrides this with its properties (the inspector); deselect to see a tab again.
   const [panelTab, setPanelTab] = useState<'design' | 'text' | 'elements' | 'uploads' | 'layers' | 'pages'>('design')
+  // Reveal the top "Pages & menu" bar (PagesPanelBar) only while the Pages tab is active, so the
+  // editor chrome stays clean otherwise. A flag covers the case where the bar mounts after this.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    ;(window as unknown as { __cvPagesOpen?: boolean }).__cvPagesOpen = panelTab === 'pages'
+    window.dispatchEvent(new CustomEvent('cvpagespanel', { detail: { open: panelTab === 'pages' } }))
+  }, [panelTab])
   // Pages tab folders are an editor-only organisation layer kept per-browser in localStorage
   // (like recent colours / saved blocks). They never touch the saved site or the URLs, so
   // they can't race the editor's re-mount-on-navigation or get dropped by a save path.
