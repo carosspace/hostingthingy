@@ -154,6 +154,10 @@ export default async function BookingsPage() {
 
       <section>
         <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-4">Requests</h2>
+        <p className="font-body text-ash/50 text-xs mb-4">
+          When email is configured, confirming a booking automatically emails the client a confirmation with a calendar
+          invite — and notifies you. Paid bookings confirm and email on payment.
+        </p>
         <div className="space-y-2">
           {appointments.length === 0 && <p className="font-body text-ash/60 text-sm">No requests yet.</p>}
           {appointments.map(a => (

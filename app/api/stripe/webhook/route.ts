@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { constructAccountWebhookEvent, constructWebhookEvent } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { notifyBookingConfirmed } from '@/lib/bookings/notify'
 
 // The Stripe webhook. Accepts events from EITHER endpoint: the platform ACCOUNT's own webhook
 // (STRIPE_WEBHOOK_SECRET — direct charges on the owner's Stripe) OR the Connect webhook
@@ -66,14 +67,24 @@ export async function POST(req: Request) {
           // Idempotent confirm: only flip a row that is STILL pending_payment for THIS site's owner.
           // A duplicate delivery (already confirmed) matches nothing -> no-op; a foreign
           // appointmentId can't be flipped because owner_id won't match.
-          const { error: updErr } = await admin
+          const { data: confirmed, error: updErr } = await admin
             .from('appointments')
             .update({ status: 'confirmed', paid: true, stripe_session_id: sessionId })
             .eq('id', appointmentId)
             .eq('owner_id', site.owner_id)
             .eq('status', 'pending_payment')
+            .select('id')
           if (updErr) {
             console.error('[stripe webhook] booking confirm failed for appointment', appointmentId, updErr.message)
+          }
+
+          // Fire-and-forget the confirmation + owner-notification emails ONLY when this
+          // delivery actually flipped the row (so a duplicate webhook never re-emails).
+          // notifyBookingConfirmed is dormant-safe (no-op without RESEND_API_KEY) and
+          // swallows all errors; the extra .catch() guards the floating promise so a
+          // rejection can never affect the webhook's prompt 200.
+          if (!updErr && confirmed && confirmed.length > 0) {
+            void notifyBookingConfirmed(appointmentId).catch(() => {})
           }
 
           // Record booking revenue alongside Buy-button sales. Idempotent on stripe_session_id

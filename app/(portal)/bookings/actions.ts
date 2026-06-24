@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
 import { createService, deleteService, setAppointmentStatus, saveSchedule } from '@/lib/bookings/repo'
+import { notifyBookingConfirmed } from '@/lib/bookings/notify'
 import type { AvailabilityWindow } from '@/lib/bookings/types'
 import { getSite, saveSiteContent } from '@/lib/sites/store'
 import type { SiteContent } from '@/lib/sites/types'
@@ -35,6 +36,10 @@ export async function confirmAppointmentAction(formData: FormData): Promise<void
   const id = String(formData.get('id') ?? '')
   if (!id) return
   await setAppointmentStatus(id, 'confirmed')
+  // Send the confirmation (client) + notification (owner) emails. Dormant-safe (no-op
+  // without RESEND_API_KEY) and swallows all errors internally, so this can never break
+  // the confirm action; the extra .catch() guards against an unexpected rejection.
+  await notifyBookingConfirmed(id).catch(() => {})
   revalidatePath('/bookings')
 }
 
