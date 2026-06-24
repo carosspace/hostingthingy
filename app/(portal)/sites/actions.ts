@@ -1121,7 +1121,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
       // Freehand drawing: only allow SVG path-data characters (no quotes/parens → no injection), capped.
       paths: type === 'draw' && Array.isArray(e?.paths) ? (e.paths as unknown[]).map(p => String(p ?? '')).filter(p => p.length <= 20000 && /^[\d\s.,\-MLCQTAHVZmlcqtahvz]+$/.test(p)).slice(0, 400) : undefined,
-      strokeW: type === 'draw' ? num(e?.strokeW, 1, 200, 6) : undefined,
+      strokeW: type === 'draw' ? num(e?.strokeW, 1, 200, 6) : (type === 'icon' && e?.strokeW != null && Number.isFinite(Number(e?.strokeW)) ? Math.min(6, Math.max(0.5, Number(e?.strokeW))) : undefined),
       // Flow Groups (layout engine). parentId is a raw element id (validated against surviving
       // groups in a post-pass below); flow/sizeW/sizeH only meaningful on a 'group'.
       parentId: e?.parentId ? String(e.parentId).slice(0, 40) : undefined,

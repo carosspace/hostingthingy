@@ -104,7 +104,7 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
   if (el.type === 'divider')
     return dividerSvg(el, el.fill || ctx.accent)
   if (el.type === 'icon') {
-    const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
+    const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon, el.strokeW)}</div>
     const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
     return ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
   }
@@ -371,7 +371,7 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
             </div>
           )
         } else if (el.type === 'icon') {
-          const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon)}</div>
+          const ic = <div style={{ width: `${Math.min(el.w, 120)}px`, aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, color: el.color || accent, opacity: o }}>{canvasIcon(el.icon, el.strokeW)}</div>
           const ih = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
           node = ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'inline-block' }}>{ic}</a> : ic
         } else if (el.type === 'component') {

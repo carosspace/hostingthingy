@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
-import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
+import { canvasIcon, ICON_GROUPS, ICON_KINDS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
 import { CanvasView, MobileStack, renderInner, dividerSvg, type RenderCtx } from '@/lib/sites/CanvasView'
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
@@ -398,6 +398,8 @@ export default function CanvasEditor({
   const [aiDesignErr, setAiDesignErr] = useState('') // shown when the AI design call fails
   const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
+  const [iconQuery, setIconQuery] = useState('') // search filter for the Add-tab icon gallery
+  const [iconPickQuery, setIconPickQuery] = useState('') // search filter for the inspector icon picker
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
@@ -2671,7 +2673,7 @@ export default function CanvasEditor({
     if (el.type === 'divider')
       return <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>{dividerSvg(el, el.fill || accent)}</div>
     if (el.type === 'icon')
-      return <div style={{ width: '100%', height: '100%', color: el.color || accent, pointerEvents: 'none' }}>{canvasIcon(el.icon)}</div>
+      return <div style={{ width: '100%', height: '100%', color: el.color || accent, pointerEvents: 'none' }}>{canvasIcon(el.icon, el.strokeW)}</div>
     if (el.type === 'component') {
       const comp = components.find(c => c.id === el.componentId)
       if (!comp) return <div className="w-full h-full flex items-center justify-center" style={{ border: `1.5px dashed ${accent}`, color: accent, fontSize: cqv(14) }}>missing component</div>
@@ -3094,9 +3096,26 @@ export default function CanvasEditor({
             </div>
             <div>
               <p style={labelCss}>Icons</p>
-              <div className="flex flex-wrap gap-1 mt-1" style={{ maxHeight: 156, overflowY: 'auto' }}>
-                {ICON_GROUPS.flatMap(g => g.keys).map(k => (
-                  <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: '#111111' })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#3a2e20' }}>{canvasIcon(k)}</button>
+              <input value={iconQuery} onChange={e => setIconQuery(e.target.value)} placeholder="Search icons…" style={{ ...inputCss, fontSize: 12, padding: '5px 8px', marginTop: 4 }} />
+              <div className="flex flex-col gap-1.5 mt-1.5" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                {iconQuery.trim() ? (() => {
+                  const matches = ICON_KINDS.filter(k => k.toLowerCase().includes(iconQuery.trim().toLowerCase()))
+                  return matches.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {matches.map(k => (
+                        <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: '#111111' })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#3a2e20' }}>{canvasIcon(k)}</button>
+                      ))}
+                    </div>
+                  ) : <p className="font-body text-ash/40 text-[11px]">No icons match &ldquo;{iconQuery}&rdquo;.</p>
+                })() : ICON_GROUPS.map(g => (
+                  <div key={g.label}>
+                    <p style={{ ...labelCss, fontSize: 9, color: '#b3aa97', marginBottom: 2 }}>{g.label}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {g.keys.map(k => (
+                        <button key={k} type="button" title={k} onClick={() => place({ type: 'icon', icon: k, w: 72, h: 72, color: '#111111' })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#3a2e20' }}>{canvasIcon(k)}</button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -4046,6 +4065,11 @@ export default function CanvasEditor({
                   <span style={labelCss}>Colour</span>
                   {colorField(sel.color, v => update(sel.id, { color: v }), accent)}
                 </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Line weight</span>
+                  <input type="range" min={0.5} max={6} step={0.5} value={sel.strokeW ?? 1.8} onChange={e => update(sel.id, { strokeW: Number(e.target.value) })} style={{ flex: 1 }} />
+                  <span style={{ fontSize: 11, color: '#666', width: 26 }}>{(sel.strokeW ?? 1.8).toFixed(1)}</span>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span style={labelCss}>Icon link</span>
                   <select value={sel.ctaType || 'none'} onChange={e => update(sel.id, { ctaType: e.target.value as CtaType })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
@@ -4058,9 +4082,26 @@ export default function CanvasEditor({
                   {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? ui : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
                 </div>
                 <p style={labelCss}>Pick an icon</p>
-                <div className="flex flex-wrap gap-1" style={{ maxHeight: 170, overflowY: 'auto' }}>
-                  {ICON_GROUPS.flatMap(g => g.keys).map(k => (
-                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
+                <input value={iconPickQuery} onChange={e => setIconPickQuery(e.target.value)} placeholder="Search icons…" style={{ ...inputCss, fontSize: 12, padding: '5px 8px' }} />
+                <div className="flex flex-col gap-1.5" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                  {iconPickQuery.trim() ? (() => {
+                    const matches = ICON_KINDS.filter(k => k.toLowerCase().includes(iconPickQuery.trim().toLowerCase()))
+                    return matches.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {matches.map(k => (
+                          <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
+                        ))}
+                      </div>
+                    ) : <p className="font-body text-ash/40 text-[11px]">No icons match &ldquo;{iconPickQuery}&rdquo;.</p>
+                  })() : ICON_GROUPS.map(g => (
+                    <div key={g.label}>
+                      <p style={{ ...labelCss, fontSize: 9, color: '#b3aa97', marginBottom: 2 }}>{g.label}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {g.keys.map(k => (
+                          <button key={k} type="button" title={k} onClick={() => update(sel.id, { icon: k })} style={{ width: 30, height: 30, padding: 5, borderRadius: 4, border: sel.icon === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.15)', background: '#fff', color: '#5a513f' }}>{canvasIcon(k)}</button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </>
