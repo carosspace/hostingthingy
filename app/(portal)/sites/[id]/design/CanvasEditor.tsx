@@ -2975,10 +2975,11 @@ export default function CanvasEditor({
           <div>
             <p style={labelCss}>Add text</p>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {([['title', 'Title'], ['subtitle', 'Subtitle'], ['body', 'Body'], ['link', 'Link']] as [string, string][]).map(([key, lbl]) => (
+              {([['title', 'Heading'], ['subtitle', 'Subheading'], ['body', 'Body'], ['link', 'Link']] as [string, string][]).map(([key, lbl]) => (
                 <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
               ))}
             </div>
+            <p className="font-body text-ash/45 text-[10.5px] mt-1.5 leading-relaxed">Each adds text of that type — it follows your Heading / Body / … style automatically. Style one and use its panel’s “Save as the … style” to set them all.</p>
             <p className="font-body text-ash/50 text-[11px] mt-3 leading-relaxed">Add a text box, then select it to change the words (✨ with AI too), size, colour and font.</p>
           </div>
         )}
