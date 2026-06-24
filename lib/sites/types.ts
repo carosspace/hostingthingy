@@ -126,7 +126,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw' | 'group'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw' | 'group' | 'divider'
 
 // Flow Groups (the layout engine): a 'group' element flex-lays-out its members. Children stay
 // in the flat elements[] array with parentId pointing back here; the group is the source of
@@ -219,6 +219,74 @@ export function shapePath(k?: ShapeKind): string {
     case 'zigzag': return 'M0,100 L20,45 L40,100 L60,45 L80,100 L100,45 L100,100 Z'
     case 'wave':
     default: return 'M0,60 C25,95 75,25 100,60 L100,100 L0,100 Z'
+  }
+}
+
+// Full-width decorative section dividers: organic SVG separators (waves, curves, slopes,
+// arches…) the owner drops at the bottom edge of a section. Distinct from the small 'shape'
+// element above — these are hand-authored to span the full width on a 0 0 1200 120 viewBox,
+// bottom-filled so each reads as the bottom edge of the section. The element's `fill` colours
+// the shape (hex or a brand token), and flipX/flipY mirror it (applied via render transform,
+// so each kind has ONE canonical orientation here).
+export const DIVIDER_KINDS = ['wave', 'waveSoft', 'waves', 'curve', 'curveDown', 'slope', 'slopeDown', 'tilt', 'arch', 'round', 'peak', 'drip'] as const
+export type DividerKind = (typeof DIVIDER_KINDS)[number]
+export const DIVIDER_LABELS: Record<DividerKind, string> = {
+  wave: 'Wave',
+  waveSoft: 'Soft wave',
+  waves: 'Waves',
+  curve: 'Curve up',
+  curveDown: 'Curve down',
+  slope: 'Slope',
+  slopeDown: 'Slope down',
+  tilt: 'Tilt',
+  arch: 'Arch',
+  round: 'Round',
+  peak: 'Peak',
+  drip: 'Drips',
+}
+// The SVG path `d` for a divider, on a 0 0 1200 120 viewBox spanning the full width and
+// bottom-filled. Hand-authored with smooth cubic/quadratic curves so they read as soft,
+// organic edges. flipX/flipY are applied at render via a transform, so each returns one
+// canonical orientation (the curved/featured edge along the top, the section colour below).
+export function dividerSvgPath(kind: DividerKind): string {
+  switch (kind) {
+    // A single gentle S-wave across the width.
+    case 'waveSoft':
+      return 'M0,70 C300,30 900,110 1200,70 L1200,120 L0,120 Z'
+    // Three softer ripples.
+    case 'waves':
+      return 'M0,64 C150,24 250,104 400,64 C550,24 650,104 800,64 C950,24 1050,104 1200,64 L1200,120 L0,120 Z'
+    // A convex hill cresting in the middle.
+    case 'curve':
+      return 'M0,110 C300,20 900,20 1200,110 L1200,120 L0,120 Z'
+    // A concave scoop dipping in the middle.
+    case 'curveDown':
+      return 'M0,20 C300,110 900,110 1200,20 L1200,120 L0,120 Z'
+    // A clean diagonal rising left-to-right.
+    case 'slope':
+      return 'M0,120 L1200,20 L1200,120 Z'
+    // A clean diagonal falling left-to-right.
+    case 'slopeDown':
+      return 'M0,20 L1200,120 L0,120 Z'
+    // A subtle tilt — a shallow diagonal band.
+    case 'tilt':
+      return 'M0,96 L1200,40 L1200,120 L0,120 Z'
+    // A wide soft arch (half-ellipse) rising from the edges.
+    case 'arch':
+      return 'M0,120 C0,40 1200,40 1200,120 Z'
+    // A single broad rounded bump, flatter at the sides.
+    case 'round':
+      return 'M0,120 C400,120 360,30 600,30 C840,30 800,120 1200,120 Z'
+    // A soft rounded peak in the centre.
+    case 'peak':
+      return 'M0,120 C420,110 480,30 600,30 C720,30 780,110 1200,120 Z'
+    // Gentle hanging drips along the bottom edge.
+    case 'drip':
+      return 'M0,40 L1200,40 L1200,80 C1140,80 1140,120 1080,120 C1020,120 1020,80 960,80 C900,80 900,120 840,120 C780,120 780,80 720,80 C660,80 660,120 600,120 C540,120 540,80 480,80 C420,80 420,120 360,120 C300,120 300,80 240,80 C180,80 180,120 120,120 C60,120 60,80 0,80 Z'
+    // A bold single wave (the default).
+    case 'wave':
+    default:
+      return 'M0,60 C200,120 400,0 600,60 C800,120 1000,0 1200,60 L1200,120 L0,120 Z'
   }
 }
 
@@ -398,6 +466,11 @@ export interface CanvasElement {
   sizeH?: 'fixed' | 'hug' | 'fill'
   // shape divider
   shape?: ShapeKind
+  // full-width section divider ('divider' type): which organic separator + whether to mirror it.
+  // The shape is coloured by the element's `fill` (hex or a brand token); flipX/flipY mirror it.
+  dividerShape?: DividerKind
+  flipX?: boolean
+  flipY?: boolean
   // icon (a recolourable line/fill icon — `icon` is a key in lib/sites/icons.tsx; `color` tints it)
   icon?: string
   // page menu

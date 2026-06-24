@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react'
-import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
+import { CANVAS_W, MOBILE_W, canvasLayout, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type PageCanvas, type CanvasElement, type SiteComponent } from './types'
 import CanvasMotion from './CanvasMotion'
 import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
@@ -24,6 +24,21 @@ function withMotion(el: CanvasElement, child: ReactNode): ReactNode {
 }
 
 const fontVar = (f?: string) => (f === 'body' ? 'var(--font-body)' : f === 'label' ? 'var(--font-label)' : f && f.startsWith('custom:') ? `'cvf-${f.slice(7)}', sans-serif` : f && f.startsWith('google:') ? googleStack(f.slice(7)) : 'var(--font-display)')
+
+// A full-bleed organic section divider. The SVG stretches to fill the element's box
+// (preserveAspectRatio none); flipX/flipY mirror it via a CSS transform on the wrapper.
+// `fill` is the resolved colour (hex or a brand token, which resolves against --brand-N).
+// Shared by all three render paths so they can never disagree.
+export function dividerSvg(el: CanvasElement, fill: string): ReactNode {
+  const flip = `${el.flipX ? 'scaleX(-1) ' : ''}${el.flipY ? 'scaleY(-1)' : ''}`.trim()
+  return (
+    <div style={{ width: '100%', height: '100%', transform: flip || undefined }}>
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
+        <path d={dividerSvgPath(el.dividerShape || 'wave')} fill={fill} />
+      </svg>
+    </div>
+  )
+}
 // A design-pixel value as a container-query-width unit (scales the canvas with the viewport).
 const cq = (px: number) => `${(px / CANVAS_W) * 100}cqw`
 const cqm = (px: number) => `${(px / MOBILE_W) * 100}cqw`
@@ -86,6 +101,8 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         <path d={shapePath(el.shape)} style={{ fill: el.fill || ctx.accent }} />
       </svg>
     )
+  if (el.type === 'divider')
+    return dividerSvg(el, el.fill || ctx.accent)
   if (el.type === 'icon') {
     const node = <div style={{ width: '100%', height: '100%', color: el.color || ctx.accent }}>{canvasIcon(el.icon)}</div>
     const ih = el.anchorTo ? `#cv-${el.anchorTo}` : el.ctaType && el.ctaType !== 'none' ? ctx.ctaHref(el) : ''
@@ -329,6 +346,8 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = el.slides && el.slides.length ? <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><Carousel slides={el.slides} fit={el.fit} radiusCss={`${el.radius || 0}px`} interval={el.interval} /></div> : null
         } else if (el.type === 'shape') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} /></svg></div>
+        } else if (el.type === 'divider') {
+          node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{dividerSvg(el, el.fill || accent)}</div>
         } else if (el.type === 'draw') {
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${el.h}`, opacity: o }}><svg viewBox="0 0 1000 1000" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>{(el.paths ?? []).map((d, i) => <path key={i} d={d} style={{ fill: 'none', stroke: el.color || '#111111', strokeWidth: el.strokeW || 6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }} />)}</svg></div>
         } else if (el.type === 'group') {

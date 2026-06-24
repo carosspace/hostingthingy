@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import { isGoogleFamily, GOOGLE_FONTS } from '@/lib/sites/googleFonts'
@@ -28,6 +28,7 @@ import type {
   HoverKind,
   ShadowKind,
   ShapeKind,
+  DividerKind,
   MenuStyle,
   CursorKind,
   ImageAdjust,
@@ -1047,7 +1048,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw', 'group']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw', 'group', 'divider']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -1110,6 +1111,10 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       slides: type === 'carousel' && Array.isArray(e?.slides) ? (e.slides.map(dataOrHttp).filter(Boolean) as string[]).slice(0, 10) : undefined,
       interval: type === 'carousel' ? num(e?.interval, 0, 30, 4) : undefined,
       shape: type === 'shape' && SHAPE_KINDS.includes(String(e?.shape) as ShapeKind) ? (String(e?.shape) as ShapeKind) : type === 'shape' ? 'wave' : undefined,
+      // Full-width section divider: a whitelisted organic shape (default 'wave') + boolean mirrors.
+      dividerShape: type === 'divider' ? (DIVIDER_KINDS.includes(String(e?.dividerShape) as DividerKind) ? (String(e?.dividerShape) as DividerKind) : 'wave') : undefined,
+      flipX: type === 'divider' && e?.flipX ? true : undefined,
+      flipY: type === 'divider' && e?.flipY ? true : undefined,
       icon: type === 'icon' ? (ICON_KINDS.includes(String(e?.icon)) ? String(e?.icon) : 'star') : undefined,
       // Freehand drawing: only allow SVG path-data characters (no quotes/parens → no injection), capped.
       paths: type === 'draw' && Array.isArray(e?.paths) ? (e.paths as unknown[]).map(p => String(p ?? '')).filter(p => p.length <= 20000 && /^[\d\s.,\-MLCQTAHVZmlcqtahvz]+$/.test(p)).slice(0, 400) : undefined,

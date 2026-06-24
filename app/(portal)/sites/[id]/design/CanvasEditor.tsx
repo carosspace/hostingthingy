@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
 import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
 import { canvasIcon, ICON_GROUPS } from '@/lib/sites/icons'
 import { resizeToDataUrl } from '@/lib/sites/image'
-import { CanvasView, MobileStack, renderInner, type RenderCtx } from '@/lib/sites/CanvasView'
+import { CanvasView, MobileStack, renderInner, dividerSvg, type RenderCtx } from '@/lib/sites/CanvasView'
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplates'
 import { SECTION_TEMPLATES, SECTION_CATEGORY_LABELS, SECTION_CATEGORY_ORDER, type SectionTemplate } from '@/lib/sites/sectionTemplates'
 import CropModal from './CropModal'
@@ -2666,6 +2666,8 @@ export default function CanvasEditor({
           <path d={shapePath(el.shape)} style={{ fill: el.fill || accent }} />
         </svg>
       )
+    if (el.type === 'divider')
+      return <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>{dividerSvg(el, el.fill || accent)}</div>
     if (el.type === 'icon')
       return <div style={{ width: '100%', height: '100%', color: el.color || accent, pointerEvents: 'none' }}>{canvasIcon(el.icon)}</div>
     if (el.type === 'component') {
@@ -2755,13 +2757,14 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : el.type === 'group' ? '▦' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'divider' ? '∿' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : el.type === 'group' ? '▦' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
     if (el.type === 'image') return 'Picture'
     if (el.type === 'carousel') return 'Slideshow'
     if (el.type === 'shape') return 'Shape divider'
+    if (el.type === 'divider') return 'Divider · ' + DIVIDER_LABELS[el.dividerShape || 'wave']
     if (el.type === 'draw') return 'Drawing'
     if (el.type === 'group') return 'Layout group'
     if (el.type === 'icon') return 'Icon · ' + (el.icon || 'star')
@@ -3047,12 +3050,29 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Shapes</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Divider']] as [string, string][]).map(([key, lbl]) => (
+                {([['box', 'Box'], ['line', 'Line'], ['section', 'Section'], ['shape', 'Edge shape']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 <button type="button" onClick={() => { setSelectedIds([]); setDrawMode(true) }} className="font-label text-[10px] tracking-[1px] uppercase bg-gold/10 border border-gold/40 text-gold hover:bg-gold/20 px-2.5 py-1.5 rounded-sm">✎ Draw / write</button>
               </div>
               <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed"><b>Draw / write</b> lets you sketch or hand-write freely on the canvas — drag to draw, then Done.</p>
+            </div>
+            <div>
+              <p style={labelCss}>Dividers</p>
+              <div className="grid grid-cols-3 gap-1.5 mt-1">
+                {DIVIDER_KINDS.map(k => (
+                  <button
+                    key={k}
+                    type="button"
+                    title={DIVIDER_LABELS[k]}
+                    onClick={() => place({ type: 'divider', x: 0, w: CANVAS_W, h: 90, dividerShape: k, fill: accent })}
+                    style={{ height: 34, padding: 0, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}
+                  >
+                    <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
+                  </button>
+                ))}
+              </div>
+              <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed">A full-width organic edge to drop between sections. Recolour and flip it in the panel on the right.</p>
             </div>
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
@@ -3581,7 +3601,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'group' ? 'Layout group' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'divider' ? 'Divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'group' ? 'Layout group' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -3958,6 +3978,30 @@ export default function CanvasEditor({
                   {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
                 </div>
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Rotate 180° (above) to flip it the other way.</p>
+              </>
+            )}
+            {sel.type === 'divider' && (
+              <>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {DIVIDER_KINDS.map(k => {
+                    const on = (sel.dividerShape || 'wave') === k
+                    return (
+                      <button key={k} type="button" title={DIVIDER_LABELS[k]} onClick={() => update(sel.id, { dividerShape: k })} style={{ height: 30, padding: 0, borderRadius: 4, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
+                        <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Colour</span>
+                  {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Flip</span>
+                  <button type="button" onClick={() => update(sel.id, { flipX: !sel.flipX })} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm border" style={{ borderColor: sel.flipX ? ui : 'rgba(0,0,0,0.18)', background: sel.flipX ? ui : 'transparent', color: sel.flipX ? '#fff' : '#666' }}>↔ Mirror</button>
+                  <button type="button" onClick={() => update(sel.id, { flipY: !sel.flipY })} className="font-label text-[9px] tracking-[1px] uppercase px-2.5 py-1.5 rounded-sm border" style={{ borderColor: sel.flipY ? ui : 'rgba(0,0,0,0.18)', background: sel.flipY ? ui : 'transparent', color: sel.flipY ? '#fff' : '#666' }}>↕ Flip</button>
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>A full-width organic edge. <b>Flip</b> ↕ to make it the top edge of the next section; set its exact height with Size above.</p>
               </>
             )}
             {sel.type === 'draw' && (
