@@ -167,6 +167,9 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     )
   }
   const isBtn = el.type === 'button'
+  // Image-filled text (text mask): on a text element, clip a photo into the letters. Precedence
+  // textImage > gradient > solid colour — when present it overrides the gradient-clip + solid paths.
+  const txImg = !isBtn ? el.textImage : undefined
   const content = (
     <div
       className={el.dropCap && !isBtn ? 'dbp-dropcap' : undefined}
@@ -178,11 +181,14 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
         justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
         fontFamily: fontVar(el.fontFamily),
         fontSize: cqf(fontSize),
-        color: isBtn ? '#ffffff' : !isBtn && el.gradient ? 'transparent' : el.color || '#1a1612',
+        color: isBtn ? '#ffffff' : txImg || el.gradient ? 'transparent' : el.color || '#1a1612',
+        WebkitTextFillColor: !isBtn && txImg ? 'transparent' : undefined,
         background: isBtn ? gradientCss(el.gradient) || el.fill || ctx.accent : undefined,
-        backgroundImage: !isBtn && el.gradient ? gradientCss(el.gradient) : undefined,
-        WebkitBackgroundClip: !isBtn && el.gradient ? 'text' : undefined,
-        backgroundClip: !isBtn && el.gradient ? 'text' : undefined,
+        backgroundImage: txImg ? `url('${txImg}')` : !isBtn && el.gradient ? gradientCss(el.gradient) : undefined,
+        backgroundSize: txImg ? 'cover' : undefined,
+        backgroundPosition: txImg ? 'center' : undefined,
+        WebkitBackgroundClip: !isBtn && (txImg || el.gradient) ? 'text' : undefined,
+        backgroundClip: !isBtn && (txImg || el.gradient) ? 'text' : undefined,
         borderRadius: isBtn ? cqf(el.radius ?? 6) : undefined,
         boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
         fontWeight: el.weight ?? (el.bold ? 700 : 400),
@@ -407,8 +413,10 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
             </div>
           )
         } else {
+          // Image-filled text (text mask) takes precedence over the gradient-clip + solid paths.
+          const mTxImg = el.textImage
           const txt = (
-            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 24, 48), color: el.gradient ? 'transparent' : el.color || '#1a1612', backgroundImage: el.gradient ? gradientCss(el.gradient) : undefined, WebkitBackgroundClip: el.gradient ? 'text' : undefined, backgroundClip: el.gradient ? 'text' : undefined, fontWeight: el.weight ?? (el.bold ? 700 : 400), fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
+            <div className={el.dropCap ? 'dbp-dropcap' : undefined} style={{ fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 24, 48), color: mTxImg || el.gradient ? 'transparent' : el.color || '#1a1612', WebkitTextFillColor: mTxImg ? 'transparent' : undefined, backgroundImage: mTxImg ? `url('${mTxImg}')` : el.gradient ? gradientCss(el.gradient) : undefined, backgroundSize: mTxImg ? 'cover' : undefined, backgroundPosition: mTxImg ? 'center' : undefined, WebkitBackgroundClip: mTxImg || el.gradient ? 'text' : undefined, backgroundClip: mTxImg || el.gradient ? 'text' : undefined, fontWeight: el.weight ?? (el.bold ? 700 : 400), fontStyle: el.italic ? 'italic' : undefined, letterSpacing: el.letterSpacing || undefined, textAlign: el.align || 'left', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight ?? 1.3, opacity: o }}>
               {el.text}
             </div>
           )

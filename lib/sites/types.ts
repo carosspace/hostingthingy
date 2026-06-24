@@ -437,6 +437,10 @@ export interface CanvasElement {
   fontFamily?: string // 'display' | 'body' | 'label', or 'custom:<fontId>' for an uploaded font
   letterSpacing?: number // design px (can be negative)
   lineHeight?: number // unitless multiplier (0.8-4)
+  // Image fill for a text element: a photo/texture clipped into the letters (a text mask),
+  // like the gradient-clip text but with an image. A data-URL image or an https URL, gated
+  // identically to an image element's `src` (dataOrHttp). Precedence: textImage > gradient > solid.
+  textImage?: string
   dropCap?: boolean // enlarge the first letter of a text block
   styleRef?: string // the element's TYPE: a global text-style key (TEXT_STYLE_KEYS). The element follows this type's style; editing the type re-syncs this element EXCEPT for properties listed in styleOverrides.
   styleOverrides?: string[] // the SYNCED_TYPO prop keys (fontSize/fontFamily/weight/italic/lineHeight/letterSpacing/color) the owner has individually customised on THIS element. A type-style change never touches these; "Reset to type" clears them. Editor-only metadata — the render still uses the element's own resolved props.

@@ -853,7 +853,7 @@ export default function CanvasEditor({
     touch()
   }
   // --- Format painter: copy an element's look, paint it onto others ---
-  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'weight', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'cursor', 'adjust', 'lightbox']
+  const STYLE_KEYS: (keyof CanvasElement)[] = ['color', 'fontSize', 'fontFamily', 'bold', 'weight', 'italic', 'align', 'letterSpacing', 'lineHeight', 'dropCap', 'fill', 'gradient', 'textImage', 'radius', 'borderColor', 'borderWidth', 'shadow', 'blend', 'opacity', 'reveal', 'revealDelay', 'hover', 'parallax', 'cursor', 'adjust', 'lightbox']
   const copyStyle = (el: CanvasElement) => {
     const s: Partial<CanvasElement> = {}
     for (const k of STYLE_KEYS) if (el[k] !== undefined) (s as Record<string, unknown>)[k] = el[k]
@@ -1585,7 +1585,9 @@ export default function CanvasEditor({
   }
 
   // shared hidden file input per element image upload
-  function imgPick(id: string) {
+  // Upload an image and store it on the element. `field` is which prop receives the data URL:
+  // 'src' for an image element (the default), or 'textImage' for the image-filled-text mask.
+  function imgPick(id: string, field: 'src' | 'textImage' = 'src') {
     const inp = document.createElement('input')
     inp.type = 'file'
     inp.accept = 'image/*'
@@ -1595,10 +1597,10 @@ export default function CanvasEditor({
       if (f.type === 'image/svg+xml') {
         // Keep SVG vector-sharp (don't rasterise); it renders via <img>, so no scripts run.
         const reader = new FileReader()
-        reader.onload = () => update(id, { src: String(reader.result) })
+        reader.onload = () => update(id, { [field]: String(reader.result) })
         reader.readAsDataURL(f)
       } else {
-        update(id, { src: await resizeToDataUrl(f) })
+        update(id, { [field]: await resizeToDataUrl(f) })
       }
     }
     inp.click()
@@ -2732,11 +2734,16 @@ export default function CanvasEditor({
           justifyContent: isBtn ? 'center' : el.align === 'center' ? 'center' : el.align === 'right' ? 'flex-end' : 'flex-start',
           fontFamily: fontVar(el.fontFamily),
           fontSize: cqv((editingMobile && el.mFontSize) || el.fontSize || 24),
-          color: isBtn ? '#fff' : !isBtn && el.gradient && !editing ? 'transparent' : el.color || t.text,
+          // Image-filled text (text mask): textImage > gradient > solid colour. Suppressed while
+          // inline-editing (like the gradient clip) so the caret stays visible.
+          color: isBtn ? '#fff' : !isBtn && (el.textImage || el.gradient) && !editing ? 'transparent' : el.color || t.text,
+          WebkitTextFillColor: !isBtn && el.textImage && !editing ? 'transparent' : undefined,
           background: isBtn ? gradientCss(el.gradient) || el.fill || accent : undefined,
-          backgroundImage: !isBtn && el.gradient && !editing ? gradientCss(el.gradient) : undefined,
-          WebkitBackgroundClip: !isBtn && el.gradient && !editing ? 'text' : undefined,
-          backgroundClip: !isBtn && el.gradient && !editing ? 'text' : undefined,
+          backgroundImage: !isBtn && !editing ? (el.textImage ? `url('${el.textImage}')` : el.gradient ? gradientCss(el.gradient) : undefined) : undefined,
+          backgroundSize: !isBtn && el.textImage && !editing ? 'cover' : undefined,
+          backgroundPosition: !isBtn && el.textImage && !editing ? 'center' : undefined,
+          WebkitBackgroundClip: !isBtn && (el.textImage || el.gradient) && !editing ? 'text' : undefined,
+          backgroundClip: !isBtn && (el.textImage || el.gradient) && !editing ? 'text' : undefined,
           borderRadius: isBtn ? cqv(el.radius ?? 6) : undefined,
           boxShadow: isBtn ? shadowCss(el.shadow) : undefined,
           fontWeight: el.weight ?? (el.bold ? 700 : 400),
@@ -3814,9 +3821,24 @@ export default function CanvasEditor({
                     <div>
                       <div className="flex items-center justify-between">
                         <span style={labelCss}>Gradient text</span>
-                        <button type="button" onClick={() => update(sel.id, { gradient: sel.gradient ? undefined : { kind: 'linear', from: sel.color && sel.color.startsWith('#') ? sel.color : '#a85c36', to: '#5b2c9a', angle: 90 } })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.gradient ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.gradient ? ui : 'transparent', color: sel.gradient ? '#fff' : '#666' }}>{sel.gradient ? 'on' : 'off'}</button>
+                        <button type="button" onClick={() => update(sel.id, sel.gradient ? { gradient: undefined } : { gradient: { kind: 'linear', from: sel.color && sel.color.startsWith('#') ? sel.color : '#a85c36', to: '#5b2c9a', angle: 90 }, textImage: undefined })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: `1px solid ${sel.gradient ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.gradient ? ui : 'transparent', color: sel.gradient ? '#fff' : '#666' }}>{sel.gradient ? 'on' : 'off'}</button>
                       </div>
                       {sel.gradient && <div className="mt-1.5">{gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}</div>}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span style={labelCss}>Image fill</span>
+                        {/* Fill the letters with a photo/texture (a text mask). Choosing an image clears
+                            the gradient — image fill takes precedence over gradient over solid colour. */}
+                        <button type="button" onClick={() => { if (sel.gradient) update(sel.id, { gradient: undefined }); imgPick(sel.id, 'textImage') }} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', background: 'transparent', color: '#666' }}>{sel.textImage ? 'Replace' : 'Upload'}</button>
+                        {sel.textImage && (
+                          <>
+                            <button type="button" title="Remove the image fill (back to solid / gradient)" onClick={() => update(sel.id, { textImage: undefined })} style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 9px', borderRadius: 3, border: '1px solid rgba(0,0,0,0.15)', background: 'transparent', color: '#666' }}>× Solid</button>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={sel.textImage} alt="" style={{ width: 26, height: 26, objectFit: 'cover', borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)' }} />
+                          </>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

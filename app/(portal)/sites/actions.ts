@@ -1086,6 +1086,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       fontFamily,
       letterSpacing: e?.letterSpacing === undefined || e?.letterSpacing === null ? undefined : num(e?.letterSpacing, -20, 200, 0),
       lineHeight: lineH(e?.lineHeight),
+      // Image-filled text (a text mask): only on a text element, validated identically to an
+      // image element's `src` via dataOrHttp (safe data-URL/MIME allowlist or a clean https URL).
+      textImage: type === 'text' ? dataOrHttp(e?.textImage) : undefined,
       dropCap: type === 'text' && e?.dropCap ? true : undefined,
       styleRef: allowComponent && type === 'text' && TEXT_STYLE_KEYS.includes(String(e?.styleRef) as (typeof TEXT_STYLE_KEYS)[number]) ? String(e?.styleRef) : undefined,
       // The per-element typography overrides: the SYNCED_TYPO prop keys this element has
