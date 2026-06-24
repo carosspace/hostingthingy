@@ -653,6 +653,10 @@ export default function CanvasEditor({
   // cross-axis centre of the connector. Footer-pinned elements are excluded (their desktop y is
   // band-local, so a label drawn at their stored y would land in the wrong place).
   const [spacing, setSpacing] = useState<{ axis: 'x' | 'y'; mid: number; from: number; to: number; gap: number; equal: boolean }[]>([])
+  // Canva-style "equal size" feedback while RESIZING: `w`/`h` hold the ID of the OTHER element
+  // whose width/height the resizing element currently matches (or null). Transient UI only —
+  // like `guides`/`spacing`, never saved. Rendered as violet bars on both elements.
+  const [sizeMatch, setSizeMatch] = useState<{ w: string | null; h: string | null }>({ w: null, h: null })
   // True while a move/resize/marquee drag is in progress — used to hide the static
   // selection-measurement overlay (which only makes sense at rest).
   const [dragging, setDragging] = useState(false)
@@ -2088,11 +2092,39 @@ export default function CanvasEditor({
         let nw = useW ? Math.max(24, Math.round(d.w + dx)) : d.w
         let nh = useH ? Math.max(20, Math.round(d.h + dy)) : d.h
         // Hold Shift on the CORNER to keep proportions; otherwise snap the moving axes to the grid.
-        if (e.shiftKey && d.ar > 0 && d.dir === 'se') { nh = Math.max(20, Math.round(nw / d.ar)) }
+        const shiftAspect = e.shiftKey && d.ar > 0 && d.dir === 'se'
+        if (shiftAspect) { nh = Math.max(20, Math.round(nw / d.ar)) }
         else if (gridSnapRef.current) { const g = gridSizeRef.current; if (useW) nw = Math.max(24, Math.round(nw / g) * g); if (useH) nh = Math.max(20, Math.round(nh / g) * g) }
+        // EQUAL-SIZE snapping (Canva-style): with the grid OFF and not aspect-locked, snap each
+        // changing axis to a nearby element's width/height and remember its id so both can be
+        // marked. Mirrors the move branch's neighbour rules: skip the resized element, and on the
+        // desktop artboard a footer-pinned element only matches same-pin peers (its band-local y
+        // makes cross-band overlays mis-placed). On the phone everything shares one frame.
+        let wMatchId: string | null = null
+        let hMatchId: string | null = null
+        if (!gridSnapRef.current && !shiftAspect) {
+          const me = elsRef.current.find(el => el.id === d.id)
+          const samePin = (el: CanvasElement) => d.m || (el.pin ?? '') === (me?.pin ?? '')
+          const cands = elsRef.current.filter(el => el.id !== d.id && samePin(el))
+          const T = 8
+          if (useW) {
+            const targetW = nw // compare against the un-snapped width so a later candidate can't chain-win
+            let best: number | null = null
+            for (const el of cands) { const cw = aw(el); if (cw < 24) continue; const dd = Math.abs(cw - targetW); if (dd <= T && (best === null || dd < best)) { best = dd; nw = cw; wMatchId = el.id } }
+          }
+          if (useH) {
+            const targetH = nh
+            let best: number | null = null
+            for (const el of cands) { const ch = ah(el); if (ch < 20) continue; const dd = Math.abs(ch - targetH); if (dd <= T && (best === null || dd < best)) { best = dd; nh = ch; hMatchId = el.id } }
+          }
+        }
+        setSizeMatch(prev => (prev.w === wMatchId && prev.h === hMatchId ? prev : { w: wMatchId, h: hMatchId }))
         setEls(p => p.map(el => (el.id !== d.id ? el : { ...el, ...(d.m ? { mw: nw, mh: nh } : { w: nw, h: nh }) })))
         return
       }
+      // Any non-resize drag: drop the equal-size markers so they never linger past a resize.
+      // Guard with the updater form so an unchanged {null,null} bails out (no per-frame churn).
+      setSizeMatch(prev => (prev.w === null && prev.h === null ? prev : { w: null, h: null }))
       if (d.kind === 'marquee') {
         // Rubber-band selection: any element overlapping the box gets selected.
         const cx = d.ox + dx, cy = d.oy + dy
@@ -2234,7 +2266,7 @@ export default function CanvasEditor({
         return { ...el, ...(d.m ? { mx: nx, my: ny } : { x: nx, y: ny }) }
       }))
     }
-    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setDragging(false); setGuides({ x: null, y: null }); setSpacing([]); setMarquee(null); if (d.kind !== 'marquee') touch() }
+    const up = () => { const d = dragRef.current; if (!d) return; dragRef.current = null; setDragging(false); setGuides({ x: null, y: null }); setSpacing([]); setSizeMatch({ w: null, h: null }); setMarquee(null); if (d.kind !== 'marquee') touch() }
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -4439,6 +4471,38 @@ export default function CanvasEditor({
                 )
               })}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
+              {/* Equal-SIZE markers (Canva-style) while resizing: a short violet bar on BOTH the
+                  resizing element (selectedId, whose handles are showing) and the matched element,
+                  so two equal-length bars line up → "same size". WIDTH match draws a bar just below
+                  each; HEIGHT match draws one just to the right. Violet so it reads differently from
+                  the blue alignment guides. gx/topOf/gw/gh give footer-pin + mobile displayed coords.
+                  Display-only; nothing is saved. */}
+              {(() => {
+                const SZ = '#a855f7'
+                const byId = (id: string | null) => (id ? els.find(e => e.id === id) : undefined)
+                const meEl = byId(selectedId)
+                const bar = (el: CanvasElement | undefined, axis: 'w' | 'h', label?: string) => {
+                  if (!el) return null
+                  const x = gx(el), y = topOf(el), w = gw(el), h = gh(el)
+                  const s: CSSProperties = axis === 'w'
+                    ? { position: 'absolute', left: cqv(x), top: `calc(${cqv(y + h)} + 3px)`, width: cqv(w), height: 2, background: SZ }
+                    : { position: 'absolute', left: `calc(${cqv(x + w)} + 3px)`, top: cqv(y), width: 2, height: cqv(h), background: SZ }
+                  return (
+                    <div style={{ pointerEvents: 'none', zIndex: 6 }}>
+                      <div style={s} />
+                      {label != null && (
+                        <div style={{ position: 'absolute', left: axis === 'w' ? `calc(${cqv(x + w / 2)})` : `calc(${cqv(x + w)} + 4px)`, top: axis === 'w' ? `calc(${cqv(y + h)} + 4px)` : `calc(${cqv(y + h / 2)})`, transform: 'translate(-50%,0)', background: SZ, color: '#fff', fontSize: 9, lineHeight: 1, fontWeight: 700, padding: '1px 4px', borderRadius: 3, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }}>{label}</div>
+                      )}
+                    </div>
+                  )
+                }
+                return (
+                  <>
+                    {sizeMatch.w && meEl && byId(sizeMatch.w) && <>{bar(byId(sizeMatch.w), 'w')}{bar(meEl, 'w', `${gw(meEl)}`)}</>}
+                    {sizeMatch.h && meEl && byId(sizeMatch.h) && <>{bar(byId(sizeMatch.h), 'h')}{bar(meEl, 'h', `${gh(meEl)}`)}</>}
+                  </>
+                )
+              })()}
               {/* Selection measurements (one element, at rest): edge→ruler position lines + the
                   gap to the nearest neighbour on each side, labelled in the chosen unit. */}
               {!editingMobile && selMeasure && (() => {
