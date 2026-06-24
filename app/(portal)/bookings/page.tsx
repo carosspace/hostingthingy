@@ -119,6 +119,9 @@ export default async function BookingsPage() {
             <input name="price" type="number" min={0} step="0.01" defaultValue={0} placeholder="Price" className={input} />
             <input name="currency" defaultValue="eur" placeholder="eur" className={input} />
           </div>
+          <p className="font-body text-ash/50 text-xs">
+            A service with a price is charged at booking; leave the price empty (0) for a free booking.
+          </p>
           <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-2.5 rounded-sm transition-colors">
             Add service
           </button>
@@ -166,13 +169,26 @@ export default async function BookingsPage() {
                   </p>
                   {a.note && <p className="font-body text-ash/50 text-sm mt-1 italic">“{a.note}”</p>}
                 </div>
-                <span
-                  className={`font-label text-[9px] tracking-[2px] uppercase shrink-0 ${
-                    a.status === 'confirmed' ? 'text-green-400' : a.status === 'cancelled' ? 'text-red-400' : 'text-gold'
-                  }`}
-                >
-                  {a.status}
-                </span>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span
+                    className={`font-label text-[9px] tracking-[2px] uppercase ${
+                      a.status === 'confirmed'
+                        ? 'text-green-400'
+                        : a.status === 'cancelled'
+                          ? 'text-red-400'
+                          : a.status === 'pending_payment'
+                            ? 'text-amber-400'
+                            : 'text-gold'
+                    }`}
+                  >
+                    {a.status === 'pending_payment' ? 'awaiting payment' : a.status}
+                  </span>
+                  {a.paid ? (
+                    <span className="font-label text-[8px] tracking-[2px] uppercase text-green-400/80">Paid</span>
+                  ) : a.status === 'pending_payment' ? (
+                    <span className="font-label text-[8px] tracking-[2px] uppercase text-amber-400/70">Unpaid</span>
+                  ) : null}
+                </div>
               </div>
               {a.status === 'requested' && (
                 <div className="flex items-center gap-2 mt-3">

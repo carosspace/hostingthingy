@@ -18,7 +18,8 @@ export interface Appointment {
   slotTime: string | null
   durationMin: number | null
   note: string | null
-  status: 'requested' | 'confirmed' | 'cancelled'
+  status: 'requested' | 'confirmed' | 'cancelled' | 'pending_payment'
+  paid: boolean
   createdAt: string
 }
 

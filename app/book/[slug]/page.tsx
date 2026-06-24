@@ -4,6 +4,7 @@ import { getPublicSite } from '@/lib/sites/public'
 import { getBookingPage } from '@/lib/bookings/repo'
 import { THEMES, DEFAULT_THEME, type SiteTheme } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
+import { stripeConfigured } from '@/lib/stripe'
 import BookingForm from './BookingForm'
 
 export const dynamic = 'force-dynamic'
@@ -89,11 +90,28 @@ export default async function BookPage({
                 Please pick a day &amp; time and fill in your name and email.
               </p>
             )}
+            {searchParams.error === 'cancelled' && (
+              <p
+                className="font-body text-center mt-6 mx-auto px-4 py-3 rounded-xl"
+                style={{ color: theme.text, background: `${accent}14`, border: `1px solid ${accent}33`, fontSize: 13, maxWidth: 420 }}
+              >
+                Payment wasn&apos;t completed, so your booking isn&apos;t confirmed yet. Pick a time to try again.
+              </p>
+            )}
+            {searchParams.error === 'payments_off' && (
+              <p
+                className="font-body text-center mt-6 mx-auto px-4 py-3 rounded-xl"
+                style={{ color: theme.text, background: `${accent}14`, border: `1px solid ${accent}33`, fontSize: 13, maxWidth: 420 }}
+              >
+                Online payment for this service isn&apos;t available right now, so the booking couldn&apos;t be completed. Please reach out directly.
+              </p>
+            )}
             <div className="mt-12">
               <BookingForm
                 slug={params.slug}
                 data={data}
                 theme={{ bg: theme.bg, text: theme.text, muted: theme.muted, accent }}
+                paymentsLive={stripeConfigured()}
               />
             </div>
           </>

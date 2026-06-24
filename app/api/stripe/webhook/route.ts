@@ -41,9 +41,60 @@ export async function POST(req: Request) {
       // created before metadata.kind existed). Anything else with a kind is some other flow.
       const kind = session.metadata?.kind
       const isPay = !kind || kind === 'pay'
+      const isBooking = kind === 'booking'
       // On a Connect event this carries the connected account that processed the charge; on a
       // direct charge to the platform account it is ABSENT.
       const eventAccount = (event as Stripe.Event & { account?: string }).account || null
+
+      // BOOKING payment: confirm the held (pending_payment) appointment + record the revenue as a
+      // sale, idempotently. Defense-in-depth: the appointment must belong to the named site's
+      // owner, and on a Connect event the named site's connected account must match the processing
+      // account. Appointments are keyed to a site by owner_id (= sites.owner_id), not site_id.
+      if (isBooking && siteId && sessionId) {
+        const appointmentId = session.metadata?.appointmentId
+        const { data: site } = await admin
+          .from('sites')
+          .select('id, owner_id, stripe_account_id')
+          .eq('id', siteId)
+          .maybeSingle()
+        const accountOk = !site
+          ? false
+          : eventAccount
+            ? site.stripe_account_id === eventAccount // CONNECT: bind to the processing account
+            : true // DIRECT: charge ran on the platform account — siteId is server-authoritative
+        if (site && accountOk && appointmentId) {
+          // Idempotent confirm: only flip a row that is STILL pending_payment for THIS site's owner.
+          // A duplicate delivery (already confirmed) matches nothing -> no-op; a foreign
+          // appointmentId can't be flipped because owner_id won't match.
+          const { error: updErr } = await admin
+            .from('appointments')
+            .update({ status: 'confirmed', paid: true, stripe_session_id: sessionId })
+            .eq('id', appointmentId)
+            .eq('owner_id', site.owner_id)
+            .eq('status', 'pending_payment')
+          if (updErr) {
+            console.error('[stripe webhook] booking confirm failed for appointment', appointmentId, updErr.message)
+          }
+
+          // Record booking revenue alongside Buy-button sales. Idempotent on stripe_session_id
+          // (swallow 23505) so a duplicate webhook delivery never doubles the sale.
+          const amountCents = typeof session.amount_total === 'number' ? session.amount_total : 0
+          const currency = (session.currency || 'eur').toLowerCase()
+          const email = session.customer_details?.email || session.customer_email || null
+          const product = session.metadata?.productName || null
+          const { error: salesErr } = await admin.from('sales').insert({
+            site_id: siteId,
+            amount_cents: amountCents,
+            currency,
+            product,
+            customer_email: email,
+            stripe_session_id: sessionId,
+          })
+          if (salesErr && salesErr.code !== '23505') {
+            console.error('[stripe webhook] booking sale insert failed for session', sessionId, salesErr.message)
+          }
+        }
+      }
       // Need both the attribution (siteId) + the idempotency key (session id) to record a sale.
       if (isPay && siteId && sessionId) {
         // Load the named site once; it must still exist to record a sale against it (guards against a

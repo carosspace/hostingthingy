@@ -63,6 +63,7 @@ export async function listAppointments(): Promise<Appointment[]> {
     durationMin: r.duration_min ?? null,
     note: r.note ?? null,
     status: r.status,
+    paid: !!r.paid,
     createdAt: r.created_at,
   }))
 }
@@ -201,4 +202,47 @@ export async function requestBookingSlot(input: {
   })
   if (error) return 'error'
   return data === 'taken' ? 'taken' : data === 'ok' ? 'ok' : 'error'
+}
+
+// PAID flow: hold the slot as 'pending_payment' via the SAME double-booking guard and get
+// back the new appointment id (so the server can start a Stripe Checkout for it). Returns the
+// uuid on success, or 'taken'/'error'. The price is read SERVER-SIDE from the service row by
+// the caller — this only creates the hold.
+export async function requestBookingSlotPending(input: {
+  slug: string
+  serviceId: string
+  name: string
+  email: string
+  slotDate: string
+  slotTime: string
+  note: string
+}): Promise<{ status: 'ok'; appointmentId: string } | { status: 'taken' | 'error' }> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('request_booking_slot_pending', {
+    p_slug: input.slug,
+    p_service_id: input.serviceId,
+    p_name: input.name,
+    p_email: input.email,
+    p_slot_date: input.slotDate,
+    p_slot_time: input.slotTime,
+    p_note: input.note,
+  })
+  if (error) return { status: 'error' }
+  if (data === 'taken') return { status: 'taken' }
+  if (data === 'error' || !data) return { status: 'error' }
+  return { status: 'ok', appointmentId: String(data) }
+}
+
+// Attach the Stripe session id to a pending appointment (scoped server-side to a still-pending,
+// not-yet-attached row owned by the site). Best-effort: a false result is non-fatal — the webhook
+// can still match by metadata.appointmentId. Never throws.
+export async function attachBookingSession(slug: string, appointmentId: string, sessionId: string): Promise<boolean> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.rpc('attach_booking_session', {
+    p_slug: slug,
+    p_appointment_id: appointmentId,
+    p_session_id: sessionId,
+  })
+  if (error) return false
+  return data === true
 }
