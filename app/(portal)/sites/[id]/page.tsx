@@ -1,8 +1,21 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
-import { renameSiteAction, redeploySiteAction, pauseSiteAction, setDomainAction, deleteSiteAction, setBookingCopyAction } from '../actions'
+import {
+  renameSiteAction,
+  redeploySiteAction,
+  pauseSiteAction,
+  setDomainAction,
+  deleteSiteAction,
+  setBookingCopyAction,
+  connectStripeAction,
+  refreshStripeStatusAction,
+  refreshStripeStatusFormAction,
+  stripeLoginLinkAction,
+  disconnectStripeAction,
+} from '../actions'
 import { cfConfigured, cfGetHostname, cfCnameTarget, isOwnZone, type CfHostname } from '@/lib/sites/cloudflare'
+import { stripeConfigured } from '@/lib/stripe'
 import SavedDesigns from './SavedDesigns'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +28,23 @@ const STATUS: Record<Site['status'], { label: string; cls: string }> = {
   stopped: { label: 'Stopped', cls: 'text-ash' },
 }
 
-export default async function SiteDetailPage({ params }: { params: { id: string } }) {
+export default async function SiteDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { stripe?: string }
+}) {
+  // Returning from Stripe onboarding: re-read the account status BEFORE loading the site,
+  // so the card reflects the latest charges_enabled. Fail-safe + dormant (no-op without a key).
+  if (searchParams?.stripe === 'return') {
+    try {
+      await refreshStripeStatusAction(params.id)
+    } catch {
+      // never block the page on a status refresh
+    }
+  }
+
   let site: Site | null = null
   try {
     site = await getSite(params.id)
@@ -253,6 +282,64 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
             Save
           </button>
         </form>
+      </section>
+
+      <section className="border border-gold/15 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Payments</p>
+        {!stripeConfigured() ? (
+          <p className="font-body text-ash/60 text-sm">
+            Payments aren&rsquo;t enabled on the platform yet. Once they&rsquo;re switched on, you&rsquo;ll be able
+            to connect your own Stripe account here and take payments on your site.
+          </p>
+        ) : !site.stripeAccountId || !site.stripeChargesEnabled ? (
+          <>
+            <p className="font-body text-ash/60 text-xs mb-4">
+              Connect your own Stripe account to take payments on your site. Money goes straight to you —
+              you&rsquo;re the merchant of record.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <form action={connectStripeAction}>
+                <input type="hidden" name="id" value={site.id} />
+                <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-3 rounded-sm transition-colors">
+                  {site.stripeAccountId ? 'Finish setup on Stripe' : 'Connect Stripe to take payments'}
+                </button>
+              </form>
+              {site.stripeAccountId && (
+                <form action={refreshStripeStatusFormAction}>
+                  <input type="hidden" name="id" value={site.id} />
+                  <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
+                    Refresh status
+                  </button>
+                </form>
+              )}
+            </div>
+            {site.stripeAccountId && (
+              <p className="font-body text-ash/50 text-[11px] mt-3">
+                You&rsquo;ve started connecting — finish the steps on Stripe to start taking payments.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="font-body text-sm mb-4" style={{ color: '#3f7d4f' }}>
+              ✓ Stripe connected — you can take payments.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <form action={stripeLoginLinkAction}>
+                <input type="hidden" name="id" value={site.id} />
+                <button className="font-label text-[10px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-3 rounded-sm transition-colors">
+                  Open Stripe dashboard ↗
+                </button>
+              </form>
+              <form action={disconnectStripeAction}>
+                <input type="hidden" name="id" value={site.id} />
+                <button className="font-label text-[10px] tracking-[3px] uppercase border border-red-500/30 text-red-400 hover:bg-red-500/10 px-5 py-3 rounded-sm transition-colors">
+                  Disconnect
+                </button>
+              </form>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="flex flex-wrap items-center gap-3">

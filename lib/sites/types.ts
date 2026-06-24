@@ -761,6 +761,9 @@ export interface Site {
   url: string | null
   domain: string | null
   content: SiteContent | null
+  // Stripe Connect (the owner's own Express account). Top-level columns, not in `content`.
+  stripeAccountId: string | null
+  stripeChargesEnabled: boolean
   createdAt: string
   updatedAt: string
 }

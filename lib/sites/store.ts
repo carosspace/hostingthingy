@@ -15,6 +15,8 @@ interface SiteRow {
   url: string | null
   domain: string | null
   content: SiteContent | null
+  stripe_account_id: string | null
+  stripe_charges_enabled: boolean | null
   created_at: string
   updated_at: string
 }
@@ -30,6 +32,9 @@ function rowToSite(r: SiteRow): Site {
     url: r.url,
     domain: r.domain ?? null,
     content: (r.content ?? null) as SiteContent | null,
+    // Optional-chained so a site read before migration 017 ran still maps cleanly.
+    stripeAccountId: r.stripe_account_id ?? null,
+    stripeChargesEnabled: !!r.stripe_charges_enabled,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   }
@@ -124,5 +129,40 @@ export async function saveSiteContent(id: string, content: SiteContent): Promise
 export async function deleteSiteRecord(id: string): Promise<void> {
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.from('sites').delete().eq('id', id)
+  if (error) throw error
+}
+
+// --- Stripe Connect (top-level sites columns, NOT the content jsonb) --------------
+// Each write touches ONLY the stripe_* columns (+ updated_at), so it can never clobber
+// content/domain/etc. RLS-scoped: the "owner updates own sites" policy means a non-owner
+// update affects zero rows. All run as the signed-in owner.
+
+// Save the owner's connected Stripe account id on their site.
+export async function setSiteStripeAccount(id: string, accountId: string): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ stripe_account_id: accountId, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// Cache whether the connected account can take charges (mirrors Stripe's charges_enabled).
+export async function setSiteStripeCharges(id: string, enabled: boolean): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ stripe_charges_enabled: enabled, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// Disconnect: clear the account link locally (does NOT delete the Stripe account itself).
+export async function clearSiteStripe(id: string): Promise<void> {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('sites')
+    .update({ stripe_account_id: null, stripe_charges_enabled: false, updated_at: new Date().toISOString() })
+    .eq('id', id)
   if (error) throw error
 }

@@ -58,7 +58,18 @@ import {
   saveSiteContent,
   deleteSiteRecord,
   getSite,
+  setSiteStripeAccount,
+  setSiteStripeCharges,
+  clearSiteStripe,
 } from '@/lib/sites/store'
+import { siteBaseUrl } from '@/lib/sites/baseurl'
+import {
+  stripeConfigured,
+  createExpressAccount,
+  createOnboardingLink,
+  getAccountStatus,
+  createLoginLink,
+} from '@/lib/stripe'
 
 export async function createSiteAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -1765,4 +1776,104 @@ export async function deleteDesignAction(siteId: string, slotId: string): Promis
   await saveSiteContent(siteId, { ...site.content, savedDesigns: designs })
   revalidatePath(`/sites/${siteId}`)
   return { ok: true }
+}
+
+// --- Stripe Connect (multi-tenant payments, stage 1) ------------------------------
+// All actions are auth + RLS-scoped (getSite returns only the owner's site) and FAIL-SAFE:
+// with no STRIPE_SECRET_KEY, every Stripe helper returns null, so these simply revalidate
+// and return without throwing (the dashboard shows the dormant note). Writes touch only
+// the stripe_* columns via the store helpers, never the content jsonb.
+
+// Connect (or continue connecting) the owner's own Stripe account, then send them to
+// Stripe's hosted onboarding. Creates an Express account on first run and saves its id.
+export async function connectStripeAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  if (!stripeConfigured()) return // dormant: nothing to do until the platform key is set
+
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site) return
+
+  // Reuse an existing connected account; otherwise create one for this owner.
+  let accountId = site.stripeAccountId
+  if (!accountId) {
+    accountId = await createExpressAccount(user.email ?? undefined)
+    if (!accountId) {
+      // Stripe call failed (e.g. Connect not enabled on the platform account) — stay calm.
+      revalidatePath(`/sites/${id}`)
+      return
+    }
+    await setSiteStripeAccount(id, accountId)
+  }
+
+  const base = siteBaseUrl()
+  const dashboard = `${base}/sites/${id}`
+  const url = await createOnboardingLink(accountId, dashboard, `${dashboard}?stripe=return`)
+  if (!url) {
+    revalidatePath(`/sites/${id}`)
+    return
+  }
+  redirect(url) // off to Stripe's hosted onboarding
+}
+
+// Re-read the connected account's status from Stripe and cache charges_enabled on the site.
+// Called on the dashboard when returning from onboarding (?stripe=return) and via a manual
+// "Refresh" button. Returns whether charges are now enabled (false also when dormant).
+export async function refreshStripeStatusAction(id: string): Promise<{ chargesEnabled: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { chargesEnabled: false }
+  if (!stripeConfigured()) return { chargesEnabled: false }
+  if (!id) return { chargesEnabled: false }
+
+  const site = await getSite(id)
+  if (!site || !site.stripeAccountId) return { chargesEnabled: false }
+
+  const status = await getAccountStatus(site.stripeAccountId)
+  if (!status) return { chargesEnabled: site.stripeChargesEnabled }
+
+  if (status.chargesEnabled !== site.stripeChargesEnabled) {
+    await setSiteStripeCharges(id, status.chargesEnabled)
+    revalidatePath(`/sites/${id}`)
+  }
+  return { chargesEnabled: status.chargesEnabled }
+}
+
+// Form wrapper around refresh (for a "Refresh status" button).
+export async function refreshStripeStatusFormAction(formData: FormData): Promise<void> {
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  await refreshStripeStatusAction(id)
+  revalidatePath(`/sites/${id}`)
+}
+
+// Mint a one-time link into the owner's Express dashboard and send them there.
+export async function stripeLoginLinkAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  if (!stripeConfigured()) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id)
+  if (!site || !site.stripeAccountId) return
+  const url = await createLoginLink(site.stripeAccountId)
+  if (!url) {
+    revalidatePath(`/sites/${id}`)
+    return
+  }
+  redirect(url)
+}
+
+// Disconnect: clear the account link locally. Does NOT delete the Stripe account (the owner
+// keeps it on Stripe's side); they can reconnect later.
+export async function disconnectStripeAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id)
+  if (!site) return
+  await clearSiteStripe(id)
+  revalidatePath(`/sites/${id}`)
 }
