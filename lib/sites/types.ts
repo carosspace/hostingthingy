@@ -74,9 +74,20 @@ export interface NavLink {
   newTab?: boolean
 }
 
+// Currencies a pay button can charge in (shared by the gate, the editor picker and the
+// checkout endpoint so they can never disagree). Lowercase ISO codes; 'eur' is the default.
+export const PAY_CURRENCIES = ['eur', 'usd', 'gbp', 'cad', 'aud'] as const
+export type PayCurrency = (typeof PAY_CURRENCIES)[number]
+// Stripe charges in the smallest currency unit (cents). Clamp the stored amount to a sane band:
+// Stripe's own floor is ~50 cents; the ceiling guards against a fat-fingered/over-large charge.
+export const PAY_MIN_CENTS = 50
+export const PAY_MAX_CENTS = 5000000
+
 // A call-to-action button. 'booking' links to the site's /book page,
 // 'email' opens a mail to the contact address, 'link' uses ctaHref, 'none' hides it.
-export type CtaType = 'booking' | 'email' | 'link' | 'none'
+// 'pay' (canvas buttons only) starts a Stripe Connect checkout for payAmount/payCurrency/payProduct,
+// settling directly to the owner's connected account (see PayButton.tsx + /api/pay/[slug]).
+export type CtaType = 'booking' | 'email' | 'link' | 'none' | 'pay'
 
 // The content column width: 'contained' = a centred middle column,
 // 'full' = the content spreads across the whole page.
@@ -446,6 +457,12 @@ export interface CanvasElement {
   styleOverrides?: string[] // the SYNCED_TYPO prop keys (fontSize/fontFamily/weight/italic/lineHeight/letterSpacing/color) the owner has individually customised on THIS element. A type-style change never touches these; "Reset to type" clears them. Editor-only metadata — the render still uses the element's own resolved props.
   href?: string
   ctaType?: CtaType
+  // Pay button (a 'button' element with ctaType 'pay'): the price the visitor is charged via
+  // Stripe Connect. payAmount is in CENTS (server-authoritative — the checkout endpoint reads
+  // it from the SAVED element, never from the client). Only meaningful when ctaType === 'pay'.
+  payAmount?: number // price in cents
+  payCurrency?: string // lowercase ISO code (eur/usd/gbp/cad/aud); defaults to 'eur'
+  payProduct?: string // the line-item name shown at checkout / stored on the sale
   newTab?: boolean // open this element's link in a new browser tab
   anchorTo?: string // id of another element on the page to smooth-scroll to (a "jump link")
   // image

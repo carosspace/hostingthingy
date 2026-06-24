@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import type { SiteContent } from './types'
 
 export interface PublicSite {
@@ -6,6 +7,37 @@ export interface PublicSite {
   slug: string
   template: string
   content: SiteContent | null
+}
+
+// The privileged slice the Stripe checkout endpoint needs: the site's id + content (to find the
+// pay element + its SERVER-AUTHORITATIVE amount) and the owner's Connect status. The public RPC
+// deliberately exposes none of these, so this reads via the service-role client (system path, no
+// user session). Returns null when payments are dormant (no admin client) or the site isn't live.
+export interface CheckoutSite {
+  id: string
+  slug: string
+  content: SiteContent | null
+  stripeAccountId: string | null
+  stripeChargesEnabled: boolean
+}
+
+export async function getCheckoutSite(slug: string): Promise<CheckoutSite | null> {
+  const admin = getSupabaseAdmin()
+  if (!admin) return null
+  const { data, error } = await admin
+    .from('sites')
+    .select('id, slug, content, stripe_account_id, stripe_charges_enabled, status')
+    .eq('slug', slug)
+    .eq('status', 'live')
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    id: String(data.id),
+    slug: String(data.slug),
+    content: (data.content ?? null) as SiteContent | null,
+    stripeAccountId: data.stripe_account_id ?? null,
+    stripeChargesEnabled: !!data.stripe_charges_enabled,
+  }
 }
 
 // Fetches the public, safe view of a LIVE site by slug (via a SECURITY DEFINER

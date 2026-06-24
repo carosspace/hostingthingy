@@ -5,6 +5,7 @@ import CanvasLightbox from './CanvasLightbox'
 import Carousel from './Carousel'
 import { canvasIcon } from './icons'
 import { ContactForm } from './ContactForm'
+import { PayButton } from './PayButton'
 import { embedSrc } from './embed'
 import { Banner } from './Banner'
 import { Popup } from './Popup'
@@ -167,6 +168,33 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     )
   }
   const isBtn = el.type === 'button'
+  // Pay button: a 'button' with ctaType 'pay' renders the PayButton CLIENT component, which looks
+  // identical to a normal button (same resolved fill/color/radius/font/fontSize) but POSTs to the
+  // checkout endpoint instead of being a link. The amount is never sent — it's server-authoritative.
+  if (isBtn && el.ctaType === 'pay') {
+    const payStyle: CSSProperties = {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: fontVar(el.fontFamily),
+      fontSize: cqf(fontSize),
+      color: '#ffffff',
+      background: gradientCss(el.gradient) || el.fill || ctx.accent,
+      borderRadius: cqf(el.radius ?? 6),
+      boxShadow: shadowCss(el.shadow),
+      fontWeight: el.weight ?? (el.bold ? 700 : 400),
+      fontStyle: el.italic ? 'italic' : undefined,
+      letterSpacing: el.letterSpacing ? cqf(el.letterSpacing) : undefined,
+      textAlign: 'center',
+      whiteSpace: 'pre-wrap',
+      overflow: 'hidden',
+      padding: `0 ${cqf(18)}`,
+      lineHeight: el.lineHeight ?? 1.25,
+    }
+    return <PayButton slug={ctx.siteSlug} elementId={el.id} label={el.text || 'Buy now'} style={payStyle} />
+  }
   // Image-filled text (text mask): on a text element, clip a photo into the letters. Precedence
   // textImage > gradient > solid colour — when present it overrides the gradient-clip + solid paths.
   const txImg = !isBtn ? el.textImage : undefined
@@ -378,6 +406,10 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
           node = <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>{renderInner(el, p => `${p}px`, ctx)}</div>
         } else if (el.type === 'box') {
           node = el.fill || el.gradient || el.borderColor ? <div style={{ background: gradientCss(el.gradient) || el.fill, borderRadius: el.radius || 0, minHeight: 28, border: el.borderColor && el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : undefined, opacity: o, boxShadow: shadowCss(el.shadow) }} /> : null
+        } else if (el.type === 'button' && el.ctaType === 'pay') {
+          // Pay button on phones: the PayButton client component styled like the mobile button span.
+          const payStyle: CSSProperties = { display: 'inline-block', background: gradientCss(el.gradient) || el.fill || accent, color: '#fff', padding: '11px 24px', borderRadius: el.radius ?? 6, fontFamily: fontVar(el.fontFamily), fontSize: Math.min(el.mFontSize || el.fontSize || 18, 22), fontWeight: el.weight ?? (el.bold ? 700 : 400), opacity: o, boxShadow: shadowCss(el.shadow) }
+          node = <div style={{ textAlign: el.align || 'left' }}><PayButton slug={siteSlug} elementId={el.id} label={el.text || 'Buy now'} style={payStyle} /></div>
         } else if (el.type === 'button') {
           const h = el.anchorTo ? `#cv-${el.anchorTo}` : ctaHref(el)
           const btn = (

@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import { isGoogleFamily, GOOGLE_FONTS } from '@/lib/sites/googleFonts'
@@ -1066,7 +1066,15 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
     const align = (['left', 'center', 'right'].includes(al) ? al : undefined) as SiteAlign | undefined
     const fontFamily = fontFamilyOf(e?.fontFamily)
     const ct = String(e?.ctaType)
-    const ctaType = (['booking', 'email', 'link'].includes(ct) ? ct : undefined) as CtaType | undefined
+    // 'pay' is a CANVAS BUTTON only — a text element with ctaType 'pay' is meaningless (no
+    // checkout wiring), so the extra slot is gated to buttons; everything else keeps the link set.
+    const ctaWhitelist = type === 'button' ? ['booking', 'email', 'link', 'pay'] : ['booking', 'email', 'link']
+    const ctaType = (ctaWhitelist.includes(ct) ? ct : undefined) as CtaType | undefined
+    // Pay button fields (only emitted for a button with ctaType 'pay'). The amount is stored in
+    // CENTS and clamped to the shared band; the currency is whitelisted (default 'eur'); the
+    // product name is trimmed + capped. These are the server-authoritative source for checkout.
+    const isPay = type === 'button' && ctaType === 'pay'
+    const payCurrencyRaw = String(e?.payCurrency ?? '').trim().toLowerCase()
     return {
       id: String(e?.id ?? 'e' + i).slice(0, 24) || 'e' + i,
       type,
@@ -1115,6 +1123,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       })(),
       href: ctaType === 'link' ? safeStoredHref(String(e?.href ?? '')) : undefined,
       ctaType,
+      payAmount: isPay ? num(e?.payAmount, PAY_MIN_CENTS, PAY_MAX_CENTS, 2500) : undefined,
+      payCurrency: isPay ? (PAY_CURRENCIES.includes(payCurrencyRaw as (typeof PAY_CURRENCIES)[number]) ? payCurrencyRaw : 'eur') : undefined,
+      payProduct: isPay ? (String(e?.payProduct ?? '').trim().slice(0, 120) || 'Payment') : undefined,
       newTab: e?.newTab ? true : undefined,
       anchorTo: /^[a-z0-9]{1,24}$/i.test(String(e?.anchorTo ?? '')) ? String(e?.anchorTo).trim() : undefined,
       src: type === 'image' ? dataOrHttp(e?.src) : undefined,

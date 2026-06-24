@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS } from '@/lib/sites/types'
 import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
 import { canvasIcon, ICON_GROUPS, ICON_KINDS } from '@/lib/sites/icons'
@@ -1497,6 +1497,7 @@ export default function CanvasEditor({
     link: { type: 'text', w: 200, h: 34, text: 'A link', fontSize: 16, fontFamily: 'label', color: '#111111', ctaType: 'link', styleRef: 'caption' },
     button: { type: 'button', w: 210, h: 56, text: 'Click me', fontSize: 18, fill: '#111111', ctaType: 'none', radius: 6, fontFamily: 'label' },
     contact: { type: 'button', w: 220, h: 56, text: 'Email me', fontSize: 18, fill: '#111111', ctaType: 'email', radius: 6, fontFamily: 'label' },
+    pay: { type: 'button', w: 220, h: 56, text: 'Buy now', fontSize: 18, fill: '#111111', ctaType: 'pay', radius: 6, fontFamily: 'label', payAmount: 2500, payCurrency: 'eur', payProduct: 'Your offer' },
     form: { type: 'form', w: 360, h: 360, text: 'Send message', fill: '#111111', color: '#1a1612', radius: 10, fontFamily: 'body' },
     embed: { type: 'embed', w: 480, h: 270, radius: 6 },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
@@ -3086,7 +3087,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['contact', 'Email button']] as [string, string][]).map(([key, lbl]) => (
+                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['contact', 'Email button'], ['pay', 'Buy / Pay button']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
@@ -3882,15 +3883,45 @@ export default function CanvasEditor({
                   <span style={labelCss}>Fill</span>
                   {colorField(sel.fill, v => update(sel.id, { fill: v }), accent)}
                   <span style={labelCss}>Link</span>
-                  <select value={sel.ctaType || 'none'} onChange={e => update(sel.id, { ctaType: e.target.value as CtaType })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                  <select value={sel.ctaType || 'none'} onChange={e => { const v = e.target.value as CtaType; update(sel.id, v === 'pay' ? { ctaType: v, payAmount: sel.payAmount ?? 2500, payCurrency: sel.payCurrency ?? 'eur', payProduct: sel.payProduct ?? 'Your offer' } : { ctaType: v }) }} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
                     <option value="none">No link</option>
                     <option value="booking">Booking page</option>
                     <option value="email">Email me</option>
                     <option value="link">Custom link</option>
+                    <option value="pay">Buy / Pay</option>
                   </select>
                 </div>
                 {sel.ctaType === 'link' && <input value={sel.href || ''} onChange={e => update(sel.id, { href: e.target.value })} placeholder="https://…" style={inputCss} />}
                 {sel.ctaType === 'link' && <button type="button" onClick={() => update(sel.id, { newTab: !sel.newTab })} title="Open in a new tab" style={{ alignSelf: 'flex-start', fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, padding: '3px 7px', borderRadius: 3, border: `1px solid ${sel.newTab ? ui : 'rgba(0,0,0,0.15)'}`, background: sel.newTab ? ui : 'transparent', color: sel.newTab ? '#fff' : '#666' }}>↗ New tab</button>}
+                {sel.ctaType === 'pay' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Amount</span>
+                      <input
+                        type="number"
+                        min={PAY_MIN_CENTS / 100}
+                        max={PAY_MAX_CENTS / 100}
+                        step="0.01"
+                        value={((sel.payAmount ?? 2500) / 100).toString()}
+                        onChange={e => {
+                          // Major unit in the UI → store cents. Clamp to the shared band.
+                          const major = Number(e.target.value)
+                          const cents = Number.isFinite(major) ? Math.min(PAY_MAX_CENTS, Math.max(PAY_MIN_CENTS, Math.round(major * 100))) : (sel.payAmount ?? 2500)
+                          update(sel.id, { payAmount: cents })
+                        }}
+                        style={{ ...inputCss, width: 90 }}
+                      />
+                      <select value={sel.payCurrency || 'eur'} onChange={e => update(sel.id, { payCurrency: e.target.value })} style={{ ...inputCss, fontSize: 12, padding: '4px 6px', width: 'auto' }}>
+                        {PAY_CURRENCIES.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span style={labelCss}>Product</span>
+                      <input value={sel.payProduct || ''} onChange={e => update(sel.id, { payProduct: e.target.value.slice(0, 120) })} placeholder="Your offer" style={inputCss} />
+                    </div>
+                    <p className="font-body text-ash/50 text-[11px] leading-relaxed">Connect Stripe in your site&rsquo;s dashboard (Payments) to receive money — buyers pay you directly.</p>
+                  </>
+                )}
                 {gradientControls(sel.gradient, g => update(sel.id, { gradient: g || undefined }))}
               </>
             )}
