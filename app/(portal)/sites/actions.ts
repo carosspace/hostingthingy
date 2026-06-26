@@ -498,32 +498,52 @@ export async function setBookingCopyAction(formData: FormData): Promise<void> {
   revalidatePath(`/sites/${id}`)
 }
 
-// Save the member-portal settings: which modules clients see in their private
-// space + a heartfelt welcome message. Spread-preserves all other content
-// (FOOTGUN: a bare write would drop pages/savedDesigns/etc.). Checkboxes default
-// to ON — an unchecked box is recorded as false. The welcome supports {name}/{brand}.
-export async function setMemberPortalAction(formData: FormData): Promise<void> {
+// Save the full member-portal config from the in-editor tab (structured, not a
+// form): module toggles, welcome, per-tile copy, empty-state, and an optional
+// accent override. Spread-preserves all other content (FOOTGUN: a bare write
+// would drop pages/savedDesigns/etc.). Every field is sanitized + clamped so a
+// crafted payload can never store junk. Modules default ON (only an explicit
+// false hides one). Returns { ok } so the editor can confirm the save.
+export async function savePortalConfigAction(siteId: string, config: MemberPortalConfig): Promise<{ ok: boolean }> {
   const user = await getCurrentUser()
-  if (!user) return
-  const id = String(formData.get('id') ?? '')
-  if (!id) return
-  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
-  if (!site) return
+  if (!user) return { ok: false }
+  const site = await getSite(siteId) // RLS-scoped — only the owner's site comes back
+  if (!site) return { ok: false }
 
+  const clamp = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n) || undefined
+  const m = config?.modules ?? {}
   const modules = {
-    blueprint: formData.get('blueprint') === 'on',
-    bookings: formData.get('bookings') === 'on',
-    messages: formData.get('messages') === 'on',
-    courses: formData.get('courses') === 'on',
-    memberships: formData.get('memberships') === 'on',
-    resources: formData.get('resources') === 'on',
+    blueprint: m.blueprint !== false,
+    bookings: m.bookings !== false,
+    messages: m.messages !== false,
+    courses: m.courses !== false,
+    memberships: m.memberships !== false,
+    resources: m.resources !== false,
   }
-  const welcome = String(formData.get('welcome') ?? '').trim().slice(0, 600) || undefined
-  const memberPortal: MemberPortalConfig = { modules, welcome }
+  const tileKeys = ['blueprint', 'bookings', 'courses', 'memberships', 'resources'] as const
+  const tiles: NonNullable<MemberPortalConfig['tiles']> = {}
+  for (const k of tileKeys) {
+    const t = config?.tiles?.[k]
+    const title = clamp(t?.title, 80)
+    const desc = clamp(t?.desc, 160)
+    if (title || desc) tiles[k] = { title, desc }
+  }
+  const accentRaw = String(config?.accent ?? '').trim()
+  const accent = /^#[0-9a-f]{6}$/i.test(accentRaw) ? accentRaw : undefined
+
+  const memberPortal: MemberPortalConfig = {
+    modules,
+    welcome: clamp(config?.welcome, 600),
+    tiles: Object.keys(tiles).length ? tiles : undefined,
+    emptyState: clamp(config?.emptyState, 400),
+    accent,
+  }
 
   const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
-  await saveSiteContent(id, { ...existing, memberPortal })
-  revalidatePath(`/sites/${id}`)
+  await saveSiteContent(siteId, { ...existing, memberPortal })
+  revalidatePath(`/sites/${siteId}`)
+  revalidatePath(`/sites/${siteId}/portal`)
+  return { ok: true }
 }
 
 // Save the site-wide page-transition style (a gentle enter animation on every page).

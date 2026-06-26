@@ -705,6 +705,16 @@ export interface MemberPortalConfig {
     resources?: boolean
   }
   welcome?: string // a heartfelt welcome shown on the portal home; supports {name} and {brand} tokens
+  // Optional custom copy per big tile — each falls back to its built-in default.
+  tiles?: {
+    blueprint?: { title?: string; desc?: string }
+    bookings?: { title?: string; desc?: string }
+    courses?: { title?: string; desc?: string }
+    memberships?: { title?: string; desc?: string }
+    resources?: { title?: string; desc?: string }
+  }
+  emptyState?: string // shown to a client who owns nothing yet; supports {name}/{brand}
+  accent?: string // optional portal accent override (#rrggbb); else inherits the site accent
 }
 
 export interface SiteContent {

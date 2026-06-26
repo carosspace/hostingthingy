@@ -3,6 +3,13 @@ import { getCurrentUser } from '@/lib/auth'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { getPortalSite } from '@/lib/portal/site'
 import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
+import {
+  PORTAL_TILE_DEFAULTS,
+  DEFAULT_WELCOME,
+  DEFAULT_EMPTY,
+  fillTokens,
+  type ModuleKey,
+} from '@/lib/portal/defaults'
 import { getMyBlueprints, blueprintConfigured } from '@/lib/portal/blueprint'
 import { getMyAppointments } from '@/lib/portal/bookings'
 import { getMyCourses } from '@/lib/portal/courses'
@@ -18,20 +25,6 @@ interface ClientRow {
   id: string
   email: string
   name: string | null
-}
-
-type ModuleKey = 'blueprint' | 'bookings' | 'messages' | 'courses' | 'memberships' | 'resources'
-
-// The default welcome, used when the owner hasn't written one. Supports {name}/{brand}.
-const DEFAULT_WELCOME =
-  "I'm so glad you found your way here. This is your sacred space — everything you've received from {brand}, kept gently in one place. Take your time. ✦"
-
-// Fill {name}/{brand} tokens. When there's no name, drop "{name}" *and* a leading
-// comma/space so a template like "Welcome, {name}." never reads "Welcome, .".
-function fillTokens(tpl: string, name: string, brand: string): string {
-  let s = name ? tpl.replace(/\{name\}/g, name) : tpl.replace(/,?\s*\{name\}/g, '')
-  s = s.replace(/\{brand\}/g, brand)
-  return s.trim()
 }
 
 export default async function ClientPortalPage({ searchParams }: { searchParams: { error?: string } }) {
@@ -78,7 +71,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   // Name comes from the portal client row first, then the auth user's metadata
   // (this is where blueprint buyers' names land — set when their account is minted).
   const metaName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''
-  const displayName = (client?.name?.trim() || metaName.trim() || '')
+  const displayName = client?.name?.trim() || metaName.trim() || ''
   const footer = content?.footer || brand
 
   // Which modules the owner has enabled (default: all on for backward compatibility).
@@ -100,14 +93,25 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
     moduleOn('resources') ? getMyResources(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
   ])
 
-  // Big tiles — only the modules this person owns content in.
+  // Custom tile copy (per owner), falling back to the built-in defaults. {brand}
+  // (and {name}) tokens are filled. href is /me/<module>.
+  const tileCopy = content?.memberPortal?.tiles
   type Tile = { title: string; icon: string; desc: string; href: string }
+  const resolveTile = (k: 'blueprint' | 'bookings' | 'courses' | 'memberships' | 'resources'): Tile => {
+    const d = PORTAL_TILE_DEFAULTS[k]
+    return {
+      icon: d.icon,
+      title: fillTokens(tileCopy?.[k]?.title?.trim() || d.title, displayName, brand),
+      desc: fillTokens(tileCopy?.[k]?.desc?.trim() || d.desc, displayName, brand),
+      href: `/me/${k}`,
+    }
+  }
   const tiles: Tile[] = []
-  if (hasBlueprint) tiles.push({ title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.', href: '/me/blueprint' })
-  if (hasBookings) tiles.push({ title: 'Bookings', icon: '◷', desc: 'Your sessions — past and upcoming.', href: '/me/bookings' })
-  if (hasCourses) tiles.push({ title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' })
-  if (hasMemberships) tiles.push({ title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.', href: '/me/memberships' })
-  if (hasResources) tiles.push({ title: 'Resources', icon: '⤓', desc: `Downloads to keep, from ${brand}.`, href: '/me/resources' })
+  if (hasBlueprint) tiles.push(resolveTile('blueprint'))
+  if (hasBookings) tiles.push(resolveTile('bookings'))
+  if (hasCourses) tiles.push(resolveTile('courses'))
+  if (hasMemberships) tiles.push(resolveTile('memberships'))
+  if (hasResources) tiles.push(resolveTile('resources'))
 
   // Always-there reachability, as small icons (gated only by the owner's toggles).
   type Quick = { label: string; icon: string; href: string }
@@ -116,6 +120,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   if (moduleOn('bookings')) quickLinks.push({ label: 'Book a session', icon: '◷', href: `/book/${slug}` })
 
   const welcomeText = fillTokens((content?.memberPortal?.welcome || '').trim() || DEFAULT_WELCOME, displayName, brand)
+  const emptyText = fillTokens((content?.memberPortal?.emptyState || '').trim() || DEFAULT_EMPTY, displayName, brand)
 
   const cardStyle: CSSProperties = {
     background: `${accent}0a`,
@@ -170,7 +175,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
         {tiles.length > 0 ? (
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             {tiles.map(m => (
-              <a key={m.title} href={m.href} className="p-6 flex flex-col gap-3 transition-opacity hover:opacity-80" style={cardStyle}>
+              <a key={m.href} href={m.href} className="p-6 flex flex-col gap-3 transition-opacity hover:opacity-80" style={cardStyle}>
                 <div className="flex items-start justify-between gap-3">
                   <span aria-hidden="true" style={{ color: accent, fontSize: 22, lineHeight: 1 }}>{m.icon}</span>
                   <span aria-hidden="true" style={{ color: accent, fontSize: 18, lineHeight: 1 }}>→</span>
@@ -184,8 +189,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
           </div>
         ) : (
           <p className="font-body mt-12" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 480 }}>
-            Your space is ready. When you receive a reading, book a session{moduleOn('messages') ? ', send a message,' : ''} or
-            join something from {brand}, it&apos;ll appear here for you.
+            {emptyText}
           </p>
         )}
       </main>

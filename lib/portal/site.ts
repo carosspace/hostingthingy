@@ -28,16 +28,14 @@ export interface PortalSite {
   palette: string[] | null
 }
 
-// Resolves the portal's site once: theme, accent, brand and content for theming.
-// THEME-AWARE and crash-proof — if the site isn't found we fall back to the
-// default theme + a neutral brand so the portal still renders on any deploy.
-export async function getPortalSite(): Promise<PortalSite> {
-  const slug = PORTAL_SITE_SLUG
-  const site = await getPublicSite(slug)
-  const content = site?.content ?? null
+// Build a PortalSite from a resolved site's slug/name/content. Pure + crash-proof
+// — shared by getPortalSite (the live portal) and the in-editor preview (which
+// builds it from the site being edited, not the fixed portal slug). An optional
+// memberPortal.accent override wins over the site/theme accent.
+export function buildPortalSite(slug: string, name: string | undefined, content: SiteContent | null): PortalSite {
   const theme = THEMES[(content?.theme as SiteTheme) ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME]
-  const accent = content?.accentColor || theme.accent
-  const brand = content?.brand || site?.name || 'Anima Temple'
+  const accent = content?.memberPortal?.accent || content?.accentColor || theme.accent
+  const brand = content?.brand || name || 'Anima Temple'
 
   // Resolve the REAL look the portal should wear, mirroring how the published
   // site sources it: the canonical Site Look first, then the home page's canvas
@@ -51,4 +49,13 @@ export async function getPortalSite(): Promise<PortalSite> {
   const palette = content?.siteLook?.palette ?? homeCanvas?.palette ?? null
 
   return { slug, brand, content, theme, accent, lookSource, fontSystem, fontRoles, palette }
+}
+
+// Resolves the portal's site once: theme, accent, brand and content for theming.
+// THEME-AWARE and crash-proof — if the site isn't found we fall back to the
+// default theme + a neutral brand so the portal still renders on any deploy.
+export async function getPortalSite(): Promise<PortalSite> {
+  const slug = PORTAL_SITE_SLUG
+  const site = await getPublicSite(slug)
+  return buildPortalSite(slug, site?.name, site?.content ?? null)
 }
