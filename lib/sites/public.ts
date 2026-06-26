@@ -16,6 +16,8 @@ export interface PublicSite {
 export interface CheckoutSite {
   id: string
   slug: string
+  // The site owner — used by the membership flow to confirm a tier belongs to this site's owner.
+  ownerId: string
   content: SiteContent | null
   stripeAccountId: string | null
   stripeChargesEnabled: boolean
@@ -26,7 +28,7 @@ export async function getCheckoutSite(slug: string): Promise<CheckoutSite | null
   if (!admin) return null
   const { data, error } = await admin
     .from('sites')
-    .select('id, slug, content, stripe_account_id, stripe_charges_enabled, status')
+    .select('id, slug, owner_id, content, stripe_account_id, stripe_charges_enabled, status')
     .eq('slug', slug)
     .eq('status', 'live')
     .maybeSingle()
@@ -34,6 +36,7 @@ export async function getCheckoutSite(slug: string): Promise<CheckoutSite | null
   return {
     id: String(data.id),
     slug: String(data.slug),
+    ownerId: String(data.owner_id),
     content: (data.content ?? null) as SiteContent | null,
     stripeAccountId: data.stripe_account_id ?? null,
     stripeChargesEnabled: !!data.stripe_charges_enabled,

@@ -1,4 +1,4 @@
-import { listTiers, listMemberships, type Tier, type Member } from '@/lib/memberships/repo'
+import { listTiers, listMemberships, MEMBERSHIP_CURRENCIES, type Tier, type Member } from '@/lib/memberships/repo'
 import {
   createTierAction,
   updateTierAction,
@@ -11,6 +11,28 @@ export const dynamic = 'force-dynamic'
 
 const input =
   'w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-2.5 rounded-sm outline-none placeholder:text-ash/40'
+
+// Format a recurring price like "€9.99 / month" for a paid tier.
+function fmtPrice(cents: number, currency: string, interval: 'month' | 'year'): string {
+  let amount: string
+  try {
+    amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.toUpperCase() }).format(cents / 100)
+  } catch {
+    amount = `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`
+  }
+  return `${amount} / ${interval}`
+}
+
+const STATUS_LABEL: Record<Member['status'], string> = {
+  active: 'Active',
+  past_due: 'Past due',
+  canceled: 'Canceled',
+}
+const STATUS_COLOR: Record<Member['status'], string> = {
+  active: 'text-emerald-400',
+  past_due: 'text-amber-400',
+  canceled: 'text-red-400',
+}
 
 export default async function MembershipsPage() {
   let tiers: Tier[] = []
@@ -47,12 +69,57 @@ export default async function MembershipsPage() {
     }
   }
 
+  const hasPaidTier = tiers.some(t => t.priceCents != null)
+
+  // Reusable pricing fields for the create + edit tier forms. Pre-filled from a tier when editing.
+  function PricingFields({ t }: { t?: Tier }) {
+    const paid = t?.priceCents != null
+    return (
+      <div className="border border-gold/10 rounded-sm p-3 space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="paid" defaultChecked={paid} className="accent-gold" />
+          <span className="font-label text-[10px] tracking-[2px] uppercase text-gold/70">Paid (recurring)</span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            name="price"
+            type="number"
+            min="1"
+            step="0.01"
+            inputMode="decimal"
+            defaultValue={paid && t?.priceCents != null ? (t.priceCents / 100).toString() : ''}
+            placeholder="9.99"
+            className={input}
+          />
+          <select name="currency" defaultValue={t?.currency ?? 'eur'} className={`${input} appearance-none`}>
+            {MEMBERSHIP_CURRENCIES.map(c => (
+              <option key={c} value={c} className="bg-surface text-parchment">
+                {c.toUpperCase()}
+              </option>
+            ))}
+          </select>
+          <select name="interval" defaultValue={t?.interval ?? 'month'} className={`${input} appearance-none`}>
+            <option value="month" className="bg-surface text-parchment">
+              / month
+            </option>
+            <option value="year" className="bg-surface text-parchment">
+              / year
+            </option>
+          </select>
+        </div>
+        <p className="font-body text-ash/50 text-xs">
+          Tick &ldquo;Paid&rdquo; and set an amount to let visitors subscribe. Leave it unticked for a free, invite-only tier.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-12 max-w-2xl">
       <section>
         <h1 className="font-display text-4xl italic text-parchment">Memberships</h1>
         <p className="font-body text-ash mt-2 text-sm">
-          Create circles, grant clients access by email, and gate courses to a tier.
+          Create circles, grant clients access by email or let them subscribe, and gate courses to a tier.
         </p>
       </section>
 
@@ -76,6 +143,12 @@ export default async function MembershipsPage() {
                   placeholder="Short description (optional)"
                   className={`${input} resize-none`}
                 />
+                <PricingFields t={t} />
+                {t.priceCents != null && (
+                  <p className="font-body text-[11px] text-gold/70">
+                    {fmtPrice(t.priceCents, t.currency, t.interval)}
+                  </p>
+                )}
                 <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-5 py-2 rounded-sm">
                   Save tier
                 </button>
@@ -95,17 +168,25 @@ export default async function MembershipsPage() {
           <p className="font-label text-[10px] tracking-[2px] uppercase text-gold/70">New tier</p>
           <input name="name" required placeholder="Tier name (e.g. Inner Circle)" className={input} />
           <textarea name="description" rows={2} placeholder="Short description (optional)" className={`${input} resize-none`} />
+          <PricingFields />
           <button className="font-label text-[11px] tracking-[3px] uppercase bg-gold text-background hover:bg-goldLight px-6 py-2.5 rounded-sm transition-colors">
             Create tier
           </button>
         </form>
+
+        {hasPaidTier && (
+          <p className="font-body text-ash/60 text-xs mt-4">
+            Share your public join page so visitors can subscribe:{' '}
+            <code className="text-gold/70">/join/your-site-slug</code>
+          </p>
+        )}
       </section>
 
       {/* ---- Members --------------------------------------------------- */}
       <section>
         <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-4">Members</h2>
 
-        {/* Grant membership */}
+        {/* Grant membership (free / manual) */}
         <form action={grantMembershipAction} className="border border-gold/15 rounded-sm p-5 space-y-3 mb-6">
           <p className="font-label text-[10px] tracking-[2px] uppercase text-gold/70">Grant membership</p>
           <input
@@ -151,7 +232,9 @@ export default async function MembershipsPage() {
                 <p className="font-body text-parchment truncate">{m.clientEmail}</p>
                 <p className="font-body text-ash/60 text-sm mt-0.5">
                   <span className="text-gold/70">{m.tierName}</span>
-                  {m.createdAt ? ` · granted ${fmtDate(m.createdAt)}` : ''}
+                  <span className={`ml-2 ${STATUS_COLOR[m.status]}`}>{STATUS_LABEL[m.status]}</span>
+                  <span className="ml-2 text-ash/50">{m.paid ? 'Subscribed' : 'Granted'}</span>
+                  {m.createdAt ? ` · ${fmtDate(m.createdAt)}` : ''}
                 </p>
               </div>
               <form action={revokeMembershipAction} className="shrink-0">

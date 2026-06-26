@@ -8,9 +8,29 @@ import {
   deleteTier,
   grantMembership,
   revokeMembership,
+  MEMBERSHIP_CURRENCIES,
+  type MembershipInterval,
+  type TierPricing,
 } from '@/lib/memberships/repo'
 
 // ---- Tiers -------------------------------------------------------------
+
+// Read the optional pricing fields off the form. A tier is PAID only when "paid" is checked AND a
+// valid amount is given; otherwise it's free (priceCents: null, which clears any prior price). The
+// amount field is in MAJOR units (e.g. "9.99" euros) → converted to cents here; the repo re-validates
+// the cents against the MEMBERSHIP_* bounds, so an out-of-range value is rejected server-side.
+function readPricing(formData: FormData): TierPricing {
+  const paid = String(formData.get('paid') ?? '') === 'on'
+  if (!paid) return { priceCents: null }
+  const raw = String(formData.get('price') ?? '').trim().replace(',', '.')
+  const major = Number(raw)
+  if (!raw || !Number.isFinite(major) || major <= 0) return { priceCents: null }
+  const cents = Math.round(major * 100)
+  const currencyRaw = String(formData.get('currency') ?? 'eur').toLowerCase()
+  const currency = (MEMBERSHIP_CURRENCIES as readonly string[]).includes(currencyRaw) ? currencyRaw : 'eur'
+  const interval: MembershipInterval = String(formData.get('interval') ?? 'month') === 'year' ? 'year' : 'month'
+  return { priceCents: cents, currency, interval }
+}
 
 export async function createTierAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -18,8 +38,12 @@ export async function createTierAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim()
   if (!name) return
   const description = String(formData.get('description') ?? '').trim()
-  // owner_id is the AUTHED user — never a posted field.
-  await createTier(user.id, { name, description })
+  // owner_id is the AUTHED user — never a posted field. The repo validates the price.
+  try {
+    await createTier(user.id, { name, description, ...readPricing(formData) })
+  } catch (e) {
+    if (!(e instanceof Error && e.message === 'invalid_price')) throw e
+  }
   revalidatePath('/memberships')
 }
 
@@ -31,7 +55,11 @@ export async function updateTierAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim()
   if (!name) return
   const description = String(formData.get('description') ?? '').trim()
-  await updateTier(id, { name, description })
+  try {
+    await updateTier(id, { name, description, ...readPricing(formData) })
+  } catch (e) {
+    if (!(e instanceof Error && e.message === 'invalid_price')) throw e
+  }
   revalidatePath('/memberships')
 }
 

@@ -213,6 +213,91 @@ export async function createDirectCheckout(opts: DirectCheckoutOptions): Promise
   }
 }
 
+export interface SubscriptionCheckoutOptions {
+  amountCents: number
+  currency: string
+  // 'month' | 'year' — the recurring billing interval, read SERVER-SIDE from the tier row.
+  interval: 'month' | 'year'
+  productName: string
+  customerEmail?: string
+  successUrl: string
+  cancelUrl: string
+  // Carried on BOTH the Checkout Session and the Subscription itself (subscription_data.metadata),
+  // so subscription.updated/deleted events — which don't include the checkout metadata — can still
+  // identify what this subscription is (kind/tierId/ownerId).
+  metadata?: Record<string, string>
+}
+
+// Create a Checkout Session in SUBSCRIPTION mode as a NORMAL recurring charge on the PLATFORM's own
+// Stripe account (the owner's single Stripe) — NO `{ stripeAccount }` request option, so the platform
+// is the merchant of record and money settles to it. This is the DIRECT model used for paid memberships
+// in v1 (no per-seller Connect). The price/interval are passed in by the caller, which reads them
+// SERVER-SIDE from the tier row — never from the client. Returns the hosted checkout URL, or null if
+// unconfigured / on error. Same dormant-safety as createDirectCheckout: null when getStripe() is null.
+export async function createSubscriptionCheckout(opts: SubscriptionCheckoutOptions): Promise<string | null> {
+  const stripe = getStripe()
+  if (!stripe) return null
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: opts.currency,
+            unit_amount: opts.amountCents,
+            recurring: { interval: opts.interval },
+            product_data: { name: opts.productName },
+          },
+        },
+      ],
+      ...(opts.customerEmail ? { customer_email: opts.customerEmail } : {}),
+      success_url: opts.successUrl,
+      cancel_url: opts.cancelUrl,
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+      // The subscription itself ALSO carries the metadata so lifecycle events (updated/deleted),
+      // which omit the checkout-session metadata, still know kind/tierId/ownerId.
+      ...(opts.metadata ? { subscription_data: { metadata: opts.metadata } } : {}),
+    })
+    return session.url
+  } catch {
+    return null
+  }
+}
+
+// A one-time link into Stripe's hosted BILLING PORTAL for a customer (so a paid member can update
+// their card or cancel their subscription). `returnUrl` is where Stripe sends them when done. Runs
+// on the PLATFORM account (no { stripeAccount }), matching createSubscriptionCheckout. Returns the
+// URL, or null if unconfigured / no customer id / on error. Never throws.
+export async function createBillingPortalSession(customerId: string, returnUrl: string): Promise<string | null> {
+  const stripe = getStripe()
+  if (!stripe || !customerId) return null
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    })
+    return session.url
+  } catch {
+    return null
+  }
+}
+
+// Cancel a subscription IMMEDIATELY (used when an OWNER revokes a paid membership, so the client is
+// not billed again after losing access). Idempotent in practice: cancelling an already-canceled
+// subscription throws, which we swallow → returns false. Returns true on a successful cancel, false
+// if unconfigured / no id / on any error. Never throws.
+export async function cancelSubscription(subscriptionId: string): Promise<boolean> {
+  const stripe = getStripe()
+  if (!stripe || !subscriptionId) return false
+  try {
+    await stripe.subscriptions.cancel(subscriptionId)
+    return true
+  } catch {
+    return false
+  }
+}
+
 // Verify + parse a Connect webhook payload against STRIPE_CONNECT_WEBHOOK_SECRET. Returns
 // null if unconfigured (no key or no webhook secret) or if the signature is invalid — the
 // caller (stage 2 webhook route) must treat null as "reject". Never throws.

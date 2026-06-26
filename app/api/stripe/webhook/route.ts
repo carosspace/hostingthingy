@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
-import { constructAccountWebhookEvent, constructWebhookEvent } from '@/lib/stripe'
+import { constructAccountWebhookEvent, constructWebhookEvent, getStripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { notifyBookingConfirmed } from '@/lib/bookings/notify'
 
@@ -16,6 +16,76 @@ import { notifyBookingConfirmed } from '@/lib/bookings/notify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// Our membership lifecycle status, mapped from Stripe's subscription.status. active/trialing → we
+// treat as 'active' (gated access on); past_due → 'past_due' (a soft warning, but gating requires
+// 'active' so access is off); everything terminal (canceled/unpaid/incomplete_expired/incomplete/
+// paused) → 'canceled'. Gating (get_my_courses) requires status='active', so only active/trialing
+// keep gated-course access.
+function mapSubStatus(stripeStatus: string | null | undefined): 'active' | 'past_due' | 'canceled' {
+  switch (stripeStatus) {
+    case 'active':
+    case 'trialing':
+      return 'active'
+    case 'past_due':
+      return 'past_due'
+    default:
+      return 'canceled'
+  }
+}
+
+// A Stripe Subscription's current_period_end is a UNIX seconds timestamp; convert to an ISO string
+// (or null if absent), for memberships.current_period_end.
+function periodEndIso(sub: Stripe.Subscription): string | null {
+  const end = (sub as unknown as { current_period_end?: number }).current_period_end
+  return typeof end === 'number' && end > 0 ? new Date(end * 1000).toISOString() : null
+}
+
+// Reconcile a membership row from a subscription event that arrived BEFORE its checkout grant
+// (Stripe doesn't guarantee webhook ordering). We set kind/tierId/ownerId on subscription_data.metadata
+// when creating the checkout, so the subscription event carries enough to upsert the row with the
+// CORRECT status — instead of silently dropping the 0-row update and later resurrecting it to 'active'.
+// Best-effort + never throws (a verified webhook must still return 200).
+async function reconcileMembershipFromSub(
+  admin: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  sub: Stripe.Subscription,
+  status: 'active' | 'past_due' | 'canceled',
+): Promise<void> {
+  const md = sub.metadata || {}
+  if (md.kind !== 'membership' || !md.tierId || !md.ownerId) {
+    console.warn('[stripe webhook] subscription event matched 0 rows; no membership metadata to reconcile', sub.id)
+    return
+  }
+  try {
+    const stripe = getStripe()
+    const custId = typeof sub.customer === 'string' ? sub.customer : null
+    let email: string | null = null
+    if (stripe && custId) {
+      const cust = await stripe.customers.retrieve(custId)
+      if (cust && !('deleted' in cust && cust.deleted)) {
+        email = ((cust as Stripe.Customer).email || '').trim().toLowerCase() || null
+      }
+    }
+    if (!email) {
+      console.warn('[stripe webhook] subscription event matched 0 rows; no customer email to reconcile', sub.id)
+      return
+    }
+    await admin.from('memberships').upsert(
+      {
+        owner_id: md.ownerId,
+        tier_id: md.tierId,
+        client_email: email,
+        status,
+        current_period_end: periodEndIso(sub),
+        stripe_subscription_id: sub.id,
+        ...(custId ? { stripe_customer_id: custId } : {}),
+      },
+      { onConflict: 'tier_id,client_email' },
+    )
+  } catch {
+    console.warn('[stripe webhook] subscription 0-row reconcile failed', sub.id)
+  }
+}
 
 export async function POST(req: Request) {
   // Raw body is required for signature verification — read it as text before any parsing.
@@ -43,6 +113,7 @@ export async function POST(req: Request) {
       const kind = session.metadata?.kind
       const isPay = !kind || kind === 'pay'
       const isBooking = kind === 'booking'
+      const isMembership = kind === 'membership'
       // On a Connect event this carries the connected account that processed the charge; on a
       // direct charge to the platform account it is ABSENT.
       const eventAccount = (event as Stripe.Event & { account?: string }).account || null
@@ -106,6 +177,59 @@ export async function POST(req: Request) {
           }
         }
       }
+      // MEMBERSHIP subscription: a paid membership checkout completed (mode 'subscription'). GRANT the
+      // membership idempotently. Only act when tier_id + owner_id + client_email are all present; the
+      // upsert on (tier_id, client_email) makes a duplicate delivery a no-op / safe update.
+      if (isMembership) {
+        const tierId = session.metadata?.tierId || null
+        const ownerId = session.metadata?.ownerId || null
+        const clientEmail = (session.customer_details?.email || session.customer_email || '').trim().toLowerCase() || null
+        // session.subscription / session.customer are ids on a completed subscription checkout.
+        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : null
+        const customerId = typeof session.customer === 'string' ? session.customer : null
+
+        if (tierId && ownerId && clientEmail) {
+          // Derive the TRUE current status from the live subscription rather than assuming 'active'.
+          // Webhook delivery is UNORDERED: a customer.subscription.updated(past_due) or .deleted can
+          // arrive BEFORE this grant. If we forced 'active' here, that out-of-order cancel would be
+          // overwritten and the member would keep gated access they no longer pay for. Reading the
+          // subscription's real status closes that window. (getStripe() is non-null on a verified
+          // webhook — the secret is set — but guard anyway so a Stripe hiccup can't break the 200.)
+          let status: 'active' | 'past_due' | 'canceled' = 'active'
+          let periodEnd: string | null = null
+          if (subscriptionId) {
+            try {
+              const stripe = getStripe()
+              if (stripe) {
+                const sub = await stripe.subscriptions.retrieve(subscriptionId)
+                status = mapSubStatus(sub.status)
+                periodEnd = periodEndIso(sub)
+              }
+            } catch {
+              // Fall back to 'active' (a completed checkout usually means the first invoice was paid);
+              // a later subscription.* event will reconcile the true status.
+            }
+          }
+          // UPSERT on the unique (tier_id, client_email): a brand-new subscriber inserts; an existing
+          // member (e.g. re-subscribing, or a manual grant they're now paying for) updates in place.
+          // owner_id is from OUR metadata (set when we created the session), so it's server-authoritative.
+          const { error: upErr } = await admin.from('memberships').upsert(
+            {
+              owner_id: ownerId,
+              tier_id: tierId,
+              client_email: clientEmail,
+              status,
+              ...(periodEnd ? { current_period_end: periodEnd } : {}),
+              ...(subscriptionId ? { stripe_subscription_id: subscriptionId } : {}),
+              ...(customerId ? { stripe_customer_id: customerId } : {}),
+            },
+            { onConflict: 'tier_id,client_email' },
+          )
+          if (upErr) {
+            console.error('[stripe webhook] membership grant upsert failed for session', sessionId, upErr.message)
+          }
+        }
+      }
       // Need both the attribution (siteId) + the idempotency key (session id) to record a sale.
       if (isPay && siteId && sessionId) {
         // Load the named site once; it must still exist to record a sale against it (guards against a
@@ -165,6 +289,44 @@ export async function POST(req: Request) {
           .from('sites')
           .update({ stripe_charges_enabled: !!account.charges_enabled, updated_at: new Date().toISOString() })
           .eq('stripe_account_id', accountId)
+      }
+    } else if (event.type === 'customer.subscription.updated') {
+      // A paid membership's subscription changed (renewed, went past_due, was set to cancel, etc.).
+      // Find the membership by the UNIQUE stripe_subscription_id and sync our status + period end. We
+      // do NOT insert here — only an existing (already-granted) row is updated; an unknown id (e.g. a
+      // subscription that predates this feature) matches nothing → no-op.
+      const sub = event.data.object as Stripe.Subscription
+      const status = mapSubStatus(sub.status)
+      // .select('id') so a 0-row match is observable (a plain .update reports 0 rows with no error).
+      const { data: rows, error: updErr } = await admin
+        .from('memberships')
+        .update({ status, current_period_end: periodEndIso(sub) })
+        .eq('stripe_subscription_id', sub.id)
+        .select('id')
+      if (updErr) {
+        console.error('[stripe webhook] subscription.updated sync failed for', sub.id, updErr.message)
+      } else if (!rows || rows.length === 0) {
+        // 0 rows = the grant (checkout.session.completed) hasn't linked this subscription id yet
+        // (out-of-order delivery). Reconcile from the subscription's OWN metadata (we set
+        // kind/tierId/ownerId on subscription_data.metadata) + the customer's email, so the membership
+        // lands with the CORRECT status instead of being dropped and later resurrected to 'active'.
+        await reconcileMembershipFromSub(admin, sub, status)
+      }
+    } else if (event.type === 'customer.subscription.deleted') {
+      // The subscription ended for good → mark the membership canceled. We KEEP the row for history;
+      // gating requires status='active', so a canceled member loses gated-course access automatically.
+      const sub = event.data.object as Stripe.Subscription
+      const { data: rows, error: delErr } = await admin
+        .from('memberships')
+        .update({ status: 'canceled', current_period_end: periodEndIso(sub) })
+        .eq('stripe_subscription_id', sub.id)
+        .select('id')
+      if (delErr) {
+        console.error('[stripe webhook] subscription.deleted sync failed for', sub.id, delErr.message)
+      } else if (!rows || rows.length === 0) {
+        // 0 rows: deleted arrived before the grant linked the id. Reconcile a canceled row so a
+        // late-arriving grant (which now also reads the true status) can't open access.
+        await reconcileMembershipFromSub(admin, sub, 'canceled')
       }
     }
   } catch {
