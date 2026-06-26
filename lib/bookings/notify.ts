@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { emailConfigured, sendEmail } from '@/lib/email'
+import { portalAccessLink } from '@/lib/portal/invite'
 import { buildAppointmentIcs, appointmentUtcRange } from './ics'
 import { formatDayLabel, formatTimeLabel } from './types'
 
@@ -139,6 +140,19 @@ export async function notifyBookingConfirmed(appointmentId: string): Promise<voi
 
     // (a) CLIENT confirmation — warm, with the calendar invite attached.
     if (a.clientEmail) {
+      // Fold a one-click "manage in your member area" link into THIS single email (no second
+      // send). The link is minted only for a.clientEmail — the address STORED on the
+      // appointment, never client-supplied at send time. Dormant-safe: portalAccessLink
+      // returns null without a service-role key, and we then simply omit the button.
+      const portalLink = await portalAccessLink(a.clientEmail, '/me/bookings')
+      const portalButton = portalLink
+        ? `<p style="margin:20px 0">` +
+          `<a href="${portalLink}" ` +
+          `style="display:inline-block;padding:10px 20px;background:#c8a96a;color:#fff;` +
+          `text-decoration:none;border-radius:6px;font-family:Helvetica,Arial,sans-serif;` +
+          `font-weight:600">Manage this booking in your member area</a>` +
+          `</p>`
+        : ''
       const html =
         `<div style="font-family:Georgia,serif;color:#2b2b2b;line-height:1.6">` +
         `<p>Hi ${esc(a.clientName) || 'there'},</p>` +
@@ -149,6 +163,7 @@ export async function notifyBookingConfirmed(appointmentId: string): Promise<voi
         (a.note ? `<span style="color:#666">“${esc(a.note)}”</span>` : '') +
         `</p>` +
         `<p>A calendar invite is attached — open it to add this to your calendar.</p>` +
+        portalButton +
         `<p>With warmth,<br/>${esc(a.ownerName) || 'Anima Temple'}</p>` +
         `</div>`
       const text =

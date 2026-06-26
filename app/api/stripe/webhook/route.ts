@@ -3,6 +3,7 @@ import type Stripe from 'stripe'
 import { constructAccountWebhookEvent, constructWebhookEvent, getStripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { notifyBookingConfirmed } from '@/lib/bookings/notify'
+import { inviteToPortal } from '@/lib/portal/invite'
 
 // The Stripe webhook. Accepts events from EITHER endpoint: the platform ACCOUNT's own webhook
 // (STRIPE_WEBHOOK_SECRET — direct charges on the owner's Stripe) OR the Connect webhook
@@ -210,6 +211,23 @@ export async function POST(req: Request) {
               // a later subscription.* event will reconcile the true status.
             }
           }
+          // Decide whether to auto-invite (below) BEFORE the upsert. We welcome a buyer the FIRST
+          // time they hold ANY membership with THIS owner — keyed by owner_id + email, not the
+          // specific tier — so adding a SECOND tier under the same email doesn't re-send the welcome
+          // (and a re-subscribe / duplicate delivery, where the row already exists, doesn't either).
+          let alreadyMember = false
+          try {
+            const { data: existing } = await admin
+              .from('memberships')
+              .select('id')
+              .eq('owner_id', ownerId)
+              .eq('client_email', clientEmail)
+              .limit(1)
+            alreadyMember = !!(existing && existing.length > 0)
+          } catch {
+            // If the pre-check fails, default to alreadyMember=true so we err on NOT re-emailing.
+            alreadyMember = true
+          }
           // UPSERT on the unique (tier_id, client_email): a brand-new subscriber inserts; an existing
           // member (e.g. re-subscribing, or a manual grant they're now paying for) updates in place.
           // owner_id is from OUR metadata (set when we created the session), so it's server-authoritative.
@@ -227,6 +245,17 @@ export async function POST(req: Request) {
           )
           if (upErr) {
             console.error('[stripe webhook] membership grant upsert failed for session', sessionId, upErr.message)
+          } else if (!alreadyMember) {
+            // FIRST subscribe only: fire-and-forget a one-click portal welcome to the
+            // Stripe-VERIFIED email (clientEmail comes from the signature-verified session —
+            // never client-supplied). inviteToPortal is dormant-safe (no service-role → no
+            // link; no RESEND_API_KEY → no email) and never throws; the extra .catch() guards
+            // the floating promise so it can't affect the webhook's prompt 200.
+            void inviteToPortal(clientEmail, {
+              nextPath: '/me/memberships',
+              intro: "Your membership is active. Here's your private space — courses, downloads and more.",
+              nextLabel: 'Open your area',
+            }).catch(() => {})
           }
         }
       }
