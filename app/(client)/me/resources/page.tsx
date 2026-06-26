@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { getMyResources, type MyResource } from '@/lib/portal/resources'
 import PortalHeader from '../PortalHeader'
 import DownloadButton from './DownloadButton'
@@ -38,8 +38,10 @@ function fmtSize(bytes: number | null): string {
 }
 
 export default async function ClientResourcesPage() {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -71,11 +73,11 @@ export default async function ClientResourcesPage() {
             </span>
           )}
         </div>
-        <h2 className="font-display" style={{ color: theme.text, fontSize: 21, lineHeight: 1.2 }}>
+        <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
           {r.title}
         </h2>
         {r.description && (
-          <p className="font-body" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.55 }}>
+          <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
             {r.description}
           </p>
         )}
@@ -89,23 +91,23 @@ export default async function ClientResourcesPage() {
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           Resources
         </h1>
-        <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
+        <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
           Downloads to keep, from {brand}.
         </p>
 
         {resources.length === 0 ? (
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
           >
             No resources yet. New downloads will appear here.
           </p>
@@ -119,7 +121,7 @@ export default async function ClientResourcesPage() {
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { getMyMessages, type MyMessage } from '@/lib/portal/messages'
 import PortalHeader from '../PortalHeader'
 import { sendMessage } from './actions'
@@ -17,8 +17,10 @@ function when(iso: string): string {
 }
 
 export default async function ClientMessagesPage() {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, theme, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -33,15 +35,15 @@ export default async function ClientMessagesPage() {
   // owner (the brand) on the left with a neutral tint. Both theme-aware + midnight-safe.
   const clientBubble: CSSProperties = {
     background: `${accent}14`,
-    color: theme.text,
+    color: portalText,
     border: `1px solid ${accent}26`,
     borderRadius: 16,
     maxWidth: '80%',
   }
   const ownerBubble: CSSProperties = {
-    background: `${theme.text}0a`,
-    color: theme.text,
-    border: `1px solid ${theme.muted}26`,
+    background: `${portalText}0a`,
+    color: portalText,
+    border: `1px solid ${portalMuted}26`,
     borderRadius: 16,
     maxWidth: '80%',
   }
@@ -63,7 +65,7 @@ export default async function ClientMessagesPage() {
             {m.body}
           </p>
         </div>
-        <span className="font-body mt-1" style={{ fontSize: 11, color: theme.muted }}>
+        <span className="font-body mt-1" style={{ fontSize: 11, color: portalMuted }}>
           {when(m.createdAt)}
         </span>
       </div>
@@ -75,16 +77,16 @@ export default async function ClientMessagesPage() {
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           Messages
         </h1>
-        <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
+        <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
           Talk with {brand}.
         </p>
 
@@ -92,7 +94,7 @@ export default async function ClientMessagesPage() {
         {messages.length === 0 ? (
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
           >
             Start a conversation with {brand}.
           </p>
@@ -113,9 +115,9 @@ export default async function ClientMessagesPage() {
             placeholder={`Write to ${brand}…`}
             className="font-body w-full resize-y px-4 py-3 outline-none"
             style={{
-              background: `${theme.text}08`,
-              color: theme.text,
-              border: `1px solid ${theme.muted}33`,
+              background: `${portalText}08`,
+              color: portalText,
+              border: `1px solid ${portalMuted}33`,
               borderRadius: 14,
               fontSize: 14,
               lineHeight: 1.5,
@@ -141,7 +143,7 @@ export default async function ClientMessagesPage() {
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import {
   getMyBlueprints,
   blueprintConfigured,
@@ -22,8 +22,10 @@ function formatCreated(iso: string | null): string | null {
 }
 
 export default async function ClientBlueprintPage() {
-  const { brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -51,11 +53,11 @@ export default async function ClientBlueprintPage() {
     return (
       <div className="p-6 flex flex-col gap-3" style={cardStyle}>
         <div>
-          <h2 className="font-display" style={{ color: theme.text, fontSize: 21, lineHeight: 1.2 }}>
+          <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
             {title}
           </h2>
           {created && (
-            <p className="font-body mt-1.5" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.55 }}>
+            <p className="font-body mt-1.5" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
               Created {created}
             </p>
           )}
@@ -71,7 +73,7 @@ export default async function ClientBlueprintPage() {
             Open your blueprint →
           </a>
         ) : (
-          <span className="font-body" style={{ fontSize: 12, color: theme.muted, opacity: 0.85 }}>
+          <span className="font-body" style={{ fontSize: 12, color: portalMuted, opacity: 0.85 }}>
             Reader link not configured yet.
           </span>
         )}
@@ -84,16 +86,16 @@ export default async function ClientBlueprintPage() {
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           Your Divine Blueprint
         </h1>
-        <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
+        <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
           Your reading, kept safe in one place.
         </p>
 
@@ -101,7 +103,7 @@ export default async function ClientBlueprintPage() {
           // Envs absent: a gentle placeholder, never an error.
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 420 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 420 }}
           >
             Your Divine Blueprint will live here soon.
           </p>
@@ -109,10 +111,10 @@ export default async function ClientBlueprintPage() {
           // Configured, but no reading for this verified email yet.
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 460 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 460 }}
           >
             We couldn&apos;t find a blueprint for{' '}
-            <span style={{ color: theme.text }}>{email}</span> yet. If you&apos;ve ordered your
+            <span style={{ color: portalText }}>{email}</span> yet. If you&apos;ve ordered your
             reading, it&apos;ll appear here once it&apos;s ready.
           </p>
         ) : (
@@ -125,7 +127,7 @@ export default async function ClientBlueprintPage() {
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

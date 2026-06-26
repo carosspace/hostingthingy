@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { getCurrentUser } from '@/lib/auth'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import ClientLogin from './ClientLogin'
 import PortalHeader from './PortalHeader'
 
@@ -27,8 +27,10 @@ const MODULES: { title: string; icon: string; desc: string; href?: string }[] = 
 ]
 
 export default async function ClientPortalPage({ searchParams }: { searchParams: { error?: string } }) {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, theme, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   const user = await getCurrentUser()
 
@@ -39,7 +41,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
         <ClientLogin
           brand={brand}
           logoImage={content?.logoImage}
-          theme={{ bg: theme.bg, text: theme.text, muted: theme.muted, accent }}
+          theme={{ bg: theme.bg, text: portalText, muted: portalMuted, accent }}
           initialError={searchParams?.error === 'link' ? 'That link expired or was already used — request a new one below.' : undefined}
         />
       </div>
@@ -86,16 +88,16 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
       {/* Header: brand left, sign-out right (shared with sub-pages) */}
-      <PortalHeader brand={brand} logoImage={content?.logoImage} theme={{ muted: theme.muted }} accent={accent} />
+      <PortalHeader brand={brand} logoImage={content?.logoImage} theme={{ muted: portalMuted }} accent={accent} />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
         {/* Greeting */}
         <div>
-          <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+          <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
             Welcome{displayName ? `, ${displayName}` : ''}
           </h1>
-          <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
-            Signed in as <span style={{ color: theme.text }}>{email}</span>. This is your space with {brand} — everything in one calm place.
+          <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
+            Signed in as <span style={{ color: portalText }}>{email}</span>. This is your space with {brand} — everything in one calm place.
           </p>
         </div>
 
@@ -113,8 +115,8 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
                   )}
                 </div>
                 <div>
-                  <h2 className="font-display" style={{ color: theme.text, fontSize: 21, lineHeight: 1.2 }}>{m.title}</h2>
-                  <p className="font-body mt-1.5" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.55 }}>
+                  <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>{m.title}</h2>
+                  <p className="font-body mt-1.5" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
                     {m.desc.replace(/\{brand\}/g, () => brand)}
                   </p>
                 </div>
@@ -134,7 +136,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

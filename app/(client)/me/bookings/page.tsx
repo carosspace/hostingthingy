@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { formatDayLabel, formatTimeLabel } from '@/lib/bookings/types'
 import { getMyAppointments, type MyAppointment } from '@/lib/portal/bookings'
 import PortalHeader from '../PortalHeader'
@@ -16,8 +16,10 @@ function todayISO(): string {
 }
 
 export default async function ClientBookingsPage() {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -59,10 +61,10 @@ export default async function ClientBookingsPage() {
       return { style: { ...base, background: `${accent}1a`, color: accent }, label: 'Confirmed' }
     }
     if (status === 'cancelled') {
-      return { style: { ...base, background: `${theme.muted}1f`, color: theme.muted }, label: 'Cancelled' }
+      return { style: { ...base, background: `${portalMuted}1f`, color: portalMuted }, label: 'Cancelled' }
     }
     // requested
-    return { style: { ...base, background: `${theme.text}14`, color: theme.muted, border: `1px solid ${theme.muted}33` }, label: 'Pending' }
+    return { style: { ...base, background: `${portalText}14`, color: portalMuted, border: `1px solid ${portalMuted}33` }, label: 'Pending' }
   }
 
   function Card({ a }: { a: MyAppointment }) {
@@ -72,18 +74,18 @@ export default async function ClientBookingsPage() {
     return (
       <div className="p-5 flex flex-col gap-3" style={cardStyle}>
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display" style={{ color: theme.text, fontSize: 19, lineHeight: 1.2 }}>
+          <h3 className="font-display" style={{ color: portalText, fontSize: 19, lineHeight: 1.2 }}>
             {a.serviceName || 'Session'}
           </h3>
           <span className="font-label" style={pill.style}>{pill.label}</span>
         </div>
-        <p className="font-body" style={{ color: theme.muted, fontSize: 14, lineHeight: 1.5 }}>
+        <p className="font-body" style={{ color: portalMuted, fontSize: 14, lineHeight: 1.5 }}>
           {a.slotDate ? formatDayLabel(a.slotDate) : 'Date to be confirmed'}
           {a.slotTime ? ` · ${formatTimeLabel(a.slotTime)}` : ''}
           {a.durationMin ? ` · ${a.durationMin} min` : ''}
         </p>
         {a.note && (
-          <p className="font-body" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.5, opacity: 0.85 }}>
+          <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.5, opacity: 0.85 }}>
             {a.note}
           </p>
         )}
@@ -93,7 +95,7 @@ export default async function ClientBookingsPage() {
             <button
               type="submit"
               className="font-label transition-opacity hover:opacity-70"
-              style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: theme.muted }}
+              style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: portalMuted }}
             >
               Cancel session
             </button>
@@ -108,19 +110,19 @@ export default async function ClientBookingsPage() {
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           Your sessions
         </h1>
 
         {appointments.length === 0 ? (
           <div className="text-center py-16">
-            <p className="font-body mx-auto" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}>
+            <p className="font-body mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}>
               You have no sessions yet.
             </p>
             <a
@@ -146,7 +148,7 @@ export default async function ClientBookingsPage() {
 
             {past.length > 0 && (
               <section>
-                <p className="font-label" style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: theme.muted }}>
+                <p className="font-label" style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: portalMuted }}>
                   Past
                 </p>
                 <div className="mt-4 flex flex-col gap-4">
@@ -159,7 +161,7 @@ export default async function ClientBookingsPage() {
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

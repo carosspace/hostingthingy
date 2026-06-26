@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { getMyMemberships, type MyMembership } from '@/lib/portal/memberships'
 import { openBillingPortal } from './actions'
 import PortalHeader from '../PortalHeader'
@@ -28,8 +28,10 @@ function periodNote(m: MyMembership): string {
 }
 
 export default async function ClientMembershipsPage() {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -59,11 +61,11 @@ export default async function ClientMembershipsPage() {
             {STATUS_LABEL[m.status]}
           </span>
         </div>
-        <h2 className="font-display" style={{ color: theme.text, fontSize: 21, lineHeight: 1.2 }}>
+        <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
           {m.name}
         </h2>
         {m.description && (
-          <p className="font-body" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.55 }}>
+          <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
             {m.description}
           </p>
         )}
@@ -72,7 +74,7 @@ export default async function ClientMembershipsPage() {
         {m.hasSubscription && (
           <div className="mt-2">
             {note && (
-              <p className="font-body" style={{ color: theme.muted, fontSize: 12, lineHeight: 1.5 }}>
+              <p className="font-body" style={{ color: portalMuted, fontSize: 12, lineHeight: 1.5 }}>
                 {note}
               </p>
             )}
@@ -104,23 +106,23 @@ export default async function ClientMembershipsPage() {
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           Memberships
         </h1>
-        <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
+        <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
           The circles you hold with {brand}.
         </p>
 
         {memberships.length === 0 ? (
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
           >
             You don&apos;t have any memberships yet.
           </p>
@@ -131,7 +133,7 @@ export default async function ClientMembershipsPage() {
                 <Card key={m.tierId} m={m} />
               ))}
             </div>
-            <p className="font-body mt-8" style={{ color: theme.muted, fontSize: 13, lineHeight: 1.6 }}>
+            <p className="font-body mt-8" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.6 }}>
               Member-only courses appear under Courses.
             </p>
           </>
@@ -139,7 +141,7 @@ export default async function ClientMembershipsPage() {
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )

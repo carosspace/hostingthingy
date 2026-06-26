@@ -1,8 +1,7 @@
-import type { CSSProperties } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { fontVars } from '@/lib/sites/fonts'
 import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { embedSrc } from '@/lib/sites/embed'
 import { getMyCourse, type MyLesson } from '@/lib/portal/courses'
 import PortalHeader from '../../PortalHeader'
@@ -10,8 +9,10 @@ import PortalHeader from '../../PortalHeader'
 export const dynamic = 'force-dynamic'
 
 export default async function ClientCourseDetailPage({ params }: { params: { id: string } }) {
-  const { slug, brand, content, theme, accent } = await getPortalSite()
-  const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties
+  const portal = await getPortalSite()
+  const { slug, brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
@@ -29,13 +30,13 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
         <PortalHeader
           brand={brand}
           logoImage={content?.logoImage}
-          theme={{ muted: theme.muted }}
+          theme={{ muted: portalMuted }}
           accent={accent}
           backHref="/me/courses"
         />
         <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
           <div className="text-center py-16">
-            <p className="font-body mx-auto" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}>
+            <p className="font-body mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}>
               Course not found.
             </p>
             <a
@@ -48,7 +49,7 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
           </div>
         </main>
         <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-          <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+          <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
         </footer>
       </div>
     )
@@ -62,13 +63,13 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
         <p className="font-label" style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: accent }}>
           Lesson {index + 1}
         </p>
-        <h2 className="font-display mt-2" style={{ color: theme.text, fontSize: 24, lineHeight: 1.25 }}>
+        <h2 className="font-display mt-2" style={{ color: portalText, fontSize: 24, lineHeight: 1.25 }}>
           {l.title}
         </h2>
         {l.body && (
           <p
             className="font-body whitespace-pre-wrap mt-3"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.65 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.65 }}
           >
             {l.body}
           </p>
@@ -96,17 +97,17 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
       <PortalHeader
         brand={brand}
         logoImage={content?.logoImage}
-        theme={{ muted: theme.muted }}
+        theme={{ muted: portalMuted }}
         accent={accent}
         backHref="/me/courses"
       />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        <h1 className="font-display italic" style={{ color: theme.text, fontSize: 40, lineHeight: 1.1 }}>
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
           {course.title}
         </h1>
         {course.description && (
-          <p className="font-body mt-3" style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6 }}>
+          <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
             {course.description}
           </p>
         )}
@@ -114,7 +115,7 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
         {course.lessons.length === 0 ? (
           <p
             className="font-body text-center mx-auto mt-16"
-            style={{ color: theme.muted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
+            style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
           >
             Lessons are on their way.
           </p>
@@ -128,7 +129,7 @@ export default async function ClientCourseDetailPage({ params }: { params: { id:
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
-        <p className="font-body" style={{ fontSize: 13, color: theme.muted }}>{footer}</p>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>{footer}</p>
       </footer>
     </div>
   )
