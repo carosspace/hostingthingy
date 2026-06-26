@@ -23,6 +23,7 @@ const MODULES: { title: string; icon: string; desc: string; href?: string }[] = 
   { title: 'Messages', icon: '✉', desc: 'Talk with {brand}, privately.', href: '/me/messages' },
   { title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' },
   { title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.', href: '/me/memberships' },
+  { title: 'Resources', icon: '⤓', desc: 'Downloads to keep, from {brand}.', href: '/me/resources' },
 ]
 
 export default async function ClientPortalPage({ searchParams }: { searchParams: { error?: string } }) {
