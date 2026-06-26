@@ -122,6 +122,7 @@ export default async function BookPage({
                 data={data}
                 theme={{ bg: theme.bg, text: theme.text, muted: theme.muted, accent }}
                 paymentsLive={stripeConfigured()}
+                layout={content?.booking?.layout || 'minimal'}
               />
             </div>
           </>

@@ -746,6 +746,21 @@ export function getPages(content: SiteContent | null): SitePage[] {
   ]
 }
 
+// The structural "look" of the public booking page. Only the LAYOUT differs — every
+// style uses the site's own theme/accent/fonts and the exact same booking behaviour.
+// 'minimal' is the original look (day-pill strip + time grid); the others rearrange
+// the same controls. Default 'minimal' everywhere it's read.
+export const BOOKING_LAYOUTS = ['minimal', 'calendar', 'cards', 'split'] as const
+export type BookingLayout = (typeof BOOKING_LAYOUTS)[number]
+export const DEFAULT_BOOKING_LAYOUT: BookingLayout = 'minimal'
+// Labels + one-line descriptions for the owner's style picker.
+export const BOOKING_LAYOUT_META: Record<BookingLayout, { label: string; description: string }> = {
+  minimal: { label: 'Minimal', description: 'A clean strip of days, then times — the classic look.' },
+  calendar: { label: 'Calendar', description: 'Pick the day from a full month calendar.' },
+  cards: { label: 'Service cards', description: 'Show your services as rich cards first.' },
+  split: { label: 'Split', description: 'A two-column layout: details on the left, picker on the right.' },
+}
+
 // Editable copy for the public booking page (/book/[slug]). Every field is optional;
 // the page falls back to sensible defaults when a field (or the whole object) is absent,
 // so existing sites with no `booking` keep working unchanged. {brand} in successBody is
@@ -757,6 +772,7 @@ export interface BookingCopy {
   successBody?: string // body under the success title ({brand} → the brand name)
   closedTitle?: string // shown when booking isn't open (no services / no data)
   closedBody?: string // body under the closed title
+  layout?: BookingLayout // the page LOOK (structure only); defaults to 'minimal'
 }
 
 // A stock photo search result (from the Pexels proxy). Transient — not stored.

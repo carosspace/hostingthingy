@@ -10,9 +10,20 @@ const nextConfig = {
     // persist. The editor also guards against oversized saves before posting.
     serverActions: { bodySizeLimit: "12mb" },
     // node-ical (used SERVER-SIDE to parse owners' external calendars for "block busy
-    // times") pulls in CJS deps (rrule/luxon/etc.) that break when webpack bundles them.
-    // Keep it external so it's required from node_modules at runtime instead.
+    // times") pulls in CJS/Temporal deps that break when webpack bundles them. Keep it
+    // external so it's required from node_modules at runtime instead. It's loaded LAZILY
+    // (lib/bookings/external-calendar.ts) so a load failure degrades gracefully.
     serverComponentsExternalPackages: ["node-ical"],
+    // Force node-ical + its deps into the output:'standalone' trace for the only route that
+    // loads it at runtime (the public booking page), so the lazy import resolves on the slim
+    // server image. (Belt-and-suspenders — the dynamic import is normally traced anyway.)
+    outputFileTracingIncludes: {
+      "/book/[slug]": [
+        "./node_modules/node-ical/**",
+        "./node_modules/rrule-temporal/**",
+        "./node_modules/temporal-polyfill/**",
+      ],
+    },
   },
 };
 

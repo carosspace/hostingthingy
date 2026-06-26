@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Site } from '@/lib/sites/types'
+import { BOOKING_LAYOUTS, BOOKING_LAYOUT_META, DEFAULT_BOOKING_LAYOUT } from '@/lib/sites/types'
 import { getSite } from '@/lib/sites/store'
 import {
   renameSiteAction,
@@ -210,6 +211,34 @@ export default async function SiteDetailPage({
         </p>
         <form action={setBookingCopyAction} className="space-y-4">
           <input type="hidden" name="id" value={site.id} />
+          <div>
+            <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Booking page style</label>
+            <p className="font-body text-ash/40 text-[11px] mb-2.5">All styles use your site&rsquo;s colours &amp; fonts — only the layout changes.</p>
+            <div className="grid sm:grid-cols-2 gap-2.5">
+              {BOOKING_LAYOUTS.map(opt => {
+                const meta = BOOKING_LAYOUT_META[opt]
+                const checked = (site.content?.booking?.layout ?? DEFAULT_BOOKING_LAYOUT) === opt
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-start gap-2.5 cursor-pointer rounded-sm border px-3.5 py-3 transition-colors border-gold/20 hover:border-gold/40 has-[:checked]:border-gold/70 has-[:checked]:bg-gold/10"
+                  >
+                    <input
+                      type="radio"
+                      name="layout"
+                      value={opt}
+                      defaultChecked={checked}
+                      className="mt-1 accent-gold"
+                    />
+                    <span className="flex-1">
+                      <span className="font-body text-parchment text-sm block">{meta.label}</span>
+                      <span className="font-body text-ash/55 text-[11px] block mt-0.5 leading-snug">{meta.description}</span>
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
           <div>
             <label className="font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1.5">Heading</label>
             <input

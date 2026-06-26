@@ -10,7 +10,7 @@ import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
 import { siteSlugForDomain } from '@/lib/sites/public'
 import { cfConfigured, cfCreateHostname, cfDeleteHostname, isOwnZone } from '@/lib/sites/cloudflare'
-import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
+import { getPages, MAX_SAVED_DESIGNS, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, CURSOR_KINDS, MENU_STYLES, TEXT_STYLE_KEYS, FORM_FIELD_TYPES, PAGE_TRANSITION_KINDS, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS, BOOKING_LAYOUTS, DEFAULT_BOOKING_LAYOUT, type BookingLayout, type TextStyleProps, type FormField, type FormFieldType, type PageTransitionKind } from '@/lib/sites/types'
 import { ICON_KINDS } from '@/lib/sites/icons'
 import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import { isGoogleFamily, GOOGLE_FONTS } from '@/lib/sites/googleFonts'
@@ -436,6 +436,10 @@ export async function setBookingCopyAction(formData: FormData): Promise<void> {
 
   const short = (key: string) => String(formData.get(key) ?? '').trim().slice(0, 80) || undefined
   const long = (key: string) => String(formData.get(key) ?? '').trim().slice(0, 300) || undefined
+  // Whitelist the page LOOK to the four known values; anything else (or missing) falls back to
+  // the default. Only kept when it's non-default, so an unchanged 'minimal' stays tidy.
+  const layoutRaw = String(formData.get('layout') ?? '')
+  const layout = (BOOKING_LAYOUTS.includes(layoutRaw as BookingLayout) ? layoutRaw : DEFAULT_BOOKING_LAYOUT) as BookingLayout
   const next: BookingCopy = {
     heading: short('heading'),
     intro: long('intro'),
@@ -443,6 +447,7 @@ export async function setBookingCopyAction(formData: FormData): Promise<void> {
     successBody: long('successBody'),
     closedTitle: short('closedTitle'),
     closedBody: long('closedBody'),
+    layout: layout !== DEFAULT_BOOKING_LAYOUT ? layout : undefined,
   }
   // Drop the whole object when every field is empty (keeps content tidy + defaults clean).
   const booking = Object.values(next).some(Boolean) ? next : undefined
