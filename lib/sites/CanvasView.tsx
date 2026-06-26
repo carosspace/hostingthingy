@@ -110,6 +110,22 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
     return ih ? <a href={ih} data-jump={el.anchorTo || undefined} target={el.newTab ? '_blank' : undefined} rel={el.newTab ? 'noopener noreferrer' : undefined} style={{ display: 'block', width: '100%', height: '100%' }}>{node}</a> : node
   }
   if (el.type === 'embed') {
+    // An uploaded video wins over the embed link: play it natively (copies the bgVideo markup).
+    // Autoplay REQUIRES muted (browsers block unmuted autoplay), so force muted when autoplaying.
+    if (el.videoUrl)
+      return (
+        <video
+          src={el.videoUrl}
+          poster={el.videoPoster}
+          controls={!el.videoAutoplay}
+          autoPlay={!!el.videoAutoplay}
+          muted={el.videoAutoplay ? true : !!el.videoMuted}
+          loop={!!el.videoLoop}
+          playsInline
+          preload="metadata"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', border: 0, borderRadius: cqf(el.radius || 0), display: 'block' }}
+        />
+      )
     const src = el.embedUrl ? embedSrc(el.embedUrl) : null
     return src ? (
       <iframe
@@ -423,12 +439,21 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
             </div>
           )
         } else if (el.type === 'embed') {
-          const src = el.embedUrl ? embedSrc(el.embedUrl) : null
-          node = src ? (
-            <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>
-              <iframe src={src} title="Embedded media" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" allow="fullscreen; encrypted-media; picture-in-picture" style={{ width: '100%', height: '100%', border: 0, borderRadius: el.radius || 0, display: 'block' }} />
-            </div>
-          ) : null
+          // An uploaded video wins over the embed link (autoplay forces muted, as on desktop).
+          if (el.videoUrl) {
+            node = (
+              <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>
+                <video src={el.videoUrl} poster={el.videoPoster} controls={!el.videoAutoplay} autoPlay={!!el.videoAutoplay} muted={el.videoAutoplay ? true : !!el.videoMuted} loop={!!el.videoLoop} playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', border: 0, borderRadius: el.radius || 0, display: 'block' }} />
+              </div>
+            )
+          } else {
+            const src = el.embedUrl ? embedSrc(el.embedUrl) : null
+            node = src ? (
+              <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>
+                <iframe src={src} title="Embedded media" loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" allow="fullscreen; encrypted-media; picture-in-picture" style={{ width: '100%', height: '100%', border: 0, borderRadius: el.radius || 0, display: 'block' }} />
+              </div>
+            ) : null
+          }
         } else if (el.type === 'menu') {
           const ms = el.menuStyle || 'plain'
           const mcol = el.color || accent

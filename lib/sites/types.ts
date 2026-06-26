@@ -498,6 +498,15 @@ export interface CanvasElement {
   menuStyle?: MenuStyle
   // embed (video / map): a pasted YouTube/Vimeo/Maps URL; render resolves it to a safe iframe
   embedUrl?: string
+  // Uploaded video (an 'embed' element): a stored https URL on OUR Supabase `site-videos` bucket,
+  // played as a native <video>. When present it WINS over embedUrl at render. The upload goes
+  // browser→Storage directly (see createVideoUploadUrl), so the file never passes through the page
+  // JSON. videoPoster is an optional still shown before playback (gated like an image src).
+  videoUrl?: string
+  videoAutoplay?: boolean // play on load (forces muted — browsers block unmuted autoplay)
+  videoLoop?: boolean // loop when it ends
+  videoMuted?: boolean // start muted (ignored when autoplay, which is always muted)
+  videoPoster?: string // an optional poster image (https/data URL)
   // form: the fields a visitor fills in (falls back to Name/Email/Message)
   fields?: FormField[]
   // box / button / image shared

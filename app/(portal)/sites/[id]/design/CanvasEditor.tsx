@@ -12,7 +12,8 @@ import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplat
 import { SECTION_TEMPLATES, SECTION_CATEGORY_LABELS, SECTION_CATEGORY_ORDER, type SectionTemplate } from '@/lib/sites/sectionTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction, createVideoUploadUrl } from '../../actions'
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
 import { embedSrc } from '@/lib/sites/embed'
@@ -397,6 +398,8 @@ export default function CanvasEditor({
   const [aiDesigning, setAiDesigning] = useState(false) // "Design my whole site with AI" in flight
   const [aiDesignErr, setAiDesignErr] = useState('') // shown when the AI design call fails
   const dragUploadSrc = useRef<string | null>(null) // the upload being dragged onto the canvas (HTML5 drag-and-drop)
+  const [videoUploading, setVideoUploading] = useState(false) // a canvas-video upload is in flight
+  const [videoErr, setVideoErr] = useState('') // friendly error from a failed video upload (too big / wrong type / failed)
   const [pageWidth, setPageWidth] = useState<'full' | 'contained'>(initial?.width === 'contained' ? 'contained' : 'full')
   const [iconQuery, setIconQuery] = useState('') // search filter for the Add-tab icon gallery
   const [iconPickQuery, setIconPickQuery] = useState('') // search filter for the inspector icon picker
@@ -1624,6 +1627,56 @@ export default function CanvasEditor({
     }
     inp.click()
   }
+  // Upload a video file DIRECTLY browser→Supabase Storage for an 'embed' element. The file never
+  // passes through the server: we ask the server only for a signed upload URL (after it verifies
+  // ownership + picks the path), then PUT the bytes straight to Storage with the anon client. On
+  // success we set the element's videoUrl, which wins over the embed link at render.
+  const VIDEO_MIME: Record<string, string> = { 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/ogg': 'ogg' }
+  const VIDEO_MAX = 100 * 1024 * 1024 // 100 MB — matches the bucket's file_size_limit
+  async function uploadVideo(id: string, file: File) {
+    setVideoErr('')
+    // Resolve the video type from the MIME, falling back to the filename extension when the browser
+    // leaves file.type blank/unknown (common for .mov from iPhones and some containers).
+    let ext = VIDEO_MIME[file.type]
+    let contentType = file.type
+    if (!ext) {
+      const byName: Record<string, [string, string]> = {
+        mp4: ['mp4', 'video/mp4'], webm: ['webm', 'video/webm'],
+        mov: ['mov', 'video/quicktime'], qt: ['mov', 'video/quicktime'],
+        ogv: ['ogg', 'video/ogg'], ogg: ['ogg', 'video/ogg'],
+      }
+      const hit = byName[(file.name.split('.').pop() || '').toLowerCase()]
+      if (hit) { ext = hit[0]; contentType = hit[1] }
+    }
+    if (!ext) { setVideoErr('Please choose an MP4, WebM, MOV or Ogg video.'); return }
+    if (file.size > VIDEO_MAX) { setVideoErr('That video is over 100 MB. For longer videos, paste a YouTube link instead.'); return }
+    setVideoUploading(true)
+    try {
+      const res = await createVideoUploadUrl(siteId, ext)
+      if (!res.ok) { setVideoErr(res.error); return }
+      const supabase = createSupabaseBrowserClient()
+      // Pass an explicit contentType so the upload matches the bucket's mime allowlist even when the
+      // browser left file.type blank (the bucket re-validates the content-type server-side).
+      const { error } = await supabase.storage.from('site-videos').uploadToSignedUrl(res.path, res.token, file, { contentType })
+      if (error) { setVideoErr('Upload failed. Please try again.'); return }
+      update(id, { videoUrl: res.publicUrl })
+    } catch {
+      setVideoErr('Upload failed. Please try again.')
+    } finally {
+      setVideoUploading(false)
+    }
+  }
+  // Open a file picker and upload the chosen video for an 'embed' element.
+  function videoPick(id: string) {
+    const inp = document.createElement('input')
+    inp.type = 'file'
+    inp.accept = 'video/mp4,video/webm,video/quicktime,video/ogg,video/*'
+    inp.onchange = () => {
+      const f = inp.files?.[0]
+      if (f) void uploadVideo(id, f)
+    }
+    inp.click()
+  }
   // Upload a brand font: encode it as a base64 data URL with a known MIME (so it
   // always passes the gate) and add it to the page's fonts.
   function fontPick() {
@@ -2699,11 +2752,17 @@ export default function CanvasEditor({
       )
     }
     if (el.type === 'embed') {
+      // An uploaded video: show the real frame (muted, no autoplay/controls) but keep pointer
+      // events off so the element stays selectable/movable on the canvas.
+      if (el.videoUrl)
+        return (
+          <video src={el.videoUrl} poster={el.videoPoster} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: cqv(el.radius || 0), display: 'block', pointerEvents: 'none', background: '#0e0e12' }} />
+        )
       const ok = !!(el.embedUrl && embedSrc(el.embedUrl))
       return (
         <div style={{ width: '100%', height: '100%', background: '#0e0e12', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: cqv(6), borderRadius: cqv(el.radius || 0), pointerEvents: 'none' }}>
           <span style={{ fontSize: cqv(34) }}>▶</span>
-          <span style={{ fontSize: cqv(13), opacity: 0.7 }}>{ok ? 'Video / map' : 'Paste a video or map link'}</span>
+          <span style={{ fontSize: cqv(13), opacity: 0.7 }}>{ok ? 'Video / map' : 'Upload a video or paste a link'}</span>
         </div>
       )
     }
@@ -3088,7 +3147,7 @@ export default function CanvasEditor({
               <p style={labelCss}>Media &amp; buttons</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['contact', 'Email button'], ['pay', 'Buy / Pay button']] as [string, string][]).map(([key, lbl]) => (
-                  <button key={key} type="button" onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
+                  <button key={key} type="button" title={key === 'embed' ? 'Upload a video file, or paste a YouTube / Vimeo / Maps link' : undefined} onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
                   <button key={k} type="button" onClick={() => addTemplate(k)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
@@ -4139,7 +4198,35 @@ export default function CanvasEditor({
             )}
             {sel.type === 'embed' && (
               <>
-                <input value={sel.embedUrl || ''} onChange={e => update(sel.id, { embedUrl: e.target.value })} placeholder="Paste a YouTube, Vimeo or Google Maps link" style={{ ...inputCss, fontSize: 12 }} />
+                {/* Upload a video file (browser → Storage direct). When set, it wins over the link. */}
+                {sel.videoUrl ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-body text-[12px]" style={{ color: '#5c7a52' }}>✓ Video uploaded</span>
+                      <button type="button" onClick={() => { update(sel.id, { videoUrl: undefined }); setVideoErr('') }} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1 rounded-sm">Remove video</button>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {([['videoAutoplay', 'Autoplay'], ['videoLoop', 'Loop'], ['videoMuted', 'Muted']] as [keyof CanvasElement, string][]).map(([k, lbl]) => (
+                        <label key={String(k)} className="flex items-center gap-1.5 font-body text-[12px]" style={{ color: '#3a3f4a', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={!!sel[k]} onChange={e => update(sel.id, { [k]: e.target.checked || undefined })} />
+                          {lbl}
+                        </label>
+                      ))}
+                    </div>
+                    {sel.videoAutoplay && <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Autoplaying videos always start muted (browsers require it).</p>}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={videoUploading} onClick={() => videoPick(sel.id)} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm disabled:opacity-50">{videoUploading ? 'Uploading…' : 'Upload a video'}</button>
+                    <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Up to 100 MB (MP4, WebM, MOV). For longer videos, paste a YouTube link instead.</p>
+                  </div>
+                )}
+                {videoErr && <p className="font-body text-[11px]" style={{ color: '#b04a3a' }}>{videoErr}</p>}
+                <div>
+                  <span style={labelCss}>…or paste a YouTube / Vimeo / Maps link</span>
+                  <input value={sel.embedUrl || ''} onChange={e => update(sel.id, { embedUrl: e.target.value })} placeholder="https://youtube.com/…" style={{ ...inputCss, fontSize: 12, marginTop: 4 }} />
+                </div>
+                {sel.videoUrl && <p className="font-body text-ash/50" style={{ fontSize: 11 }}>An uploaded video takes priority over the link.</p>}
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={40} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />

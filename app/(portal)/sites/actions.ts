@@ -70,6 +70,7 @@ import {
   getAccountStatus,
   createLoginLink,
 } from '@/lib/stripe'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export async function createSiteAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
@@ -298,6 +299,45 @@ export async function aiCanvasAction(args: {
     return { ok: true, canvas }
   } catch {
     return { ok: false }
+  }
+}
+
+// Videos are far too big to base64-inline into the page JSON (the 12 MB save limit), so a
+// canvas video is uploaded DIRECTLY browser→Supabase Storage and the page stores only the
+// public URL. This action mints a short-lived SIGNED UPLOAD URL the browser then PUTs the file
+// to — the file never passes through this server. SECURITY: it verifies the caller is signed in
+// AND owns `siteId`, and it CHOOSES the storage path itself (the client can't pick it), so nobody
+// can scribble into another owner's folder or fill storage. The video MIME/size are also enforced
+// by the bucket (migration 020). Dormant-safe: returns a clean error (never throws) when the
+// service role isn't configured, so the editor degrades to the embed-link path.
+const VIDEO_EXTS: Record<string, string> = { mp4: 'mp4', webm: 'webm', mov: 'mov', ogg: 'ogg' }
+export async function createVideoUploadUrl(
+  siteId: string,
+  ext: string,
+): Promise<{ ok: true; path: string; token: string; publicUrl: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'Please sign in again.' }
+  // Ownership gate — essential. getSite is RLS-scoped, but we also assert owner_id === user.id
+  // explicitly so the check is obvious and holds even if RLS were ever relaxed.
+  const site = await getSite(siteId)
+  if (!site || site.ownerId !== user.id) return { ok: false, error: 'Site not found.' }
+  // Map the requested extension to a safe one (server-controlled — never trust the raw input).
+  const safeExt = VIDEO_EXTS[String(ext ?? '').trim().toLowerCase()]
+  if (!safeExt) return { ok: false, error: 'Use an MP4, WebM, MOV or Ogg video.' }
+  const admin = getSupabaseAdmin()
+  if (!admin) return { ok: false, error: 'Video uploads aren’t set up on this server yet.' }
+  // The storage path is chosen HERE (owner/site scoped, random filename), never by the client.
+  const randomId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^a-z0-9-]/gi, '')
+  // Use the id from the OWNED row we just fetched (a clean DB uuid), not the raw client siteId, so
+  // the storage path can never carry anything but a known-good id.
+  const path = `${user.id}/${site.id}/${randomId}.${safeExt}`
+  try {
+    const { data, error } = await admin.storage.from('site-videos').createSignedUploadUrl(path)
+    if (error || !data) return { ok: false, error: 'Couldn’t start the upload. Try again.' }
+    const publicUrl = admin.storage.from('site-videos').getPublicUrl(path).data.publicUrl
+    return { ok: true, path: data.path, token: data.token, publicUrl }
+  } catch {
+    return { ok: false, error: 'Couldn’t start the upload. Try again.' }
   }
 }
 
@@ -1169,6 +1209,14 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       sizeH: type === 'group' && ['hug', 'fill'].includes(String(e?.sizeH)) ? (String(e?.sizeH) as 'hug' | 'fill') : undefined,
       menuStyle: type === 'menu' && MENU_STYLES.includes(String(e?.menuStyle) as MenuStyle) ? (String(e?.menuStyle) as MenuStyle) : undefined,
       embedUrl: type === 'embed' ? httpUrl(e?.embedUrl) : undefined,
+      // Uploaded video: only accept an https URL that lives under THIS project's public
+      // `site-videos` bucket (defense against an injected arbitrary <video src>). Anything else
+      // is dropped. The booleans coerce to real booleans; the poster is gated like an image src.
+      videoUrl: type === 'embed' ? siteVideoUrl(e?.videoUrl) : undefined,
+      videoAutoplay: type === 'embed' && e?.videoAutoplay ? true : undefined,
+      videoLoop: type === 'embed' && e?.videoLoop ? true : undefined,
+      videoMuted: type === 'embed' && e?.videoMuted ? true : undefined,
+      videoPoster: type === 'embed' ? dataOrHttp(e?.videoPoster) : undefined,
       fields: type === 'form' && Array.isArray(e?.fields)
         ? ((e.fields as Record<string, unknown>[]).slice(0, 12).map((f, fi): FormField => {
             const ftype = FORM_FIELD_TYPES.includes(String(f?.type) as FormFieldType) ? (String(f?.type) as FormFieldType) : 'text'
@@ -1358,6 +1406,19 @@ function httpUrl(v: unknown): string | undefined {
   const s = String(v ?? '').trim()
   if (!/^https?:\/\/[^\s()'"\\;<>]+$/i.test(s)) return undefined
   try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:' ? s : undefined } catch { return undefined }
+}
+
+// An uploaded canvas-video URL: must be a clean https URL whose origin+path prefix is THIS
+// project's public `site-videos` bucket. We only ever store a URL the upload action produced,
+// so anything else (an injected arbitrary <video src>) is dropped. Without a configured
+// NEXT_PUBLIC_SUPABASE_URL there is no valid prefix, so nothing is accepted.
+function siteVideoUrl(v: unknown): string | undefined {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!base) return undefined
+  const s = httpUrl(v)
+  if (!s) return undefined
+  const prefix = `${base.replace(/\/+$/, '')}/storage/v1/object/public/site-videos/`
+  return s.startsWith(prefix) ? s : undefined
 }
 
 // Patch one page's fields and re-mirror the home page's content onto the top level.
