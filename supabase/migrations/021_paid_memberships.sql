@@ -113,6 +113,9 @@ grant execute on function public.get_my_course(text, uuid) to authenticated;
 -- membership status + current_period_end (so the client UI can show "active / past due / canceled"
 -- and a renewal date) and the tier's price/interval (so a paid membership reads as paid). The owner
 -- is still resolved server-side from the trusted slug; the client is matched by verified JWT email.
+-- This WIDENS the return type vs 015, and Postgres won't let `create or replace` change a function's
+-- return columns — so drop the old signature first (safe + idempotent).
+drop function if exists public.get_my_memberships(text);
 create or replace function public.get_my_memberships(p_site_slug text)
 returns table (
   tier_id            uuid,
