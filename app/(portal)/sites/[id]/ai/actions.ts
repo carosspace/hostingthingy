@@ -108,6 +108,7 @@ export async function aiCreateSiteAction(formData: FormData): Promise<void> {
     bookingHost: existing?.bookingHost,
     pages,
     savedDesigns: existing?.savedDesigns, // never drop the owner's saved designs on an AI regenerate
+    memberPortal: existing?.memberPortal, // never drop the owner's member-portal settings on an AI regenerate
   }
 
   await saveSiteContent(id, content)

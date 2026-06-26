@@ -692,6 +692,21 @@ export interface SavedDesign {
 
 export const MAX_SAVED_DESIGNS = 3
 
+// The member portal (app.animatemple.com/me): which client-facing modules are
+// enabled for this site, plus an owner-written welcome message. When unset, every
+// module is treated as ON (backward-compatible default).
+export interface MemberPortalConfig {
+  modules?: {
+    blueprint?: boolean
+    bookings?: boolean
+    messages?: boolean
+    courses?: boolean
+    memberships?: boolean
+    resources?: boolean
+  }
+  welcome?: string // a heartfelt welcome shown on the portal home; supports {name} and {brand} tokens
+}
+
 export interface SiteContent {
   theme: SiteTheme
   accentColor?: string
@@ -734,6 +749,8 @@ export interface SiteContent {
   // The canonical "Site Look" (set via "Apply to all pages") + whether new pages inherit it.
   siteLook?: SiteLook
   inheritLook?: boolean
+  // The member portal: which modules clients can see + a custom welcome message.
+  memberPortal?: MemberPortalConfig
 }
 
 // Always returns the page list, migrating a legacy single-page site on the fly.

@@ -3,6 +3,11 @@ import { getCurrentUser } from '@/lib/auth'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { getPortalSite } from '@/lib/portal/site'
 import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
+import { getMyBlueprints, blueprintConfigured } from '@/lib/portal/blueprint'
+import { getMyAppointments } from '@/lib/portal/bookings'
+import { getMyCourses } from '@/lib/portal/courses'
+import { getMyMemberships } from '@/lib/portal/memberships'
+import { getMyResources } from '@/lib/portal/resources'
 import ClientLogin from './ClientLogin'
 import PortalHeader from './PortalHeader'
 
@@ -15,16 +20,19 @@ interface ClientRow {
   name: string | null
 }
 
-// The five portal modules — all live: Blueprint (Stage 4), Bookings, Messages,
-// Courses and Memberships each link to their /me/<module> sub-page.
-const MODULES: { title: string; icon: string; desc: string; href?: string }[] = [
-  { title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.', href: '/me/blueprint' },
-  { title: 'Bookings', icon: '◷', desc: 'Your sessions — past and upcoming.', href: '/me/bookings' },
-  { title: 'Messages', icon: '✉', desc: 'Talk with {brand}, privately.', href: '/me/messages' },
-  { title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' },
-  { title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.', href: '/me/memberships' },
-  { title: 'Resources', icon: '⤓', desc: 'Downloads to keep, from {brand}.', href: '/me/resources' },
-]
+type ModuleKey = 'blueprint' | 'bookings' | 'messages' | 'courses' | 'memberships' | 'resources'
+
+// The default welcome, used when the owner hasn't written one. Supports {name}/{brand}.
+const DEFAULT_WELCOME =
+  "I'm so glad you found your way here. This is your sacred space — everything you've received from {brand}, kept gently in one place. Take your time. ✦"
+
+// Fill {name}/{brand} tokens. When there's no name, drop "{name}" *and* a leading
+// comma/space so a template like "Welcome, {name}." never reads "Welcome, .".
+function fillTokens(tpl: string, name: string, brand: string): string {
+  let s = name ? tpl.replace(/\{name\}/g, name) : tpl.replace(/,?\s*\{name\}/g, '')
+  s = s.replace(/\{brand\}/g, brand)
+  return s.trim()
+}
 
 export default async function ClientPortalPage({ searchParams }: { searchParams: { error?: string } }) {
   const portal = await getPortalSite()
@@ -67,21 +75,56 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   }
 
   const email = client?.email || user.email || 'friend'
-  const displayName = client?.name?.trim() || ''
+  // Name comes from the portal client row first, then the auth user's metadata
+  // (this is where blueprint buyers' names land — set when their account is minted).
+  const metaName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''
+  const displayName = (client?.name?.trim() || metaName.trim() || '')
   const footer = content?.footer || brand
+
+  // Which modules the owner has enabled (default: all on for backward compatibility).
+  const moduleOn = (k: ModuleKey): boolean => content?.memberPortal?.modules?.[k] ?? true
+
+  // Per-person ownership: a big tile only appears once they actually have something
+  // in that module. Only query enabled modules. Every getMy* degrades to [] on error.
+  const [hasBlueprint, hasBookings, hasCourses, hasMemberships, hasResources] = await Promise.all([
+    moduleOn('blueprint')
+      ? (async () => {
+          if (!blueprintConfigured()) return false
+          const r = await getMyBlueprints(user.email || '')
+          return r.length > 0
+        })().catch(() => false)
+      : Promise.resolve(false),
+    moduleOn('bookings') ? getMyAppointments(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
+    moduleOn('courses') ? getMyCourses(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
+    moduleOn('memberships') ? getMyMemberships(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
+    moduleOn('resources') ? getMyResources(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
+  ])
+
+  // Big tiles — only the modules this person owns content in.
+  type Tile = { title: string; icon: string; desc: string; href: string }
+  const tiles: Tile[] = []
+  if (hasBlueprint) tiles.push({ title: 'Your Divine Blueprint', icon: '✦', desc: 'Your reading, kept safe in one place.', href: '/me/blueprint' })
+  if (hasBookings) tiles.push({ title: 'Bookings', icon: '◷', desc: 'Your sessions — past and upcoming.', href: '/me/bookings' })
+  if (hasCourses) tiles.push({ title: 'Courses', icon: '❖', desc: 'Lessons and journeys to walk through.', href: '/me/courses' })
+  if (hasMemberships) tiles.push({ title: 'Memberships', icon: '♢', desc: 'Your circle and what it unlocks.', href: '/me/memberships' })
+  if (hasResources) tiles.push({ title: 'Resources', icon: '⤓', desc: `Downloads to keep, from ${brand}.`, href: '/me/resources' })
+
+  // Always-there reachability, as small icons (gated only by the owner's toggles).
+  type Quick = { label: string; icon: string; href: string }
+  const quickLinks: Quick[] = []
+  if (moduleOn('messages')) quickLinks.push({ label: 'Messages', icon: '✉', href: '/me/messages' })
+  if (moduleOn('bookings')) quickLinks.push({ label: 'Book a session', icon: '◷', href: `/book/${slug}` })
+
+  const welcomeText = fillTokens((content?.memberPortal?.welcome || '').trim() || DEFAULT_WELCOME, displayName, brand)
 
   const cardStyle: CSSProperties = {
     background: `${accent}0a`,
     border: `1px solid ${accent}26`,
     borderRadius: 18,
   }
-  const pillStyle: CSSProperties = {
-    background: `${accent}1a`,
-    color: accent,
-    fontSize: 9,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    padding: '4px 10px',
+  const quickStyle: CSSProperties = {
+    background: `${accent}12`,
+    border: `1px solid ${accent}2e`,
     borderRadius: 999,
   }
 
@@ -91,48 +134,60 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
       <PortalHeader brand={brand} logoImage={content?.logoImage} theme={{ muted: portalMuted }} accent={accent} />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-16">
-        {/* Greeting */}
+        {/* Greeting + heartfelt welcome */}
         <div>
           <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
             Welcome{displayName ? `, ${displayName}` : ''}
           </h1>
-          <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6 }}>
-            Signed in as <span style={{ color: portalText }}>{email}</span>. This is your space with {brand} — everything in one calm place.
+          <p className="font-body mt-4" style={{ color: portalText, fontSize: 16, lineHeight: 1.7, maxWidth: 560 }}>
+            {welcomeText}
+          </p>
+          <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 12.5, lineHeight: 1.6 }}>
+            Signed in as <span style={{ color: portalText }}>{email}</span>.
           </p>
         </div>
 
-        {/* Module grid */}
-        <div className="mt-12 grid gap-4 sm:grid-cols-2">
-          {MODULES.map(m => {
-            const inner = (
-              <>
+        {/* Small always-there icons: Messages + Book a session */}
+        {quickLinks.length > 0 && (
+          <div className="mt-8 flex flex-wrap gap-3">
+            {quickLinks.map(q => (
+              <a
+                key={q.label}
+                href={q.href}
+                className="flex items-center gap-2 px-4 py-2.5 transition-opacity hover:opacity-80"
+                style={quickStyle}
+              >
+                <span aria-hidden="true" style={{ color: accent, fontSize: 15, lineHeight: 1 }}>{q.icon}</span>
+                <span className="font-label" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: portalText }}>
+                  {q.label}
+                </span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Personalized module tiles — only what they own */}
+        {tiles.length > 0 ? (
+          <div className="mt-12 grid gap-4 sm:grid-cols-2">
+            {tiles.map(m => (
+              <a key={m.title} href={m.href} className="p-6 flex flex-col gap-3 transition-opacity hover:opacity-80" style={cardStyle}>
                 <div className="flex items-start justify-between gap-3">
                   <span aria-hidden="true" style={{ color: accent, fontSize: 22, lineHeight: 1 }}>{m.icon}</span>
-                  {m.href ? (
-                    <span aria-hidden="true" style={{ color: accent, fontSize: 18, lineHeight: 1 }}>→</span>
-                  ) : (
-                    <span className="font-label" style={pillStyle}>Coming soon</span>
-                  )}
+                  <span aria-hidden="true" style={{ color: accent, fontSize: 18, lineHeight: 1 }}>→</span>
                 </div>
                 <div>
                   <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>{m.title}</h2>
-                  <p className="font-body mt-1.5" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
-                    {m.desc.replace(/\{brand\}/g, () => brand)}
-                  </p>
+                  <p className="font-body mt-1.5" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>{m.desc}</p>
                 </div>
-              </>
-            )
-            return m.href ? (
-              <a key={m.title} href={m.href} className="p-6 flex flex-col gap-3 transition-opacity hover:opacity-80" style={cardStyle}>
-                {inner}
               </a>
-            ) : (
-              <div key={m.title} className="p-6 flex flex-col gap-3" style={cardStyle}>
-                {inner}
-              </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="font-body mt-12" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 480 }}>
+            Your space is ready. When you receive a reading, book a session{moduleOn('messages') ? ', send a message,' : ''} or
+            join something from {brand}, it&apos;ll appear here for you.
+          </p>
+        )}
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>

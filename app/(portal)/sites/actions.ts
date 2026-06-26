@@ -16,6 +16,7 @@ import { FONT_SYSTEM_KEYS } from '@/lib/sites/fonts'
 import { isGoogleFamily, GOOGLE_FONTS } from '@/lib/sites/googleFonts'
 import type {
   SiteContent,
+  MemberPortalConfig,
   SiteLook,
   BookingCopy,
   SavedDesign,
@@ -497,6 +498,34 @@ export async function setBookingCopyAction(formData: FormData): Promise<void> {
   revalidatePath(`/sites/${id}`)
 }
 
+// Save the member-portal settings: which modules clients see in their private
+// space + a heartfelt welcome message. Spread-preserves all other content
+// (FOOTGUN: a bare write would drop pages/savedDesigns/etc.). Checkboxes default
+// to ON — an unchecked box is recorded as false. The welcome supports {name}/{brand}.
+export async function setMemberPortalAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site) return
+
+  const modules = {
+    blueprint: formData.get('blueprint') === 'on',
+    bookings: formData.get('bookings') === 'on',
+    messages: formData.get('messages') === 'on',
+    courses: formData.get('courses') === 'on',
+    memberships: formData.get('memberships') === 'on',
+    resources: formData.get('resources') === 'on',
+  }
+  const welcome = String(formData.get('welcome') ?? '').trim().slice(0, 600) || undefined
+  const memberPortal: MemberPortalConfig = { modules, welcome }
+
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...existing, memberPortal })
+  revalidatePath(`/sites/${id}`)
+}
+
 // Save the site-wide page-transition style (a gentle enter animation on every page).
 // Spread-preserves all other content, like setBrandVoiceAction.
 export async function setPageTransitionAction(siteId: string, kind: string): Promise<{ ok: boolean }> {
@@ -601,6 +630,7 @@ export async function saveSiteContentAction(formData: FormData): Promise<void> {
     savedDesigns: existing?.savedDesigns, // never drop saved designs on a content save
     siteLook: existing?.siteLook, // set via applySiteLookAction; never drop on a content save
     inheritLook: existing?.inheritLook, // set via applySiteLookAction / setSiteLookOptionAction
+    memberPortal: existing?.memberPortal, // set via setMemberPortalAction; never drop on a content save
   })
 
   revalidatePath(`/sites/${id}`)
@@ -797,6 +827,7 @@ export async function saveSiteContentJsonAction(formData: FormData): Promise<voi
     savedDesigns: existing?.savedDesigns, // managed elsewhere; never drop on a content save
     siteLook: existing?.siteLook, // set via applySiteLookAction; never drop on a content save
     inheritLook: existing?.inheritLook, // set via applySiteLookAction / setSiteLookOptionAction
+    memberPortal: existing?.memberPortal, // set via setMemberPortalAction; never drop on a content save
   }
 
   await saveSiteContent(id, content)
@@ -1536,6 +1567,7 @@ function applyLookToContent(content: SiteContent, look: SiteLook): SiteContent {
     subheadline: home.subheadline,
     sections: home.sections,
     pages: updatedPages,
+    memberPortal: content.memberPortal, // explicit: the member-portal config rides through every look apply
   }
 }
 
@@ -1822,7 +1854,9 @@ export async function loadDesignAction(siteId: string, slotId: string): Promise<
   const slot = designs.find(d => d.id === slotId)
   if (!slot) return { ok: false, error: 'slot' }
 
-  const next: SiteContent = { ...stripSavedDesigns(slot.snapshot), savedDesigns: designs }
+  // Switching the visual design must NOT revert the member-portal config (module
+  // toggles + welcome) — that's owner settings, not part of the look snapshot.
+  const next: SiteContent = { ...stripSavedDesigns(slot.snapshot), savedDesigns: designs, memberPortal: site.content.memberPortal }
   await saveSiteContent(siteId, next)
   revalidatePath(`/sites/${siteId}`)
   revalidatePath(`/sites/${siteId}/design`)

@@ -9,6 +9,7 @@ import {
   setDomainAction,
   deleteSiteAction,
   setBookingCopyAction,
+  setMemberPortalAction,
   connectStripeAction,
   refreshStripeStatusAction,
   refreshStripeStatusFormAction,
@@ -28,6 +29,16 @@ const STATUS: Record<Site['status'], { label: string; cls: string }> = {
   failed: { label: 'Failed', cls: 'text-red-400' },
   stopped: { label: 'Stopped', cls: 'text-ash' },
 }
+
+// The member-portal modules the owner can show/hide (default: all on).
+const PORTAL_MODULES = [
+  { name: 'blueprint', label: 'Divine Blueprint' },
+  { name: 'bookings', label: 'Bookings' },
+  { name: 'messages', label: 'Messages' },
+  { name: 'courses', label: 'Courses' },
+  { name: 'memberships', label: 'Memberships' },
+  { name: 'resources', label: 'Resources' },
+] as const
 
 export default async function SiteDetailPage({
   params,
@@ -390,6 +401,50 @@ export default async function SiteDetailPage({
             </details>
           </>
         )}
+      </section>
+
+      <section className="border border-gold/15 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Member portal</p>
+        <p className="font-body text-ash/60 text-xs mb-5">
+          Your clients&rsquo; private space. Choose which rooms they can see, and write the welcome they&rsquo;ll
+          read when they sign in. Each room only appears for a person once they actually have something in it —
+          Messages and &ldquo;Book a session&rdquo; always stay within reach.
+        </p>
+        <form action={setMemberPortalAction} className="space-y-5">
+          <input type="hidden" name="id" value={site.id} />
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+            {PORTAL_MODULES.map(m => (
+              <label key={m.name} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name={m.name}
+                  defaultChecked={site.content?.memberPortal?.modules?.[m.name] ?? true}
+                  className="accent-gold w-4 h-4"
+                />
+                <span className="font-body text-parchment text-sm">{m.label}</span>
+              </label>
+            ))}
+          </div>
+          <div>
+            <label className="font-label text-[10px] tracking-[2px] uppercase text-ash/50 block mb-1.5">
+              Welcome message
+            </label>
+            <textarea
+              name="welcome"
+              defaultValue={site.content?.memberPortal?.welcome ?? ''}
+              maxLength={600}
+              rows={3}
+              placeholder="I'm so glad you found your way here. This is your sacred space — everything you've received from {brand}, kept gently in one place. Take your time. ✦"
+              className="w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none resize-none placeholder:text-ash/40"
+            />
+            <p className="font-body text-ash/40 text-[11px] mt-1.5">
+              Use {'{name}'} for the person&rsquo;s name and {'{brand}'} for your brand. Leave blank for the default.
+            </p>
+          </div>
+          <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+            Save
+          </button>
+        </form>
       </section>
 
       <section className="flex flex-wrap items-center gap-3">
