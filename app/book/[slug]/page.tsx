@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getBookingPage } from '@/lib/bookings/repo'
+import { getOwnerBusyRanges, busyRangesToTaken } from '@/lib/bookings/external-calendar'
 import { THEMES, DEFAULT_THEME, type SiteTheme } from '@/lib/sites/types'
 import { fontVars } from '@/lib/sites/fonts'
 import { stripeConfigured } from '@/lib/stripe'
@@ -24,6 +25,15 @@ export default async function BookPage({
   const accent = content?.accentColor || theme.accent
   const brand = content?.brand || site.name
   const data = await getBookingPage(params.slug)
+  // "Block busy times": fold the owner's own external calendar (their secret iCal URL, read
+  // server-side only) into the taken slots. Dormant-safe — no URL / any failure => no extra ranges
+  // => identical behavior. The URL never reaches the client; only the derived busy time-blocks do.
+  if (data) {
+    const busy = await getOwnerBusyRanges(params.slug, data.settings.windowDays)
+    if (busy.length) {
+      data.taken = [...data.taken, ...busyRangesToTaken(busy, data.settings.timezone)]
+    }
+  }
   const services = data?.services ?? []
   const sent = searchParams.sent === '1'
   const rootStyle = { background: theme.bg, color: theme.text, ...fontVars(content?.fontSystem) } as unknown as CSSProperties

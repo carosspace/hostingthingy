@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { listServices, listAppointments, getAvailability, getSettings } from '@/lib/bookings/repo'
+import { listServices, listAppointments, getAvailability, getSettings, getOwnerExternalIcalUrl } from '@/lib/bookings/repo'
 import {
   formatPrice,
   formatDayLabel,
@@ -44,11 +44,17 @@ export default async function BookingsPage() {
 
   let availability: AvailabilityWindow[] = []
   let settings: BookingSettings = { ...DEFAULT_BOOKING_SETTINGS }
+  let externalIcalUrl = ''
   try {
     availability = await getAvailability()
     settings = await getSettings()
   } catch {
     // booking_availability / booking_settings tables not migrated yet (006)
+  }
+  try {
+    externalIcalUrl = await getOwnerExternalIcalUrl()
+  } catch {
+    // external_ical_url column not migrated yet (019) — feature simply stays off
   }
 
   let bookingSlug = ''
@@ -149,7 +155,7 @@ export default async function BookingsPage() {
 
       <section>
         <h2 className="font-label text-[11px] tracking-[4px] uppercase text-gold mb-4">Availability</h2>
-        <AvailabilityEditor initialSettings={settings} initialWindows={availability} />
+        <AvailabilityEditor initialSettings={settings} initialWindows={availability} initialExternalIcalUrl={externalIcalUrl} />
       </section>
 
       <section>

@@ -77,9 +77,11 @@ function slotLabel(m: number): string {
 export default function AvailabilityEditor({
   initialSettings,
   initialWindows,
+  initialExternalIcalUrl = '',
 }: {
   initialSettings: BookingSettings
   initialWindows: AvailabilityWindow[]
+  initialExternalIcalUrl?: string
 }) {
   const init: Record<number, Range[]> = {}
   for (const wd of WEEKDAY_ORDER) init[wd] = []
@@ -95,6 +97,7 @@ export default function AvailabilityEditor({
   const [windowDays, setWindowDays] = useState(initialSettings.windowDays || 30)
   const [minNoticeHours, setMinNoticeHours] = useState(initialSettings.minNoticeHours ?? 12)
   const [slotStepMin, setSlotStepMin] = useState(initialSettings.slotStepMin || 0)
+  const [externalIcalUrl, setExternalIcalUrl] = useState(initialExternalIcalUrl)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -143,7 +146,14 @@ export default function AvailabilityEditor({
       }
     }
     const fd = new FormData()
-    fd.set('schedule', JSON.stringify({ settings: { timezone, windowDays, minNoticeHours, slotStepMin }, windows }))
+    fd.set(
+      'schedule',
+      JSON.stringify({
+        settings: { timezone, windowDays, minNoticeHours, slotStepMin },
+        windows,
+        externalIcalUrl: externalIcalUrl.trim(),
+      }),
+    )
     try {
       await saveScheduleAction(fd)
       setSaved(true)
@@ -298,6 +308,26 @@ export default function AvailabilityEditor({
           <span className={fieldHint}>How far apart each start time is.</span>
         </label>
       </div>
+
+      <label className="block pt-1">
+        <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">Block times from your own calendar</span>
+        <input
+          type="url"
+          inputMode="url"
+          value={externalIcalUrl}
+          onChange={e => { setExternalIcalUrl(e.target.value); touched() }}
+          placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+          className={selectCls}
+          style={{ colorScheme: 'dark' }}
+          spellCheck={false}
+          autoComplete="off"
+        />
+        <span className={fieldHint}>
+          Paste your calendar&apos;s secret iCal address and we&apos;ll hide any slot that clashes with an event on it.
+          Google: Settings → your calendar → Secret address in iCal format. Apple/Outlook also have a private .ics link.
+          Leave empty to turn this off. Kept private — only the busy times are used, never the link itself.
+        </span>
+      </label>
 
       <div className="flex items-center gap-3">
         <button

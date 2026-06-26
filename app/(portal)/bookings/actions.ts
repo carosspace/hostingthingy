@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
 import { createService, deleteService, setAppointmentStatus, saveSchedule } from '@/lib/bookings/repo'
 import { notifyBookingConfirmed } from '@/lib/bookings/notify'
+import { validateExternalIcalUrl } from '@/lib/bookings/external-calendar'
 import type { AvailabilityWindow } from '@/lib/bookings/types'
 import { getSite, saveSiteContent } from '@/lib/sites/store'
 import type { SiteContent } from '@/lib/sites/types'
@@ -70,7 +71,7 @@ export async function saveScheduleAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
   if (!user) return
 
-  let parsed: { settings?: Record<string, unknown>; windows?: Record<string, unknown>[] }
+  let parsed: { settings?: Record<string, unknown>; windows?: Record<string, unknown>[]; externalIcalUrl?: unknown }
   try {
     parsed = JSON.parse(String(formData.get('schedule') ?? '{}'))
   } catch {
@@ -102,6 +103,22 @@ export async function saveScheduleAction(formData: FormData): Promise<void> {
     )
     .slice(0, 50)
 
-  await saveSchedule(user.id, settings, windows)
+  // External calendar ("block busy times"): the owner's secret iCal URL. The key 'externalIcalUrl'
+  // is only present when the field was touched, so we can distinguish "leave as-is" (undefined) from
+  // "clear it" (''). Empty string => feature off. A non-empty value MUST validate or the whole save
+  // is rejected, so a bad/unsafe URL can never be stored.
+  let externalIcalUrl: string | undefined
+  if (typeof parsed.externalIcalUrl === 'string') {
+    const rawUrl = parsed.externalIcalUrl.trim().slice(0, 2048)
+    if (rawUrl === '') {
+      externalIcalUrl = '' // explicit clear
+    } else {
+      const valid = validateExternalIcalUrl(rawUrl)
+      if (!valid) return // reject the save: invalid / obviously-internal URL
+      externalIcalUrl = valid
+    }
+  }
+
+  await saveSchedule(user.id, settings, windows, externalIcalUrl)
   revalidatePath('/bookings')
 }

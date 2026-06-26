@@ -97,22 +97,42 @@ export async function getSettings(): Promise<BookingSettings> {
   }
 }
 
-// Replace the whole weekly schedule + settings in one shot.
+// The owner's secret external iCal URL (owner-only; RLS scopes it to auth.uid()). This is
+// SEMI-PRIVATE and is NEVER part of the public BookingPageData / get_booking_page RPC — it is
+// surfaced only here, for the owner to edit their own setting.
+export async function getOwnerExternalIcalUrl(): Promise<string> {
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('booking_settings')
+    .select('external_ical_url')
+    .maybeSingle()
+  if (error || !data) return ''
+  return (data.external_ical_url as string | null) ?? ''
+}
+
+// Replace the whole weekly schedule + settings in one shot. `externalIcalUrl` is the owner's
+// secret calendar URL ('' clears it / turns the feature off); pass `undefined` to leave it
+// untouched. It is validated by the caller (action) before reaching here.
 export async function saveSchedule(
   ownerId: string,
   settings: BookingSettings,
   windows: AvailabilityWindow[],
+  externalIcalUrl?: string,
 ): Promise<void> {
   const supabase = createSupabaseServerClient()
 
-  const { error: upErr } = await supabase.from('booking_settings').upsert({
+  const settingsRow: Record<string, unknown> = {
     owner_id: ownerId,
     timezone: settings.timezone,
     window_days: settings.windowDays,
     min_notice_hours: settings.minNoticeHours,
     slot_step_min: settings.slotStepMin,
     updated_at: new Date().toISOString(),
-  })
+  }
+  // Only write the URL column when the caller provided a value (so an unrelated save can't wipe it).
+  if (externalIcalUrl !== undefined) settingsRow.external_ical_url = externalIcalUrl || null
+
+  const { error: upErr } = await supabase.from('booking_settings').upsert(settingsRow)
   if (upErr) throw upErr
 
   const { error: delErr } = await supabase.from('booking_availability').delete().eq('owner_id', ownerId)
