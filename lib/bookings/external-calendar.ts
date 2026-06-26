@@ -1,6 +1,10 @@
 import dns from 'node:dns/promises'
 import net from 'node:net'
-import ical from 'node-ical'
+// TYPE-ONLY: node-ical is loaded LAZILY at parse time (see getOwnerBusyRanges). This module is
+// imported by the public /book page AND the portal /bookings actions, so a top-level runtime
+// require would 500 BOTH routes if the package isn't present at runtime (it's kept external from
+// the bundle and isn't traced into the standalone server). `import type` is erased at runtime.
+import type ical from 'node-ical'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { ownerLocalToUtc } from './ics'
 import { pad2, type TakenSlot } from './types'
@@ -377,7 +381,12 @@ export async function getOwnerBusyRanges(slug: string, windowDays: number): Prom
 
     let parsed: ical.CalendarResponse
     try {
-      parsed = ical.sync.parseICS(body)
+      // Lazily load node-ical only when we actually have a calendar to parse. If it can't be loaded
+      // at runtime (e.g. not traced into the standalone server), this throws here and we degrade to
+      // no busy-blocking — the booking page still renders — rather than crashing the module on import.
+      const mod: { default?: typeof ical } & Record<string, unknown> = await import('node-ical')
+      const nodeIcal = (mod.default ?? mod) as typeof ical
+      parsed = nodeIcal.sync.parseICS(body)
     } catch {
       return []
     }
