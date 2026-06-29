@@ -169,7 +169,7 @@ export default function PreviewPage() {
                   )}
                 </div>
                 <p className="font-body text-ash/60 text-sm mt-1">
-                  {site.slug}.hostingthingy.app · <span className="text-gold/60">{site.template}</span>
+                  {site.slug} · <span className="text-gold/60">{site.template}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">

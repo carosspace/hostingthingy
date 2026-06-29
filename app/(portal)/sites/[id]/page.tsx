@@ -81,7 +81,7 @@ export default async function SiteDetailPage({
   const st = STATUS[site.status]
   const rows: [string, string][] = [
     ['Template', site.template],
-    ['Address', `${site.slug}.hostingthingy.app`],
+    ['Address', site.url ?? 'No custom domain yet'],
     ['Created', new Date(site.createdAt).toLocaleString()],
     ['Last updated', new Date(site.updatedAt).toLocaleString()],
   ]

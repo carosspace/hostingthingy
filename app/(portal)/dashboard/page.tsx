@@ -135,7 +135,7 @@ export default async function DashboardPage() {
                     <StatusBadge status={site.status} />
                   </div>
                   <p className="font-body text-ash/60 text-sm mt-1 truncate">
-                    {site.url ?? `${site.slug}.hostingthingy.app`} · <span className="text-gold/60">{site.template}</span>
+                    {site.url ?? 'No custom domain yet'} · <span className="text-gold/60">{site.template}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
