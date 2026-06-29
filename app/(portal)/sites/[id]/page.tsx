@@ -4,6 +4,7 @@ import { BOOKING_LAYOUTS, BOOKING_LAYOUT_META, DEFAULT_BOOKING_LAYOUT } from '@/
 import { getSite } from '@/lib/sites/store'
 import {
   renameSiteAction,
+  setBrandNameAction,
   redeploySiteAction,
   pauseSiteAction,
   setDomainAction,
@@ -150,6 +151,26 @@ export default async function SiteDetailPage({
             defaultValue={site.name}
             required
             className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none"
+          />
+          <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
+            Save
+          </button>
+        </form>
+      </section>
+
+      <section className="border border-gold/15 rounded-sm p-6">
+        <p className="font-label text-[10px] tracking-[3px] uppercase text-gold mb-2">Brand name</p>
+        <p className="font-body text-ash/60 text-xs mb-4">
+          The name shown in your header and footer, and in your clients&rsquo; portal (the sign-in screen + their welcome).
+        </p>
+        <form action={setBrandNameAction} className="flex flex-col sm:flex-row gap-3">
+          <input type="hidden" name="id" value={site.id} />
+          <input
+            name="brand"
+            defaultValue={site.content?.brand ?? ''}
+            placeholder="Anima Temple"
+            maxLength={80}
+            className="flex-1 bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body px-4 py-3 rounded-sm outline-none placeholder:text-ash/40"
           />
           <button className="font-label text-[11px] tracking-[3px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-6 py-3 rounded-sm transition-colors">
             Save

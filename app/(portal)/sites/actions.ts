@@ -463,6 +463,21 @@ export async function setBrandVoiceAction(siteId: string, voice: string): Promis
   return { ok: true }
 }
 
+// Save the site's brand NAME — the label shown in the header, the footer, and the
+// client portal (login + welcome). Spread-preserves all other content.
+export async function setBrandNameAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  if (!id) return
+  const site = await getSite(id) // RLS-scoped — only the owner's site comes back
+  if (!site) return
+  const brand = String(formData.get('brand') ?? '').trim().slice(0, 80) || undefined
+  const existing: SiteContent = site.content ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }
+  await saveSiteContent(id, { ...existing, brand })
+  revalidatePath(`/sites/${id}`)
+}
+
 // Save the editable copy for the public booking page (/book/[slug]). Loads the full
 // content and writes it back with the spread intact (FOOTGUN: a bare write would drop
 // pages/savedDesigns/etc.), so only `booking` changes. Each field is trimmed and capped;
