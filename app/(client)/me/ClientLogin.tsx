@@ -87,7 +87,7 @@ export default function ClientLogin({
               Your space
             </h1>
             <p className="font-body" style={{ color: theme.muted, fontSize: 14, lineHeight: 1.6 }}>
-              Sign in to {brand} — we&apos;ll email you a link, no password needed.
+              Sign in to {brand}. We&apos;ll email you a link, no password needed.
             </p>
           </div>
           <div>

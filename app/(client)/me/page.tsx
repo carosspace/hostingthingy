@@ -43,7 +43,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
           brand={brand}
           logoImage={content?.logoImage}
           theme={{ bg: theme.bg, text: portalText, muted: portalMuted, accent }}
-          initialError={searchParams?.error === 'link' ? 'That link expired or was already used — request a new one below.' : undefined}
+          initialError={searchParams?.error === 'link' ? 'That sign-in link had already been used. Pop your email in below and we\'ll send a fresh one.' : undefined}
         />
       </div>
     )
@@ -70,7 +70,8 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   // Name comes from the portal client row first, then the auth user's metadata
   // (this is where blueprint buyers' names land — set when their account is minted).
   const metaName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''
-  const displayName = client?.name?.trim() || metaName.trim() || ''
+  // Greet by FIRST name only (warmer, less formal than the full name).
+  const firstName = (client?.name?.trim() || metaName.trim() || '').split(/\s+/)[0] || ''
   const footer = content?.footer || brand
 
   // Which modules the owner has enabled (default: all on for backward compatibility).
@@ -100,8 +101,8 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
     const d = PORTAL_TILE_DEFAULTS[k]
     return {
       icon: d.icon,
-      title: fillTokens(tileCopy?.[k]?.title?.trim() || d.title, displayName, brand),
-      desc: fillTokens(tileCopy?.[k]?.desc?.trim() || d.desc, displayName, brand),
+      title: fillTokens(tileCopy?.[k]?.title?.trim() || d.title, firstName, brand),
+      desc: fillTokens(tileCopy?.[k]?.desc?.trim() || d.desc, firstName, brand),
       href: `/me/${k}`,
     }
   }
@@ -118,8 +119,8 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   if (moduleOn('messages')) quickLinks.push({ label: 'Messages', icon: '✉', href: '/me/messages' })
   if (moduleOn('bookings')) quickLinks.push({ label: 'Book a session', icon: '◷', href: `/book/${slug}` })
 
-  const welcomeText = fillTokens((content?.memberPortal?.welcome || '').trim() || DEFAULT_WELCOME, displayName, brand)
-  const emptyText = fillTokens((content?.memberPortal?.emptyState || '').trim() || DEFAULT_EMPTY, displayName, brand)
+  const welcomeText = fillTokens((content?.memberPortal?.welcome || '').trim() || DEFAULT_WELCOME, firstName, brand)
+  const emptyText = fillTokens((content?.memberPortal?.emptyState || '').trim() || DEFAULT_EMPTY, firstName, brand)
 
   const cardStyle: CSSProperties = {
     background: `${accent}0a`,
@@ -141,7 +142,7 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
         {/* Greeting + heartfelt welcome */}
         <div>
           <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
-            Welcome{displayName ? `, ${displayName}` : ''}
+            Welcome{firstName ? `, ${firstName}` : ''}
           </h1>
           <p className="font-body mt-4" style={{ color: portalText, fontSize: 16, lineHeight: 1.7, maxWidth: 560 }}>
             {welcomeText}
