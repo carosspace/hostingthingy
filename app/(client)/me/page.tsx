@@ -67,7 +67,6 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
     console.error('[client-portal] ensure_client threw:', e)
   }
 
-  const email = client?.email || user.email || 'friend'
   // Name comes from the portal client row first, then the auth user's metadata
   // (this is where blueprint buyers' names land — set when their account is minted).
   const metaName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''
@@ -146,9 +145,6 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
           </h1>
           <p className="font-body mt-4" style={{ color: portalText, fontSize: 16, lineHeight: 1.7, maxWidth: 560 }}>
             {welcomeText}
-          </p>
-          <p className="font-body mt-3" style={{ color: portalMuted, fontSize: 12.5, lineHeight: 1.6 }}>
-            Signed in as <span style={{ color: portalText }}>{email}</span>.
           </p>
         </div>
 

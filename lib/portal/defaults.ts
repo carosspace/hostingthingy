@@ -10,7 +10,7 @@ export const PORTAL_TILE_DEFAULTS: Record<
   { icon: string; title: string; desc: string }
 > = {
   blueprint: { icon: '✦', title: 'Your Divine Blueprint', desc: 'Your reading, kept safe in one place.' },
-  bookings: { icon: '◷', title: 'Bookings', desc: 'Your sessions — past and upcoming.' },
+  bookings: { icon: '◷', title: 'Bookings', desc: 'Your sessions, past and upcoming.' },
   courses: { icon: '❖', title: 'Courses', desc: 'Lessons and journeys to walk through.' },
   memberships: { icon: '♢', title: 'Memberships', desc: 'Your circle and what it unlocks.' },
   resources: { icon: '⤓', title: 'Resources', desc: 'Downloads to keep, from {brand}.' },
@@ -19,7 +19,7 @@ export const PORTAL_TILE_DEFAULTS: Record<
 export const TILE_ORDER = ['blueprint', 'bookings', 'courses', 'memberships', 'resources'] as const
 
 export const DEFAULT_WELCOME =
-  "I'm so glad you found your way here. This is your sacred space — everything you've received from {brand}, kept gently in one place. Take your time. ✦"
+  "I'm so glad you found your way here. This is your sacred space, where everything you've received from {brand} is kept gently in one place. Take your time. ✦"
 
 export const DEFAULT_EMPTY =
   "Your space is ready. When you receive a reading, book a session, or join something from {brand}, it'll appear here for you."
