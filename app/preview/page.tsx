@@ -101,7 +101,7 @@ export default function PreviewPage() {
       <header className="border-b border-gold/10">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-label text-[11px] tracking-[4px] uppercase text-gold">Hosting&nbsp;Thingy</span>
+            <span className="font-label text-[11px] tracking-[4px] uppercase text-gold">Anima&nbsp;Temple</span>
             <span className="font-label text-[9px] tracking-[2px] uppercase text-background bg-gold/80 px-2 py-0.5 rounded-sm">Preview</span>
           </div>
           <Link href="/" className="font-label text-[10px] tracking-[3px] uppercase text-ash hover:text-gold transition-colors">← Home</Link>

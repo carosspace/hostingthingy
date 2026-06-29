@@ -32,7 +32,7 @@ export default function Home() {
       {/* Hero */}
       <section className="px-6 pt-24 pb-20 text-center max-w-3xl mx-auto">
         <Mark size={64} />
-        <p className="font-label text-[11px] tracking-[6px] text-gold uppercase mt-6">Hosting Thingy</p>
+        <p className="font-label text-[11px] tracking-[6px] text-gold uppercase mt-6">Anima Temple</p>
         <h1 className="font-display text-5xl md:text-6xl italic text-parchment mt-6 leading-tight">
           Sacred hosting for your work
         </h1>
@@ -89,7 +89,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-gold/10 px-6 py-10 text-center">
-        <p className="font-label text-[10px] tracking-[5px] uppercase text-gold/70">Hosting Thingy</p>
+        <p className="font-label text-[10px] tracking-[5px] uppercase text-gold/70">Anima Temple</p>
         <p className="font-body text-ash/40 text-xs mt-3">Sacred hosting &middot; made in Europe</p>
       </footer>
     </main>

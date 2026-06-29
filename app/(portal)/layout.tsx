@@ -20,7 +20,7 @@ export default async function PortalLayout({ children }: { children: React.React
       <header className="border-b border-gold/10">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/dashboard" className="font-label text-[11px] tracking-[4px] uppercase text-gold">
-            Hosting&nbsp;Thingy
+            Anima&nbsp;Temple
           </Link>
           <nav className="flex items-center gap-6 font-label text-[10px] tracking-[3px] uppercase">
             <Link href="/dashboard" className="text-ash hover:text-gold transition-colors">Dashboard</Link>

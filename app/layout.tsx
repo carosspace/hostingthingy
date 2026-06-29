@@ -44,7 +44,7 @@ const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat
 const jost = Jost({ subsets: ["latin"], variable: "--font-jost", display: "swap", preload: false });
 
 export const metadata: Metadata = {
-  title: "Hosting Thingy — Sacred hosting for your work",
+  title: "Anima Temple — Sacred hosting for your work",
   description:
     "Host your website, connect your domain, and run your business from one calm place.",
 };
