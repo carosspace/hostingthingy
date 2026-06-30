@@ -120,6 +120,12 @@ export default async function DesignPage({
                 <input type="checkbox" name="hidden" value="1" defaultChecked={!!current.hidden} style={{ accentColor: '#a85c36' }} />
                 Hide from menu
               </label>
+              {current.slug !== '' && (
+                <label className="flex items-center gap-2 font-body text-ash/70 text-sm pb-2" title="Saved in your editor, but visitors can't reach it. Untick to bring it back online.">
+                  <input type="checkbox" name="offline" value="1" defaultChecked={!!current.offline} style={{ accentColor: '#a85c36' }} />
+                  Take offline
+                </label>
+              )}
               <div className="w-full" />
               <label className="block">
                 <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">SEO title <span className="opacity-60 normal-case">— for Google &amp; sharing</span></span>

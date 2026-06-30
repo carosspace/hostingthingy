@@ -34,7 +34,7 @@ export default async function SubPage({ params }: { params: { slug: string; page
 
   const pages = getPages(site.content)
   const page = pages.find(p => p.slug === params.page)
-  if (!page) notFound()
+  if (!page || page.offline) notFound()
 
   return (
     <>

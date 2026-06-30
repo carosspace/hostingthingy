@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 import { addPageAction } from '../../actions'
 
-type Page = { id: string; slug: string; navLabel?: string; title?: string; hidden?: boolean }
+type Page = { id: string; slug: string; navLabel?: string; title?: string; hidden?: boolean; offline?: boolean }
 
 // The top "Pages" tabs + "+ Add" form. Split out of page.tsx so navigating between
 // pages first flushes the canvas editor's unsaved work via window.__cvFlush — switching
@@ -44,6 +44,7 @@ export default function PageTabs({
         >
           {p.navLabel || p.title || 'Untitled'}
           {p.hidden && <span className="opacity-50"> · hidden</span>}
+          {p.offline && <span className="opacity-50"> · offline</span>}
         </a>
       ))}
       <form

@@ -963,6 +963,8 @@ export async function updatePageAction(formData: FormData): Promise<void> {
   const title = String(formData.get('title') ?? '').trim()
   const navLabel = String(formData.get('navLabel') ?? '').trim()
   const hidden = String(formData.get('hidden') ?? '') === '1'
+  // The home page (slug '') can never go offline — that would take the whole site down.
+  const offline = slug !== '' && String(formData.get('offline') ?? '') === '1'
   const seoTitle = String(formData.get('seoTitle') ?? '').trim().slice(0, 70)
   const seoDescription = String(formData.get('seoDescription') ?? '').trim().slice(0, 200)
   const seoImageRaw = String(formData.get('seoImage') ?? '').trim()
@@ -971,7 +973,7 @@ export async function updatePageAction(formData: FormData): Promise<void> {
   const existing = (await getSite(id))?.content ?? null
   const pages = getPages(existing).map(p =>
     p.slug === slug
-      ? { ...p, title: title || p.title, navLabel: navLabel || undefined, hidden: hidden || undefined, seoTitle: seoTitle || undefined, seoDescription: seoDescription || undefined, seoImage }
+      ? { ...p, title: title || p.title, navLabel: navLabel || undefined, hidden: hidden || undefined, offline: offline || undefined, seoTitle: seoTitle || undefined, seoDescription: seoDescription || undefined, seoImage }
       : p,
   )
   const baseContent: SiteContent = existing ?? { theme: 'sand', headline: '', subheadline: '', sections: [], contactEmail: '' }

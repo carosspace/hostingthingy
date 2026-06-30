@@ -60,7 +60,7 @@ export default function PublicPage({
   const hrefFor = (p: SitePage) => (p.slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${p.slug}`)
 
   const logo = content?.logoImage
-  const visiblePages = pages.filter(p => !p.hidden)
+  const visiblePages = pages.filter(p => !p.hidden && !p.offline)
   const navLinks = content?.navLinks ?? []
   const showNav = visiblePages.length > 1 || navLinks.length > 0
 
