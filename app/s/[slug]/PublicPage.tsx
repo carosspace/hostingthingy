@@ -68,6 +68,11 @@ export default function PublicPage({
   const hasContent = Boolean(page.headline || page.subheadline || sections.length || heroImage)
   const hrefFor = (p: SitePage) => (p.slug === '' ? `/s/${siteSlug}` : `/s/${siteSlug}/${p.slug}`)
 
+  // Hide the built-in site header + footer when the page brings its own chrome — either
+  // explicitly (hideChrome) or because a big full-width Custom HTML box fills the page (a
+  // pasted full-page design in a box), so we don't double up on nav + footer.
+  const bareChrome = !!page.hideChrome || !!page.canvas?.elements?.some(e => e.type === 'html' && (e.w ?? 0) >= 800 && (e.h ?? 0) >= 600)
+
   const logo = content?.logoImage
   const visiblePages = pages.filter(p => !p.hidden && !p.offline)
   const navLinks = content?.navLinks ?? []
@@ -181,6 +186,7 @@ export default function PublicPage({
 
   return (
     <div className="min-h-screen flex flex-col" style={rootStyle}>
+      {!bareChrome && (
       <header className={headerCls} style={headerStyle}>
         {(() => {
           const logoEl = logo ? (
@@ -259,6 +265,7 @@ export default function PublicPage({
           </nav>
         )}
       </header>
+      )}
 
       <PageTransition kind={content?.pageTransition}>
       {page.canvas && !page.canvasHidden && page.canvas.elements.length > 0 ? (
@@ -519,6 +526,7 @@ export default function PublicPage({
       )}
       </PageTransition>
 
+      {!bareChrome && (
       <footer className={`text-center py-10 ${contentPad}`} style={{ borderTop: `1px solid ${accent}1f` }}>
         {footerBar.has && (
           footerBar.zones[1].length > 0 || footerBar.zones[2].length > 0 ? (
@@ -556,6 +564,7 @@ export default function PublicPage({
           </p>
         )}
       </footer>
+      )}
     </div>
   )
 }

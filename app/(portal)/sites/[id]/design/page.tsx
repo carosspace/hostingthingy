@@ -128,6 +128,10 @@ export default async function DesignPage({
                   Take offline
                 </label>
               )}
+              <label className="flex items-center gap-2 font-body text-ash/70 text-sm pb-2" title="Hide the built-in menu bar + footer on this page — useful when your design already brings its own (e.g. a pasted full-page design in a box).">
+                <input type="checkbox" name="hideChrome" value="1" defaultChecked={!!current.hideChrome} style={{ accentColor: '#a85c36' }} />
+                Hide header &amp; footer
+              </label>
               <div className="w-full" />
               <label className="block">
                 <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/50">SEO title <span className="opacity-60 normal-case">— for Google &amp; sharing</span></span>

@@ -737,6 +737,7 @@ export interface SitePage {
   canvasHidden?: boolean // the canvas is kept but the page is shown in block mode (so switching modes never loses work)
   offline?: boolean // taken off the live site (404 + out of the menu); kept safe in the editor, reversible anytime
   fullHtml?: string // when set, this page renders as this complete raw HTML, full-page, with NO site chrome (a pasted external design). Reversible: clearing it restores the canvas/sections.
+  hideChrome?: boolean // hide the built-in site header + footer on this page (e.g. a pasted full-page design in a Custom HTML box brings its own). Also auto-on when a big full-width HTML box fills the page.
   seoTitle?: string // per-page <title> / share title override
   seoDescription?: string // per-page meta description / share description override
   seoImage?: string // per-page social share image (a public https URL — data URLs don't work as og:image)
