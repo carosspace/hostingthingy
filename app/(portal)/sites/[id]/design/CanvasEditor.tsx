@@ -1503,6 +1503,7 @@ export default function CanvasEditor({
     pay: { type: 'button', w: 220, h: 56, text: 'Buy now', fontSize: 18, fill: '#111111', ctaType: 'pay', radius: 6, fontFamily: 'label', payAmount: 2500, payCurrency: 'eur', payProduct: 'Your offer' },
     form: { type: 'form', w: 360, h: 360, text: 'Send message', fill: '#111111', color: '#1a1612', radius: 10, fontFamily: 'body' },
     embed: { type: 'embed', w: 480, h: 270, radius: 6 },
+    html: { type: 'html', w: 700, h: 900, radius: 0, html: '' },
     image: { type: 'image', w: 380, h: 260, fit: 'cover', radius: 0 },
     carousel: { type: 'carousel', w: 480, h: 320, fit: 'cover', radius: 0, interval: 4, slides: [] },
     menu: { type: 'menu', w: 600, h: 44, fontSize: 16, fontFamily: 'label', color: '#111111', align: 'left' },
@@ -2108,7 +2109,7 @@ export default function CanvasEditor({
   // content elements (in top-to-bottom order), or clear all motion with 'none'.
   const applyMood = (mood: 'calm' | 'playful' | 'energetic' | 'none') => {
     snapshot(true)
-    const CONTENT = ['text', 'button', 'image', 'carousel', 'icon', 'form', 'embed']
+    const CONTENT = ['text', 'button', 'image', 'carousel', 'icon', 'form', 'embed', 'html']
     const order = els.filter(e => CONTENT.includes(e.type)).slice().sort((a, b) => a.y - b.y).map(e => e.id)
     setEls(prev => prev.map((e): CanvasElement => {
       if (mood === 'none') return { ...e, reveal: undefined, revealDelay: undefined, hover: undefined }
@@ -2766,6 +2767,17 @@ export default function CanvasEditor({
         </div>
       )
     }
+    if (el.type === 'html') {
+      const hasHtml = !!(el.html && el.html.trim())
+      return hasHtml ? (
+        <iframe srcDoc={el.html} title="Custom HTML" sandbox="allow-scripts allow-popups allow-forms" style={{ width: '100%', height: '100%', border: 0, borderRadius: cqv(el.radius || 0), display: 'block', background: '#fff', pointerEvents: 'none' }} />
+      ) : (
+        <div style={{ width: '100%', height: '100%', background: '#0e0e12', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: cqv(6), borderRadius: cqv(el.radius || 0), pointerEvents: 'none' }}>
+          <span style={{ fontSize: cqv(34) }}>◇</span>
+          <span style={{ fontSize: cqv(13), opacity: 0.7 }}>Paste your HTML</span>
+        </div>
+      )
+    }
     if (el.type === 'form') {
       const r = cqv(Math.max(0, (el.radius ?? 10) - 2))
       const fieldStyle: CSSProperties = { width: '100%', padding: `${cqv(9)} ${cqv(11)}`, borderRadius: r, border: '1px solid rgba(0,0,0,0.16)', background: 'rgba(255,255,255,0.86)', color: 'rgba(0,0,0,0.42)', fontSize: cqv(15), marginBottom: cqv(8), boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap' }
@@ -2826,7 +2838,7 @@ export default function CanvasEditor({
   }
 
   // A short label + glyph for the Layers list.
-  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'divider' ? '∿' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'draw' ? '✎' : el.type === 'group' ? '▦' : '◻')
+  const elIcon = (el: CanvasElement) => (el.type === 'text' ? 'T' : el.type === 'image' ? '▦' : el.type === 'carousel' ? '▷' : el.type === 'shape' ? '◣' : el.type === 'divider' ? '∿' : el.type === 'icon' ? '◈' : el.type === 'component' ? '❖' : el.type === 'button' ? '▭' : el.type === 'menu' ? '☰' : el.type === 'form' ? '✉' : el.type === 'embed' ? '▶' : el.type === 'html' ? '◇' : el.type === 'draw' ? '✎' : el.type === 'group' ? '▦' : '◻')
   const elName = (el: CanvasElement) => {
     if (el.type === 'text') return (el.text || 'Text').replace(/\s+/g, ' ').trim() || 'Text'
     if (el.type === 'button') return (el.text || 'Button').replace(/\s+/g, ' ').trim() || 'Button'
@@ -2841,6 +2853,7 @@ export default function CanvasEditor({
     if (el.type === 'menu') return 'Page menu'
     if (el.type === 'form') return 'Contact form'
     if (el.type === 'embed') return 'Video / Map'
+    if (el.type === 'html') return 'Custom HTML'
     if (el.w >= CANVAS_W * 0.8 && el.h >= 120) return 'Section band'
     if (el.h <= 10) return 'Line'
     return 'Box'
@@ -3146,7 +3159,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Media &amp; buttons</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['contact', 'Email button'], ['pay', 'Buy / Pay button']] as [string, string][]).map(([key, lbl]) => (
+                {([['image', 'Picture'], ['carousel', 'Slideshow'], ['button', 'Button'], ['form', 'Contact form'], ['embed', 'Video / Map'], ['html', 'Custom HTML'], ['contact', 'Email button'], ['pay', 'Buy / Pay button']] as [string, string][]).map(([key, lbl]) => (
                   <button key={key} type="button" title={key === 'embed' ? 'Upload a video file, or paste a YouTube / Vimeo / Maps link' : undefined} onClick={() => place(PRESETS[key])} className="font-label text-[10px] tracking-[1px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-2.5 py-1.5 rounded-sm">+ {lbl}</button>
                 ))}
                 {([['card', 'Card'], ['faq', 'FAQ']] as const).map(([k, lbl]) => (
@@ -3687,7 +3700,7 @@ export default function CanvasEditor({
         {!lib && (sel ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'divider' ? 'Divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'group' ? 'Layout group' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : 'Box'}</span>
+              <span style={labelCss}>{sel.type === 'text' ? 'Text' : sel.type === 'image' ? 'Picture' : sel.type === 'carousel' ? 'Slideshow' : sel.type === 'shape' ? 'Shape divider' : sel.type === 'divider' ? 'Divider' : sel.type === 'draw' ? 'Drawing' : sel.type === 'group' ? 'Layout group' : sel.type === 'icon' ? 'Icon' : sel.type === 'component' ? 'Component' : sel.type === 'button' ? 'Button' : sel.type === 'menu' ? 'Page menu' : sel.type === 'form' ? 'Contact form' : sel.type === 'embed' ? 'Video / Map' : sel.type === 'html' ? 'Custom HTML' : 'Box'}</span>
               <div className="flex items-center gap-2">
                 <button type="button" title="Copy style (Ctrl+Shift+C)" onClick={() => copyStyle(sel)} style={{ fontSize: 12, color: accent }}>🖌</button>
                 {hasStyle && <button type="button" title="Paste style (Ctrl+Shift+V)" onClick={() => pasteStyle([sel.id])} style={{ fontSize: 11, color: accent, border: `1px solid ${ui}`, borderRadius: 3, padding: '0 4px' }}>paste</button>}
@@ -3716,7 +3729,7 @@ export default function CanvasEditor({
               </div>
             )}
 
-            {!sel.locked && ['image', 'box', 'carousel', 'embed', 'icon', 'shape'].includes(sel.type) && (
+            {!sel.locked && ['image', 'box', 'carousel', 'embed', 'html', 'icon', 'shape'].includes(sel.type) && (
               <div className="flex items-center gap-1 flex-wrap" title="Snap to an aspect ratio (keeps the width)">
                 <span style={labelCss}>Ratio</span>
                 {([['1:1', 1, 1], ['4:3', 4, 3], ['3:4', 3, 4], ['16:9', 16, 9], ['9:16', 9, 16]] as [string, number, number][]).map(([lbl, rw, rh]) => (
@@ -4233,6 +4246,25 @@ export default function CanvasEditor({
                 </div>
                 {sel.embedUrl && !embedSrc(sel.embedUrl) && <p className="font-body text-[11px]" style={{ color: '#9a7d2e' }}>That link isn&rsquo;t recognised. Use a YouTube, Vimeo or Google Maps link.</p>}
                 <p className="font-body text-ash/50" style={{ fontSize: 11 }}>The video or map shows on your live site. In the editor you&rsquo;ll see a placeholder so it stays easy to move.</p>
+              </>
+            )}
+            {sel.type === 'html' && (
+              <>
+                <div>
+                  <span style={labelCss}>Custom HTML</span>
+                  <textarea
+                    value={sel.html || ''}
+                    onChange={e => update(sel.id, { html: e.target.value })}
+                    placeholder="Paste your HTML design here…"
+                    spellCheck={false}
+                    style={{ ...inputCss, width: '100%', marginTop: 4, fontSize: 12, fontFamily: 'monospace', minHeight: 140, resize: 'vertical' }}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span style={labelCss}>Round</span>
+                  <input type="range" min={0} max={40} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
+                </div>
+                <p className="font-body text-ash/50" style={{ fontSize: 11 }}>Your HTML renders exactly as designed (styles, fonts and scripts included) in a safe sandbox. Drag to place it and resize the block to fit your design.</p>
               </>
             )}
             {sel.type === 'form' && (

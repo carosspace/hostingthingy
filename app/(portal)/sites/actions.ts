@@ -1172,7 +1172,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
   // Component elements (allowComponent=false) can never themselves be a component
   // instance, so a component can never nest another — render recursion is bounded.
   const sanitizeElement = (e: Record<string, unknown>, i: number, allowComponent: boolean): CanvasElement => {
-    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'draw', 'group', 'divider']
+    const types = ['text', 'image', 'button', 'box', 'menu', 'carousel', 'shape', 'icon', 'form', 'embed', 'html', 'draw', 'group', 'divider']
     if (allowComponent) types.push('component')
     const type = (types.includes(String(e?.type)) ? String(e?.type) : 'box') as CanvasElementType
     const al = String(e?.align)
@@ -1320,6 +1320,9 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       hover: hover(e?.hover),
       parallax: num(e?.parallax, -5, 5, 0) || undefined,
       componentId: type === 'component' && /^[a-z0-9]{1,20}$/i.test(String(e?.componentId ?? '')) ? String(e?.componentId).trim() : undefined,
+      // Custom HTML: keep the owner's raw markup as-is, only trimming + size-capping (~800KB)
+      // so a runaway paste can't bloat the page JSON. Rendered sandboxed, so it's never trusted.
+      html: type === 'html' ? (() => { const h = String(e?.html ?? ''); return h.trim().length > 0 && h.length <= 800 * 1024 ? h : undefined })() : undefined,
     }
   }
   // Global text styles: keep only known keys, sanitise each property like a text element.

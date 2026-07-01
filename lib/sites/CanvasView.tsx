@@ -138,6 +138,17 @@ export function renderInner(el: CanvasElement, cqf: (px: number) => string, ctx:
       />
     ) : null
   }
+  if (el.type === 'html') {
+    return el.html ? (
+      <iframe
+        srcDoc={el.html}
+        title="Custom HTML"
+        loading="lazy"
+        sandbox="allow-scripts allow-popups allow-forms"
+        style={{ width: '100%', height: '100%', border: 0, borderRadius: cqf(el.radius || 0), display: 'block', background: '#fff' }}
+      />
+    ) : null
+  }
   if (el.type === 'form')
     return (
       <ContactForm
@@ -454,6 +465,12 @@ export function MobileStack({ canvas, accent, siteSlug, contactEmail, safeHref, 
               </div>
             ) : null
           }
+        } else if (el.type === 'html') {
+          node = el.html ? (
+            <div style={{ width: '100%', aspectRatio: `${el.w} / ${Math.max(1, el.h)}`, opacity: o }}>
+              <iframe srcDoc={el.html} title="Custom HTML" loading="lazy" sandbox="allow-scripts allow-popups allow-forms" style={{ width: '100%', height: '100%', border: 0, borderRadius: el.radius || 0, display: 'block', background: '#fff' }} />
+            </div>
+          ) : null
         } else if (el.type === 'menu') {
           const ms = el.menuStyle || 'plain'
           const mcol = el.color || accent

@@ -137,7 +137,7 @@ export function fontFaceCss(fonts?: SiteFont[]): string {
 // Only an in-range brand token is a valid colour reference (airtight — no CSS injection).
 export const isBrandToken = (v?: string) => /^var\(--brand-[0-5]\)$/.test(String(v ?? '').trim())
 
-export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'draw' | 'group' | 'divider'
+export type CanvasElementType = 'text' | 'image' | 'button' | 'box' | 'menu' | 'carousel' | 'shape' | 'icon' | 'component' | 'form' | 'embed' | 'html' | 'draw' | 'group' | 'divider'
 
 // Flow Groups (the layout engine): a 'group' element flex-lays-out its members. Children stay
 // in the flat elements[] array with parentId pointing back here; the group is the source of
@@ -498,6 +498,9 @@ export interface CanvasElement {
   menuStyle?: MenuStyle
   // embed (video / map): a pasted YouTube/Vimeo/Maps URL; render resolves it to a safe iframe
   embedUrl?: string
+  // Custom HTML (an 'html' element): raw HTML the owner pastes (e.g. an AI-designed page);
+  // renders in a sandboxed srcdoc iframe. Size-capped on save. Not sanitized (owner-trusted).
+  html?: string
   // Uploaded video (an 'embed' element): a stored https URL on OUR Supabase `site-videos` bucket,
   // played as a native <video>. When present it WINS over embedUrl at render. The upload goes
   // browser→Storage directly (see createVideoUploadUrl), so the file never passes through the page
