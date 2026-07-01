@@ -118,14 +118,9 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   if (hasBookings) tiles.push(resolveTile('bookings'))
   if (hasCourses) tiles.push(resolveTile('courses'))
   if (hasMemberships) tiles.push(resolveTile('memberships'))
-  if (hasResources) tiles.push(resolveTile('resources'))
-  if (hasWorkbook)
-    tiles.push({
-      icon: '❋',
-      title: workbook!.title,
-      desc: 'Your interactive workbook — open it any time; everything you write is saved.',
-      href: '/me/workbook',
-    })
+  // Resources now also houses the interactive workbook, so the one tile shows if the client
+  // has either downloads OR an entitled workbook (the workbook appears inside /me/resources).
+  if (hasResources || hasWorkbook) tiles.push(resolveTile('resources'))
 
   // Always-there reachability, as small icons (gated only by the owner's toggles).
   type Quick = { label: string; icon: string; href: string }

@@ -13,7 +13,6 @@ const MORE = [
   { href: '/courses', label: 'Courses' },
   { href: '/memberships', label: 'Memberships' },
   { href: '/resources', label: 'Resources' },
-  { href: '/workbooks', label: 'Workbook' },
 ]
 
 const linkCls = 'text-ash hover:text-gold transition-colors'

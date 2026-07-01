@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPortalSite } from '@/lib/portal/site'
 import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { getMyResources, type MyResource } from '@/lib/portal/resources'
+import { getMyWorkbook } from '@/lib/portal/workbook'
 import PortalHeader from '../PortalHeader'
 import DownloadButton from './DownloadButton'
 
@@ -49,6 +50,9 @@ export default async function ClientResourcesPage() {
 
   // Graceful: empty list if migration 022 isn't applied (no crash).
   const resources = await getMyResources(slug)
+  // The interactive workbook lives here too now — shown as an "open" card, not a download.
+  const workbook = await getMyWorkbook(slug).catch(() => null)
+  const hasWorkbook = !!workbook && workbook.entitled && workbook.hasContent
 
   const footer = content?.footer || brand
 
@@ -104,7 +108,7 @@ export default async function ClientResourcesPage() {
           Downloads to keep, from {brand}.
         </p>
 
-        {resources.length === 0 ? (
+        {resources.length === 0 && !hasWorkbook ? (
           <p
             className="font-body text-center mx-auto mt-16"
             style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 380 }}
@@ -113,6 +117,29 @@ export default async function ClientResourcesPage() {
           </p>
         ) : (
           <div className="mt-12 grid gap-5 sm:grid-cols-2">
+            {hasWorkbook && (
+              <a
+                href="/me/workbook"
+                className="p-6 flex flex-col gap-2 transition-opacity hover:opacity-80"
+                style={cardStyle}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span aria-hidden="true" style={{ color: accent, fontSize: 22, lineHeight: 1 }}>❋</span>
+                  <span className="font-label" style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: accent }}>
+                    Interactive
+                  </span>
+                </div>
+                <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
+                  {workbook!.title}
+                </h2>
+                <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
+                  Open it any time — everything you write is saved to your account.
+                </p>
+                <span className="font-label" style={{ marginTop: 6, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}>
+                  Open workbook →
+                </span>
+              </a>
+            )}
             {resources.map(r => (
               <Card key={r.id} r={r} />
             ))}
