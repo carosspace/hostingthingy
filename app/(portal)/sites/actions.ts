@@ -1804,6 +1804,37 @@ export async function startCanvasAction(formData: FormData): Promise<void> {
   await setPageCanvas(id, pageSlug, canvas)
 }
 
+// Turn a FULL-PAGE HTML page into an editable FREE-CANVAS page: the pasted design is
+// rebuilt (approximately) as draggable canvas elements the owner then edits like any
+// canvas. Reuses the same AI import + sanitize gate as the in-editor "Rebuild from
+// HTML". Clears fullHtml so the page now opens in the free canvas. Owner-authed.
+export async function htmlToCanvasAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  if (!id) return
+  const site = await getSite(id)
+  if (!site) return
+  const page = getPages(site.content).find(p => p.slug === pageSlug)
+  const html = String(page?.fullHtml ?? '').trim()
+  if (!html) return
+  let canvas: PageCanvas
+  try {
+    const raw = await generateCanvasFromHtml(html)
+    const maxBottom = raw.reduce((m, e) => {
+      const y = Number((e as Record<string, unknown>).y) || 0
+      const h = Number((e as Record<string, unknown>).h) || 0
+      return Math.max(m, y + h)
+    }, 0)
+    canvas = sanitizeCanvas({ bg: '#efe6d9', h: Math.max(900, maxBottom + 80), elements: raw })
+  } catch {
+    return // leave the page as full-page HTML if the rebuild fails
+  }
+  // Set the canvas AND drop fullHtml so the page opens in the free canvas editor.
+  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: false, fullHtml: undefined })
+}
+
 // Search free stock photos via a server-side Pexels proxy (the key never reaches
 // the browser). Returns { error: 'nokey' } when no PEXELS_API_KEY is configured.
 export async function searchStockPhotos(query: string): Promise<{ ok: boolean; error?: string; photos?: StockPhoto[] }> {

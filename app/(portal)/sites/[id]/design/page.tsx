@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
-import { generateSiteAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction } from '../../actions'
+import { generateSiteAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction, htmlToCanvasAction } from '../../actions'
 import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
@@ -212,9 +212,20 @@ export default async function DesignPage({
           <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
             <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Full-page design</p>
             <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">
-              This page is your own HTML, shown full-page (no site header/footer) and rendering exactly as designed at
-              every screen size. Edit the code and Save, or paste an updated design. To drop HTML into a normal canvas
-              page instead, use the free-canvas &ldquo;+ Custom HTML&rdquo; box.
+              This page is your own HTML, shown full-page (no site header/footer). You can edit the code below and Save —
+              or, to change it visually by dragging, <strong className="text-parchment">rebuild it as editable free-canvas elements</strong>:
+            </p>
+            <form action={htmlToCanvasAction} className="mt-2">
+              <input type="hidden" name="id" value={site.id} />
+              <input type="hidden" name="pageSlug" value={current.slug} />
+              <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm">
+                ✎ Edit this in the free canvas
+              </button>
+            </form>
+            <p className="font-body text-ash/40 text-[11px] mt-2 leading-relaxed">
+              This rebuilds your page as draggable text/boxes/buttons on the free canvas (takes ~15s). It&rsquo;s an
+              approximate copy you then tidy by dragging — the exact pixel-perfect version is the full-page code above.
+              Your HTML is safe; you can always paste it back.
             </p>
           </div>
           <div className="grid lg:grid-cols-2 gap-4 items-start">

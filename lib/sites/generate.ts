@@ -87,7 +87,7 @@ export async function generateCanvasFromHtml(html: string): Promise<Record<strin
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
+    max_tokens: 8000,
     tools: [
       {
         name: 'rebuild_as_canvas',
@@ -97,7 +97,7 @@ export async function generateCanvasFromHtml(html: string): Promise<Record<strin
           properties: {
             elements: {
               type: 'array',
-              description: 'The design recreated as 10–40 canvas elements, in visual (top-to-bottom) order.',
+              description: 'The design recreated as 25–80 canvas elements, in visual (top-to-bottom) order.',
               items: {
                 type: 'object',
                 properties: {
@@ -128,7 +128,17 @@ export async function generateCanvasFromHtml(html: string): Promise<Record<strin
     messages: [
       {
         role: 'user',
-        content: `Recreate this web page design as draggable canvas elements laid out on a 1000px-wide canvas. Approximate the layout, visual hierarchy, real text, colours and proportions as closely as you can using simple pieces (text, buttons, coloured boxes, images, dividers). Position every element with x/y/w/h so it visually matches the original, stacking down the page. Read the actual text out of the HTML and keep it. Use #rrggbb hex colours only, no gradients. Aim for 10–40 elements.\n\nHTML:\n${html.slice(0, 80000)}`,
+        content: `Recreate this web page design as draggable canvas elements laid out on a 1000px-wide canvas. Reproduce it as FAITHFULLY as you can — every section, top to bottom.
+
+Rules:
+- Read the REAL text out of the HTML and keep it exactly (every heading, paragraph, label, button, nav link). Don't summarise or drop copy.
+- For each coloured section/band, add a full-width \`box\` first (its background colour), then the text/buttons ON TOP of it (higher y is lower down; overlapping is fine — position text inside its box).
+- Match the visual hierarchy: big display headings (large fontSize, weight 600–700, fontFamily "display"), body paragraphs (fontFamily "body", ~16–20px), small uppercase labels (fontFamily "label").
+- Match colours from the HTML/CSS as #rrggbb hex (approximate gradients with their dominant colour). Match alignment (center/left/right) and rough proportions/spacing.
+- Include nav items, hero, every content section, and the footer.
+- Use x/y/w/h in px on the 1000px canvas so it visually stacks like the original. Aim for 25–80 elements — more is better for fidelity.
+
+HTML:\n${html.slice(0, 80000)}`,
       },
     ],
   })
