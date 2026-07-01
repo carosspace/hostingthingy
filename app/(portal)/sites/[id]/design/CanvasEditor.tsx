@@ -3186,7 +3186,7 @@ export default function CanvasEditor({
             <div>
               <p style={labelCss}>Dividers</p>
               <div className="grid grid-cols-3 gap-1.5 mt-1">
-                {DIVIDER_KINDS.map(k => (
+                {LINE_DIVIDER_KINDS.map(k => (
                   <button
                     key={k}
                     type="button"
@@ -4176,8 +4176,8 @@ export default function CanvasEditor({
             {sel.type === 'divider' && (
               <>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {DIVIDER_KINDS.map(k => {
-                    const on = (sel.dividerShape || 'wave') === k
+                  {LINE_DIVIDER_KINDS.map(k => {
+                    const on = (sel.dividerShape || 'line') === k
                     return (
                       <button key={k} type="button" title={DIVIDER_LABELS[k]} onClick={() => update(sel.id, { dividerShape: k })} style={{ height: 30, padding: LINE_DIVIDER_KINDS.includes(k) ? 3 : 0, borderRadius: 4, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: LINE_DIVIDER_KINDS.includes(k) ? 'center' : 'flex-end' }}>
                         <svg viewBox="0 0 1200 120" preserveAspectRatio={LINE_DIVIDER_KINDS.includes(k) ? 'xMidYMid meet' : 'none'} style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
