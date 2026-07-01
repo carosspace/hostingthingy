@@ -1,0 +1,83 @@
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { getCurrentUser } from '@/lib/auth'
+import { getPortalSite } from '@/lib/portal/site'
+import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
+import { getMyWorkbook } from '@/lib/portal/workbook'
+import PortalHeader from '../PortalHeader'
+
+export const dynamic = 'force-dynamic'
+
+export default async function ClientWorkbookPage() {
+  const portal = await getPortalSite()
+  const { slug, brand, content, accent } = portal
+  const rootStyle = portalRootStyle(portal)
+  const { text: portalText, muted: portalMuted } = portalTextColors(portal)
+
+  // Sub-pages require sign-in; /me itself renders the login. Redirect there.
+  const user = await getCurrentUser()
+  if (!user) redirect('/me')
+
+  const workbook = await getMyWorkbook(slug)
+  const ready = !!workbook && workbook.hasContent
+  const entitled = !!workbook && workbook.entitled
+
+  // Entitled + ready → the immersive, full-height workbook in an iframe. The
+  // gated /api/client/workbook route re-checks entitlement before serving the HTML.
+  if (ready && entitled) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: '#1A1108' }}>
+        <div
+          className="flex items-center justify-between px-4 py-2"
+          style={{ borderBottom: `1px solid ${accent}22` }}
+        >
+          <Link href="/me" className="font-body text-xs hover:opacity-80" style={{ color: accent }}>
+            ← {brand}
+          </Link>
+          <span className="font-body text-xs" style={{ color: `${accent}99` }}>
+            {workbook!.title}
+          </span>
+        </div>
+        <iframe
+          src="/api/client/workbook"
+          title={workbook!.title}
+          className="flex-1 w-full border-0"
+          style={{ height: 'calc(100vh - 37px)' }}
+        />
+      </div>
+    )
+  }
+
+  // Not ready, or ready-but-not-entitled → the branded portal shell with a message.
+  return (
+    <div className="min-h-screen flex flex-col" style={rootStyle}>
+      <PortalHeader
+        brand={brand}
+        logoImage={content?.logoImage}
+        theme={{ muted: portalMuted }}
+        accent={accent}
+        backHref="/me"
+      />
+      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-20 text-center">
+        <h1 className="font-display italic" style={{ color: portalText, fontSize: 40, lineHeight: 1.1 }}>
+          {workbook?.title || 'Workbook'}
+        </h1>
+        {!ready ? (
+          <p className="font-body mt-6 mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 420 }}>
+            Your workbook is being prepared. It will appear here soon.
+          </p>
+        ) : (
+          <p className="font-body mt-6 mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 440 }}>
+            This workbook unlocks once it’s yours. If you’ve bought it, make sure you’re signed in with the same email
+            you used at checkout. Have a code? Redeem it and the workbook will open right here.
+          </p>
+        )}
+      </main>
+      <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
+        <p className="font-body" style={{ fontSize: 13, color: portalMuted }}>
+          {content?.footer || brand}
+        </p>
+      </footer>
+    </div>
+  )
+}
