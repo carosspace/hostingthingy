@@ -1011,6 +1011,24 @@ export async function updatePageAction(formData: FormData): Promise<void> {
   revalidatePath(`/sites/${id}`)
 }
 
+// Inline rename from the page tabs: set the page's name (which is also its menu label)
+// and clear any separate menu-label override so what you type is what shows. Deliberately
+// does NOT revalidate — the tab updates optimistically in the client, so the editor never
+// remounts / "jumps". The change is picked up on the next navigation or reload.
+export async function renamePageAction(args: { id: string; slug: string; name: string }): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const id = String(args?.id ?? '')
+  const slug = String(args?.slug ?? '')
+  const name = String(args?.name ?? '').trim().slice(0, 80)
+  if (!id || !name) return { ok: false }
+  const existing = (await getSite(id))?.content ?? null
+  if (!existing) return { ok: false }
+  const pages = getPages(existing).map(p => (p.slug === slug ? { ...p, title: name, navLabel: undefined } : p))
+  await saveSiteContent(id, { ...existing, pages })
+  return { ok: true }
+}
+
 // Move a page earlier/later in the menu. Home (slug '') stays pinned first.
 export async function movePageAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser()
