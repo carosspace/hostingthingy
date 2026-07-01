@@ -8,7 +8,7 @@ import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
 import PagesPanelBar from './PagesPanelBar'
 import FullHtmlPanel from './FullHtmlPanel'
-import FullPageHtml from '@/lib/sites/FullPageHtml'
+import HtmlVisualEditor from './HtmlVisualEditor'
 
 export const dynamic = 'force-dynamic'
 
@@ -206,12 +206,10 @@ export default async function DesignPage({
       {current.fullHtml && (
         <div className="space-y-3">
           <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
-            <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Full-page HTML — live preview</p>
-            <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">This page shows your pasted design (below). The canvas editor doesn&rsquo;t apply here — to change it, edit the HTML in &ldquo;⚙ … page settings&rdquo; → &ldquo;Full-page HTML&rdquo; above.</p>
+            <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Visual editor — your HTML design</p>
+            <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">Click any text to edit it, drag elements to move them, and use the right-hand panels to restyle — then Save. (To swap in a whole new design, use &ldquo;⚙ … page settings&rdquo; → &ldquo;Full-page HTML&rdquo; above.)</p>
           </div>
-          <div className="border border-gold/20 rounded-sm overflow-hidden" style={{ background: '#fff' }}>
-            <FullPageHtml html={current.fullHtml} />
-          </div>
+          <HtmlVisualEditor siteId={site.id} pageSlug={current.slug} initialHtml={current.fullHtml} />
         </div>
       )}
 
