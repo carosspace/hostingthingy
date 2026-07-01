@@ -110,6 +110,13 @@ const ICON_INNER: Record<string, ReactNode> = {
   navigation: (<path d="M12 3l8 18-8-4-8 4z" />),
   clock: (<><circle cx="12" cy="12" r="9" /><path d="M12 7.5V12l3 2" /></>),
   calendar: (<><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4" /></>),
+
+  // — Sacred / spiritual —
+  'flower-of-life': (<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="16" cy="12" r="4" /><circle cx="8" cy="12" r="4" /><circle cx="14" cy="8.54" r="4" /><circle cx="10" cy="8.54" r="4" /><circle cx="14" cy="15.46" r="4" /><circle cx="10" cy="15.46" r="4" /></>),
+  mandala: (<><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.64 5.64l2.83 2.83M15.53 15.53l2.83 2.83M18.36 5.64l-2.83 2.83M8.47 15.53l-2.83 2.83" /><circle cx="12" cy="7" r="0.8" fill="currentColor" stroke="none" /><circle cx="12" cy="17" r="0.8" fill="currentColor" stroke="none" /><circle cx="7" cy="12" r="0.8" fill="currentColor" stroke="none" /><circle cx="17" cy="12" r="0.8" fill="currentColor" stroke="none" /></>),
+  lotus: (<><path d="M12 20 C9 14 10.5 8 12 6 C13.5 8 15 14 12 20 Z" /><path d="M12 20 C12.5 14 15 10.5 17 9 C17 12 15.5 16 12 20 Z" /><path d="M12 20 C11.5 14 9 10.5 7 9 C7 12 8.5 16 12 20 Z" /><path d="M12 20 C14 16.5 17.5 14.5 20.5 14 C19.5 17 16 19.5 12 20 Z" /><path d="M12 20 C10 16.5 6.5 14.5 3.5 14 C4.5 17 8 19.5 12 20 Z" /></>),
+  'star-4': (<path d="M12 2 C12.7 8 16 11.3 22 12 C16 12.7 12.7 16 12 22 C11.3 16 8 12.7 2 12 C8 11.3 11.3 8 12 2 Z" fill="currentColor" stroke="none" />),
+  'crescent-star': (<><path d="M15.5 3a8 8 0 1 0 0 16 6.3 6.3 0 0 1 0-16z" /><path d="M18.4 8.2l.8 1.7 1.8.3-1.3 1.3.3 1.8-1.6-.9-1.6.9.3-1.8-1.3-1.3 1.8-.3z" fill="currentColor" stroke="none" /></>),
 }
 
 export const ICON_KINDS = Object.keys(ICON_INNER)
@@ -118,6 +125,7 @@ export const ICON_KINDS = Object.keys(ICON_INNER)
 // dev guard at the end keeps that true so nothing becomes unreachable in the gallery.
 export const ICON_GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Social', keys: ['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'linkedin', 'twitter', 'pinterest', 'threads', 'email', 'website', 'send', 'message-circle', 'globe'] },
+  { label: 'Sacred', keys: ['flower-of-life', 'mandala', 'lotus', 'star-4', 'crescent-star'] },
   { label: 'Wellness', keys: ['heart', 'hand-heart', 'flower', 'leaf', 'feather', 'flame', 'droplet', 'smile', 'coffee', 'mic', 'activity', 'trending-up', 'zap', 'award', 'sparkle', 'infinity'] },
   { label: 'Nature', keys: ['sun', 'sunrise', 'moon', 'cloud', 'wind', 'snowflake', 'waves', 'mountain', 'star'] },
   { label: 'UI', keys: ['check', 'check-circle', 'plus', 'plus-circle', 'close', 'x-circle', 'info', 'alert-circle', 'menu', 'grid', 'layers', 'home', 'settings', 'search', 'bell', 'eye', 'lock', 'unlock', 'shield', 'download', 'upload', 'flag', 'bookmark', 'link', 'quote', 'users', 'target', 'compass', 'anchor'] },
