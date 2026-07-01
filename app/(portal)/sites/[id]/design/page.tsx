@@ -7,6 +7,7 @@ import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
 import PagesPanelBar from './PagesPanelBar'
+import FullHtmlPanel from './FullHtmlPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,6 +162,8 @@ export default async function DesignPage({
                 Save
               </button>
             </form>
+
+            <FullHtmlPanel siteId={site.id} pageSlug={current.slug} hasFullHtml={!!current.fullHtml} />
 
             <form action={duplicatePageAction} className="pt-1">
               <input type="hidden" name="id" value={site.id} />
