@@ -1350,7 +1350,7 @@ function sanitizeCanvas(raw: unknown): PageCanvas {
       componentId: type === 'component' && /^[a-z0-9]{1,20}$/i.test(String(e?.componentId ?? '')) ? String(e?.componentId).trim() : undefined,
       // Custom HTML: keep the owner's raw markup as-is, only trimming + size-capping (~800KB)
       // so a runaway paste can't bloat the page JSON. Rendered sandboxed, so it's never trusted.
-      html: type === 'html' ? (() => { const h = String(e?.html ?? ''); return h.trim().length > 0 && h.length <= 800 * 1024 ? h : undefined })() : undefined,
+      html: type === 'html' ? (() => { const h = String(e?.html ?? ''); return h.trim().length > 0 && h.length <= 4 * 1024 * 1024 ? h : undefined })() : undefined,
     }
   }
   // Global text styles: keep only known keys, sanitise each property like a text element.
