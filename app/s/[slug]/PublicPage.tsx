@@ -63,6 +63,10 @@ export default function PublicPage({
   const visiblePages = pages.filter(p => !p.hidden && !p.offline)
   const navLinks = content?.navLinks ?? []
   const showNav = visiblePages.length > 1 || navLinks.length > 0
+  // A client-login link to the portal (app.animatemple.com/me), always shown so
+  // clients can reach their space from the site. Host override: NEXT_PUBLIC_PORTAL_URL.
+  const showLogin = true
+  const portalLoginUrl = `${(process.env.NEXT_PUBLIC_PORTAL_URL || 'https://app.animatemple.com').replace(/\/+$/, '')}/me`
 
   const layout = content?.layout ?? 'contained'
   const bodyMax = layout === 'full' ? 'max-w-6xl' : 'max-w-2xl'
@@ -199,7 +203,7 @@ export default function PublicPage({
             )
           )
         })()}
-        {showNav && (
+        {(showNav || showLogin) && (
           <nav className={navCls}>
             {visiblePages.map(p => (
               <a
@@ -226,6 +230,23 @@ export default function PublicPage({
                 </a>
               ) : null
             })}
+            {showLogin && (
+              <a
+                href={portalLoginUrl}
+                className="font-label"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  color: accent,
+                  border: `1px solid ${accent}59`,
+                  borderRadius: 999,
+                  padding: '5px 15px',
+                }}
+              >
+                Login
+              </a>
+            )}
           </nav>
         )}
       </header>

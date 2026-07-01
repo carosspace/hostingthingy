@@ -15,6 +15,7 @@ import { getMyAppointments } from '@/lib/portal/bookings'
 import { getMyCourses } from '@/lib/portal/courses'
 import { getMyMemberships } from '@/lib/portal/memberships'
 import { getMyResources } from '@/lib/portal/resources'
+import { getMyWorkbook } from '@/lib/portal/workbook'
 import ClientLogin from './ClientLogin'
 import PortalHeader from './PortalHeader'
 
@@ -93,6 +94,12 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
     moduleOn('resources') ? getMyResources(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
   ])
 
+  // The interactive workbook — its own tile, shown whenever the client is entitled
+  // (gifted or via a code) and it has content. It behaves like a resource, but
+  // interactive, so it opens full-screen at /me/workbook.
+  const workbook = await getMyWorkbook(slug).catch(() => null)
+  const hasWorkbook = !!workbook && workbook.entitled && workbook.hasContent
+
   // Custom tile copy (per owner), falling back to the built-in defaults. {brand}
   // (and {name}) tokens are filled. href is /me/<module>.
   const tileCopy = content?.memberPortal?.tiles
@@ -112,6 +119,13 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
   if (hasCourses) tiles.push(resolveTile('courses'))
   if (hasMemberships) tiles.push(resolveTile('memberships'))
   if (hasResources) tiles.push(resolveTile('resources'))
+  if (hasWorkbook)
+    tiles.push({
+      icon: '❋',
+      title: workbook!.title,
+      desc: 'Your interactive workbook — open it any time; everything you write is saved.',
+      href: '/me/workbook',
+    })
 
   // Always-there reachability, as small icons (gated only by the owner's toggles).
   type Quick = { label: string; icon: string; href: string }
