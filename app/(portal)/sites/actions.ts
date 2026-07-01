@@ -1833,7 +1833,8 @@ export async function htmlToCanvasAction(formData: FormData): Promise<void> {
     return // leave the page as full-page HTML if the rebuild fails
   }
   // Set the canvas AND drop fullHtml so the page opens in the free canvas editor.
-  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: false, fullHtml: undefined })
+  // hideChrome: the rebuilt design includes its own header/footer, so suppress the site's.
+  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: false, fullHtml: undefined, hideChrome: true })
 }
 
 // Open a FULL-PAGE HTML page in the FREE CANVAS with the design kept EXACTLY, inside a
