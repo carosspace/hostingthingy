@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as RPointerEvent, type MouseEvent as ReactMouseEvent, type DragEvent as RDragEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS } from '@/lib/sites/types'
+import { CANVAS_W, MOBILE_W, THEMES, BLEND_MODES, REVEAL_KINDS, HOVER_KINDS, SHADOW_KINDS, SHAPE_KINDS, FIGURE_KINDS, DIVIDER_KINDS, DIVIDER_LABELS, LINE_DIVIDER_KINDS, CURSOR_KINDS, MAX_PALETTE, MAX_FONTS, MAX_UPLOADS, canvasLayout, brandVar, isBrandToken, gradientCss, pageBackground, filterCss, shadowCss, shapePath, dividerSvgPath, fontFaceCss, flowContainerStyle, flowItemStyle, flowChildren, type FlowConfig, type PageCanvas, type CanvasElement, type CanvasElementType, type SiteTheme, type CtaType, type ImageFit, type SiteAlign, type Gradient, type BlendMode, type RevealKind, type HoverKind, type ShadowKind, type ShapeKind, type DividerKind, type MenuStyle, type CursorKind, type ImageAdjust, type SiteFont, type SiteComponent, TEXT_STYLE_KEYS, TEXT_STYLE_LABELS, defaultTextStyles, type TextStyleProps, type TextStyleKey, FORM_FIELD_TYPES, FORM_FIELD_LABELS, defaultFormFields, type FormFieldType, type SiteBanner, type SitePopup, PAGE_TRANSITION_KINDS, type PageTransitionKind, PAY_CURRENCIES, PAY_MIN_CENTS, PAY_MAX_CENTS } from '@/lib/sites/types'
 import { fontVars, fontRoleVars, FONT_SYSTEMS } from '@/lib/sites/fonts'
 import { GOOGLE_FONTS, googleStack, googleHref, isGoogleFamily, type GoogleFont } from '@/lib/sites/googleFonts'
 import { canvasIcon, ICON_GROUPS, ICON_KINDS } from '@/lib/sites/icons'
@@ -3167,6 +3167,23 @@ export default function CanvasEditor({
               <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed"><b>Draw / write</b> lets you sketch or hand-write freely on the canvas — drag to draw, then Done.</p>
             </div>
             <div>
+              <p style={labelCss}>Figures</p>
+              <div className="grid grid-cols-7 gap-1.5 mt-1">
+                {FIGURE_KINDS.map(k => (
+                  <button
+                    key={k}
+                    type="button"
+                    title={k}
+                    onClick={() => place({ type: 'shape', shape: k, w: 140, h: 140, fill: accent })}
+                    style={{ height: 34, padding: 5, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff' }}
+                  >
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(k)} fill={accent} /></svg>
+                  </button>
+                ))}
+              </div>
+              <p className="font-body text-ash/50 text-[11px] mt-1.5 leading-relaxed">Drop a shape, then recolour, resize or restyle it on the right.</p>
+            </div>
+            <div>
               <p style={labelCss}>Dividers</p>
               <div className="grid grid-cols-3 gap-1.5 mt-1">
                 {DIVIDER_KINDS.map(k => (
@@ -3174,10 +3191,10 @@ export default function CanvasEditor({
                     key={k}
                     type="button"
                     title={DIVIDER_LABELS[k]}
-                    onClick={() => place({ type: 'divider', x: 0, w: CANVAS_W, h: 90, dividerShape: k, fill: accent })}
-                    style={{ height: 34, padding: 0, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}
+                    onClick={() => place(LINE_DIVIDER_KINDS.includes(k) ? { type: 'divider', w: 600, h: 60, dividerShape: k, fill: accent } : { type: 'divider', x: 0, w: CANVAS_W, h: 90, dividerShape: k, fill: accent })}
+                    style={{ height: 34, padding: LINE_DIVIDER_KINDS.includes(k) ? 4 : 0, borderRadius: 4, border: '1px solid rgba(0,0,0,0.15)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: LINE_DIVIDER_KINDS.includes(k) ? 'center' : 'flex-end' }}
                   >
-                    <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
+                    <svg viewBox="0 0 1200 120" preserveAspectRatio={LINE_DIVIDER_KINDS.includes(k) ? 'xMidYMid meet' : 'none'} style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
                   </button>
                 ))}
               </div>
@@ -4144,8 +4161,8 @@ export default function CanvasEditor({
               <>
                 <div className="flex flex-wrap gap-1.5">
                   {SHAPE_KINDS.map(k => (
-                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { shape: k })} style={{ width: 42, height: 28, padding: 2, borderRadius: 3, border: sel.shape === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff' }}>
-                      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(k)} style={{ fill: accent }} /></svg>
+                    <button key={k} type="button" title={k} onClick={() => update(sel.id, { shape: k })} style={{ width: 42, height: 28, padding: 3, borderRadius: 3, border: sel.shape === k ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff' }}>
+                      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%', display: 'block' }}><path d={shapePath(k)} style={{ fill: accent }} /></svg>
                     </button>
                   ))}
                 </div>
@@ -4162,8 +4179,8 @@ export default function CanvasEditor({
                   {DIVIDER_KINDS.map(k => {
                     const on = (sel.dividerShape || 'wave') === k
                     return (
-                      <button key={k} type="button" title={DIVIDER_LABELS[k]} onClick={() => update(sel.id, { dividerShape: k })} style={{ height: 30, padding: 0, borderRadius: 4, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
-                        <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
+                      <button key={k} type="button" title={DIVIDER_LABELS[k]} onClick={() => update(sel.id, { dividerShape: k })} style={{ height: 30, padding: LINE_DIVIDER_KINDS.includes(k) ? 3 : 0, borderRadius: 4, border: on ? `2px solid ${ui}` : '1px solid rgba(0,0,0,0.2)', background: '#fff', overflow: 'hidden', display: 'flex', alignItems: LINE_DIVIDER_KINDS.includes(k) ? 'center' : 'flex-end' }}>
+                        <svg viewBox="0 0 1200 120" preserveAspectRatio={LINE_DIVIDER_KINDS.includes(k) ? 'xMidYMid meet' : 'none'} style={{ width: '100%', height: '100%', display: 'block' }}><path d={dividerSvgPath(k)} fill={accent} /></svg>
                       </button>
                     )
                   })}

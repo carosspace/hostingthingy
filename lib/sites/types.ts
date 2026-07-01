@@ -218,14 +218,34 @@ export type MenuStyle = 'plain' | 'underline' | 'pills' | 'boxed' | 'stacked'
 export const MENU_STYLES: MenuStyle[] = ['plain', 'underline', 'pills', 'boxed', 'stacked']
 
 // Decorative SVG section dividers (filled with the element's colour; rotate to flip).
-export type ShapeKind = 'line' | 'wave' | 'curve' | 'tilt' | 'triangle' | 'hill' | 'zigzag'
-export const SHAPE_KINDS: ShapeKind[] = ['line', 'wave', 'curve', 'tilt', 'triangle', 'hill', 'zigzag']
+export type ShapeKind =
+  | 'rectangle' | 'ellipse' | 'triangle' | 'rightTriangle' | 'diamond' | 'pentagon' | 'hexagon'
+  | 'star' | 'sparkle' | 'heart' | 'halfCircle' | 'quarterCircle' | 'plus' | 'arrowRight'
+  | 'line' | 'wave' | 'curve' | 'tilt' | 'hill' | 'zigzag'
+// The geometric "figures" (Canva-style) shown as a drop-in picker grid. The remaining
+// kinds (line/wave/curve/tilt/hill/zigzag) are the older decorative edges, kept working.
+export const FIGURE_KINDS: ShapeKind[] = ['rectangle', 'ellipse', 'triangle', 'rightTriangle', 'diamond', 'pentagon', 'hexagon', 'star', 'sparkle', 'heart', 'halfCircle', 'quarterCircle', 'plus', 'arrowRight']
+export const SHAPE_KINDS: ShapeKind[] = [...FIGURE_KINDS, 'line', 'wave', 'curve', 'tilt', 'hill', 'zigzag']
+// All on a 0 0 100 100 viewBox, filled with the element's colour, stretched to the box.
 export function shapePath(k?: ShapeKind): string {
   switch (k) {
-    case 'line': return 'M0,46 L100,46 L100,54 L0,54 Z'
+    case 'rectangle': return 'M0,0 H100 V100 H0 Z'
+    case 'ellipse': return 'M0,50 A50,50 0 1 1 100,50 A50,50 0 1 1 0,50 Z'
+    case 'triangle': return 'M50,0 L100,100 L0,100 Z'
+    case 'rightTriangle': return 'M0,0 L0,100 L100,100 Z'
+    case 'diamond': return 'M50,0 L100,50 L50,100 L0,50 Z'
+    case 'pentagon': return 'M50,0 L98,36 L79,98 L21,98 L2,36 Z'
+    case 'hexagon': return 'M25,0 L75,0 L100,50 L75,100 L25,100 L0,50 Z'
+    case 'star': return 'M50,2 L61,37 L98,37 L68,59 L79,95 L50,73 L21,95 L32,59 L2,37 L39,37 Z'
+    case 'sparkle': return 'M50,0 C54,32 68,46 100,50 C68,54 54,68 50,100 C46,68 32,54 0,50 C32,46 46,32 50,0 Z'
+    case 'heart': return 'M50,90 C15,62 0,40 0,24 C0,9 12,0 26,0 C37,0 46,7 50,18 C54,7 63,0 74,0 C88,0 100,9 100,24 C100,40 85,62 50,90 Z'
+    case 'halfCircle': return 'M0,100 A50,50 0 0 1 100,100 Z'
+    case 'quarterCircle': return 'M0,100 L0,0 A100,100 0 0 1 100,100 Z'
+    case 'plus': return 'M35,0 H65 V35 H100 V65 H65 V100 H35 V65 H0 V35 H35 Z'
+    case 'arrowRight': return 'M0,30 H60 V10 L100,50 L60,90 V70 H0 Z'
+    case 'line': return 'M0,44 H100 V56 H0 Z'
     case 'curve': return 'M0,100 C30,30 70,30 100,100 Z'
     case 'tilt': return 'M0,100 L100,0 L100,100 Z'
-    case 'triangle': return 'M0,100 L50,0 L100,100 Z'
     case 'hill': return 'M0,100 C40,0 60,0 100,100 Z'
     case 'zigzag': return 'M0,100 L20,45 L40,100 L60,45 L80,100 L100,45 L100,100 Z'
     case 'wave':
@@ -239,9 +259,18 @@ export function shapePath(k?: ShapeKind): string {
 // bottom-filled so each reads as the bottom edge of the section. The element's `fill` colours
 // the shape (hex or a brand token), and flipX/flipY mirror it (applied via render transform,
 // so each kind has ONE canonical orientation here).
-export const DIVIDER_KINDS = ['wave', 'waveSoft', 'waves', 'curve', 'curveDown', 'slope', 'slopeDown', 'tilt', 'arch', 'round', 'peak', 'drip'] as const
+export const DIVIDER_KINDS = ['line', 'stars', 'lineStar', 'dashed', 'dotted', 'double', 'wave', 'waveSoft', 'waves', 'curve', 'curveDown', 'slope', 'slopeDown', 'tilt', 'arch', 'round', 'peak', 'drip'] as const
 export type DividerKind = (typeof DIVIDER_KINDS)[number]
+// The plain / decorative LINE dividers (thin centred separators), as opposed to the
+// organic full-width section edges. Placed smaller by default so their proportions read right.
+export const LINE_DIVIDER_KINDS: readonly DividerKind[] = ['line', 'stars', 'lineStar', 'dashed', 'dotted', 'double']
 export const DIVIDER_LABELS: Record<DividerKind, string> = {
+  line: 'Line',
+  stars: 'Line + stars',
+  lineStar: 'Line + star',
+  dashed: 'Dashed',
+  dotted: 'Dotted',
+  double: 'Double line',
   wave: 'Wave',
   waveSoft: 'Soft wave',
   waves: 'Waves',
@@ -259,8 +288,38 @@ export const DIVIDER_LABELS: Record<DividerKind, string> = {
 // bottom-filled. Hand-authored with smooth cubic/quadratic curves so they read as soft,
 // organic edges. flipX/flipY are applied at render via a transform, so each returns one
 // canonical orientation (the curved/featured edge along the top, the section colour below).
+// A small 4-point sparkle centred at (cx,cy) with reach r — used by the line dividers.
+function sparklePath(cx: number, cy: number, r: number): string {
+  const i = Math.round(r * 0.34)
+  return `M${cx},${cy - r} C${cx + i},${cy - i} ${cx + i},${cy - i} ${cx + r},${cy} C${cx + i},${cy + i} ${cx + i},${cy + i} ${cx},${cy + r} C${cx - i},${cy + i} ${cx - i},${cy + i} ${cx - r},${cy} C${cx - i},${cy - i} ${cx - i},${cy - i} ${cx},${cy - r} Z`
+}
 export function dividerSvgPath(kind: DividerKind): string {
   switch (kind) {
+    // Thin centred rule.
+    case 'line':
+      return 'M0,57 H1200 V63 H0 Z'
+    // Two thin parallel rules.
+    case 'double':
+      return 'M0,48 H1200 V54 H0 Z M0,66 H1200 V72 H0 Z'
+    // A dashed rule.
+    case 'dashed': {
+      let d = ''
+      for (let x = 8; x <= 1150; x += 70) d += `M${x},57 h44 v6 h-44 Z `
+      return d.trim()
+    }
+    // A dotted rule.
+    case 'dotted': {
+      let d = ''
+      for (let x = 30; x <= 1176; x += 76) d += `M${x - 6},60 a6,6 0 1 0 12,0 a6,6 0 1 0 -12,0 Z `
+      return d.trim()
+    }
+    // A rule with a single sparkle in the centre.
+    case 'lineStar':
+      return 'M0,57 H540 V63 H0 Z M660,57 H1200 V63 H0 Z ' + sparklePath(600, 60, 34)
+    // A rule with three evenly-spaced sparkles.
+    case 'stars':
+      return 'M0,57 H196 V63 H0 Z M284,57 H516 V63 H0 Z M684,57 H916 V63 H0 Z M1004,57 H1200 V63 H0 Z ' +
+        sparklePath(240, 60, 26) + ' ' + sparklePath(600, 60, 26) + ' ' + sparklePath(960, 60, 26)
     // A single gentle S-wave across the width.
     case 'waveSoft':
       return 'M0,70 C300,30 900,110 1200,70 L1200,120 L0,120 Z'
