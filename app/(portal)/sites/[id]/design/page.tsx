@@ -7,8 +7,6 @@ import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
 import PagesPanelBar from './PagesPanelBar'
-import FullHtmlPanel from './FullHtmlPanel'
-import HtmlVisualEditor from './HtmlVisualEditor'
 
 export const dynamic = 'force-dynamic'
 
@@ -164,8 +162,6 @@ export default async function DesignPage({
               </button>
             </form>
 
-            <FullHtmlPanel siteId={site.id} pageSlug={current.slug} hasFullHtml={!!current.fullHtml} />
-
             <form action={duplicatePageAction} className="pt-1">
               <input type="hidden" name="id" value={site.id} />
               <input type="hidden" name="slug" value={current.slug} />
@@ -203,19 +199,9 @@ export default async function DesignPage({
       </div>
       </PagesPanelBar>
 
-      {current.fullHtml && (
-        <div className="space-y-3">
-          <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
-            <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Visual editor — your HTML design</p>
-            <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">Click any text to edit it, drag elements to move them, and use the right-hand panels to restyle — then Save. (To swap in a whole new design, use &ldquo;⚙ … page settings&rdquo; → &ldquo;Full-page HTML&rdquo; above.)</p>
-          </div>
-          <HtmlVisualEditor siteId={site.id} pageSlug={current.slug} initialHtml={current.fullHtml} />
-        </div>
-      )}
-
       {/* On a free-canvas page the "Write with AI" + block/canvas switch live inside the
           editor (top-left). On a block page they stay here. */}
-      {!current.fullHtml && !current.canvas && (
+      {!current.canvas && (
         <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
           <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
           <p className="font-body text-ash/70 text-sm mt-3 mb-3">Describe this page and Claude writes it — then edit it right here.</p>
@@ -236,7 +222,7 @@ export default async function DesignPage({
         </details>
       )}
 
-      {!current.fullHtml && (current.canvas && !current.canvasHidden ? (
+      {current.canvas && !current.canvasHidden ? (
         <div className="space-y-3">
           <CanvasEditor
             key={'canvas:' + current.slug + ':' + site.updatedAt}
@@ -277,7 +263,7 @@ export default async function DesignPage({
             initial={pageView}
           />
         </>
-      ))}
+      )}
     </div>
   )
 }
