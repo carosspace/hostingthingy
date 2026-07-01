@@ -49,6 +49,21 @@ export default function PublicPage({
   pages: SitePage[]
   currentSlug: string
 }) {
+  // FULL-PAGE HTML: render the owner's complete pasted design as the whole page,
+  // with NO platform chrome (their design brings its own nav/footer/styling). Strip
+  // the outer document wrapper so their <link> fonts + <style> + markup inline
+  // cleanly. Reversible — clearing fullHtml restores the normal render below.
+  if (page.fullHtml && page.fullHtml.trim()) {
+    const inner = page.fullHtml
+      .replace(/<!doctype[^>]*>/gi, '')
+      .replace(/<\/?html[^>]*>/gi, '')
+      .replace(/<head[^>]*>|<\/head>/gi, '')
+      .replace(/<body[^>]*>|<\/body>/gi, '')
+      .replace(/<title[^>]*>[\s\S]*?<\/title>/gi, '')
+      .replace(/<meta[^>]*>/gi, '')
+    return <div dangerouslySetInnerHTML={{ __html: inner }} />
+  }
+
   const theme = THEMES[(content?.theme as SiteTheme) ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME]
   const accent = content?.accentColor || theme.accent
   const brand = content?.brand || siteName
