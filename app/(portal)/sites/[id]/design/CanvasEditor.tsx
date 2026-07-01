@@ -729,28 +729,36 @@ export default function CanvasEditor({
     if (!sel || dragging) return null
     const L = gx(sel), R = gx(sel) + gw(sel), T = topOf(sel), B = topOf(sel) + gh(sel)
     if (gw(sel) <= 0 || gh(sel) <= 0) return null
-    // Other on-screen elements (skip self, hidden, and footer-pinned to stay safe).
-    const others = els.filter(e => e.id !== sel.id && !e.hidden && !(editingMobile && e.mHidden) && !(!editingMobile && e.pin === 'footer'))
-    const hOverlap = (a: number, b: number) => Math.min(R, b) - Math.max(L, a) > 0 // x-ranges overlap
-    const vOverlap = (a: number, b: number) => Math.min(B, b) - Math.max(T, a) > 0 // y-ranges overlap
-    let above: { gap: number; mid: number; from: number; to: number } | null = null
-    let below: { gap: number; mid: number; from: number; to: number } | null = null
-    let left: { gap: number; mid: number; from: number; to: number } | null = null
-    let right: { gap: number; mid: number; from: number; to: number } | null = null
-    for (const e of others) {
-      const eL = gx(e), eR = gx(e) + gw(e), eT = topOf(e), eB = topOf(e) + gh(e)
-      // Vertical neighbours share a horizontal overlap with the selection.
-      if (hOverlap(eL, eR)) {
-        if (eB <= T) { const gap = T - eB; if (!above || gap < above.gap) above = { gap, mid: (Math.max(L, eL) + Math.min(R, eR)) / 2, from: eB, to: T } }
-        if (eT >= B) { const gap = eT - B; if (!below || gap < below.gap) below = { gap, mid: (Math.max(L, eL) + Math.min(R, eR)) / 2, from: B, to: eT } }
-      }
-      // Horizontal neighbours share a vertical overlap.
-      if (vOverlap(eT, eB)) {
-        if (eR <= L) { const gap = L - eR; if (!left || gap < left.gap) left = { gap, mid: (Math.max(T, eT) + Math.min(B, eB)) / 2, from: eR, to: L } }
-        if (eL >= R) { const gap = eL - R; if (!right || gap < right.gap) right = { gap, mid: (Math.max(T, eT) + Math.min(B, eB)) / 2, from: R, to: eL } }
+    // Visible, non-footer elements INCLUDING the selection, so it's part of the chains.
+    const all = els.filter(e => !e.hidden && !(editingMobile && e.mHidden) && !(!editingMobile && e.pin === 'footer'))
+    const vOverlap = (t: number, b: number) => Math.min(B, b) - Math.max(T, t) > 0
+    const hOverlap = (l: number, r: number) => Math.min(R, r) - Math.max(L, l) > 0
+    // A full-width/height selection would "overlap" everything — skip that axis' chain so it
+    // doesn't paint every gap on the page.
+    const wide = gw(sel) >= CANVAS_W * 0.85
+    const tall = gh(sel) >= CH * 0.85
+    type Gap = { from: number; to: number; mid: number; gap: number }
+    // ROW: elements sharing a vertical band with the selection, left→right; the gap between
+    // each neighbouring PAIR — so 3 items side by side show BOTH gaps at once.
+    const rowGaps: Gap[] = []
+    if (!tall) {
+      const row = all.filter(e => vOverlap(topOf(e), topOf(e) + gh(e))).sort((a, b) => gx(a) - gx(b))
+      for (let i = 0; i < row.length - 1; i++) {
+        const a = row[i], b = row[i + 1], aR = gx(a) + gw(a), bL = gx(b), g = bL - aR
+        if (g >= 1) rowGaps.push({ from: aR, to: bL, gap: Math.round(g), mid: Math.round((Math.max(topOf(a), topOf(b)) + Math.min(topOf(a) + gh(a), topOf(b) + gh(b))) / 2) })
       }
     }
-    return { L, R, T, B, above, below, left, right }
+    // COLUMN: elements sharing a horizontal band with the selection, top→bottom.
+    const colGaps: Gap[] = []
+    if (!wide) {
+      const col = all.filter(e => hOverlap(gx(e), gx(e) + gw(e))).sort((a, b) => topOf(a) - topOf(b))
+      for (let i = 0; i < col.length - 1; i++) {
+        const a = col[i], b = col[i + 1], aB = topOf(a) + gh(a), bT = topOf(b), g = bT - aB
+        if (g >= 1) colGaps.push({ from: aB, to: bT, gap: Math.round(g), mid: Math.round((Math.max(gx(a), gx(b)) + Math.min(gx(a) + gw(a), gx(b) + gw(b))) / 2) })
+      }
+    }
+    const even = (arr: Gap[]) => arr.length >= 2 && arr.every(g => Math.abs(g.gap - arr[0].gap) <= 1)
+    return { L, R, T, B, rowGaps, colGaps, rowEqual: even(rowGaps), colEqual: even(colGaps) }
   })()
 
   // A Canva-style measurement bracket: a bold coloured line spanning a gap, capped with a
@@ -4874,11 +4882,10 @@ export default function CanvasEditor({
                         <div style={{ ...lblBase, top: cqv(y), left: showRulers ? 21 : 2, transform: 'translateY(-50%)', background: accentCol }}>{fmtUnit(y)}</div>
                       </div>
                     ))}
-                    {/* nearest-neighbour gaps: a bold measurement bracket + distance, per side */}
-                    {sm.above && measureBracket('y', sm.above.from, sm.above.to, sm.above.mid, fmtUnit(sm.above.gap), MEASURE_COL, 'ma')}
-                    {sm.below && measureBracket('y', sm.below.from, sm.below.to, sm.below.mid, fmtUnit(sm.below.gap), MEASURE_COL, 'mb')}
-                    {sm.left && measureBracket('x', sm.left.from, sm.left.to, sm.left.mid, fmtUnit(sm.left.gap), MEASURE_COL, 'ml')}
-                    {sm.right && measureBracket('x', sm.right.from, sm.right.to, sm.right.mid, fmtUnit(sm.right.gap), MEASURE_COL, 'mr')}
+                    {/* Every gap across the selection's row (left→right) + column (top→bottom),
+                        so 3+ items side by side show all spacings at once. Even → accent (green). */}
+                    {sm.rowGaps.map((g, i) => measureBracket('x', g.from, g.to, g.mid, fmtUnit(g.gap), sm.rowEqual ? accentCol : MEASURE_COL, `rg${i}`))}
+                    {sm.colGaps.map((g, i) => measureBracket('y', g.from, g.to, g.mid, fmtUnit(g.gap), sm.colEqual ? accentCol : MEASURE_COL, `cg${i}`))}
                   </div>
                 )
               })()}
