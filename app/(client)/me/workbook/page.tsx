@@ -67,10 +67,19 @@ export default async function ClientWorkbookPage() {
             Your workbook is being prepared. It will appear here soon.
           </p>
         ) : (
-          <p className="font-body mt-6 mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 440 }}>
-            This workbook unlocks once it’s yours. If you’ve bought it, make sure you’re signed in with the same email
-            you used at checkout. Have a code? Redeem it and the workbook will open right here.
-          </p>
+          <>
+            <p className="font-body mt-6 mx-auto" style={{ color: portalMuted, fontSize: 15, lineHeight: 1.6, maxWidth: 440 }}>
+              This workbook is locked. If you’ve purchased it, enter your unlock code and it will open right here, saved
+              to your account.
+            </p>
+            <Link
+              href="/me/redeem"
+              className="inline-block mt-8 font-label transition-opacity hover:opacity-90"
+              style={{ background: accent, color: '#1A1108', borderRadius: 10, padding: '13px 26px', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase' }}
+            >
+              Redeem a code
+            </Link>
+          </>
         )}
       </main>
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>
