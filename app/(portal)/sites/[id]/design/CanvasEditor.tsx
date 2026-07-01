@@ -4292,6 +4292,10 @@ export default function CanvasEditor({
                     style={{ ...inputCss, width: '100%', marginTop: 4, fontSize: 12, fontFamily: 'monospace', minHeight: 140, resize: 'vertical' }}
                   />
                 </div>
+                <label className="block">
+                  <span style={labelCss}>…or load a .html file</span>
+                  <input type="file" accept=".html,text/html" onChange={async e => { const f = e.target.files?.[0]; if (f) update(sel.id, { html: await f.text() }) }} style={{ marginTop: 4, fontSize: 11, color: '#8a7a5c' }} />
+                </label>
                 <div className="flex items-center gap-2">
                   <span style={labelCss}>Round</span>
                   <input type="range" min={0} max={40} value={sel.radius || 0} onChange={e => update(sel.id, { radius: Number(e.target.value) })} style={{ flex: 1 }} />
