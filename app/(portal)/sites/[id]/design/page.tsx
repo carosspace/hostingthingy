@@ -7,6 +7,8 @@ import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
 import PagesPanelBar from './PagesPanelBar'
+import FullHtmlPanel from './FullHtmlPanel'
+import FullPageHtml from '@/lib/sites/FullPageHtml'
 
 export const dynamic = 'force-dynamic'
 
@@ -168,6 +170,10 @@ export default async function DesignPage({
               <button className="font-label text-[9px] tracking-[2px] uppercase border border-gold/30 text-gold hover:bg-gold/10 px-3 py-1.5 rounded-sm">⧉ Duplicate this page</button>
             </form>
 
+            {!current.fullHtml && (
+              <FullHtmlPanel siteId={site.id} pageSlug={current.slug} hasFullHtml={false} />
+            )}
+
             {current.slug !== '' ? (
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <form action={movePageAction}>
@@ -199,9 +205,33 @@ export default async function DesignPage({
       </div>
       </PagesPanelBar>
 
+      {/* A full-page HTML page: the whole page IS the owner's pasted design. Edit its
+          raw HTML (big code box) with a live preview beside it — no canvas, no block editor. */}
+      {current.fullHtml && (
+        <div className="space-y-4">
+          <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
+            <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Full-page design</p>
+            <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">
+              This page is your own HTML, shown full-page (no site header/footer) and rendering exactly as designed at
+              every screen size. Edit the code and Save, or paste an updated design. To drop HTML into a normal canvas
+              page instead, use the free-canvas &ldquo;+ Custom HTML&rdquo; box.
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-4 items-start">
+            <FullHtmlPanel siteId={site.id} pageSlug={current.slug} hasFullHtml initialHtml={current.fullHtml} />
+            <div className="border border-gold/15 rounded-sm overflow-hidden">
+              <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50 px-3 py-2 border-b border-gold/10">Live preview</p>
+              <div style={{ maxHeight: 560, overflow: 'auto' }}>
+                <FullPageHtml html={current.fullHtml} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* On a free-canvas page the "Write with AI" + block/canvas switch live inside the
           editor (top-left). On a block page they stay here. */}
-      {!current.canvas && (
+      {!current.fullHtml && !current.canvas && (
         <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
           <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
           <p className="font-body text-ash/70 text-sm mt-3 mb-3">Describe this page and Claude writes it — then edit it right here.</p>
@@ -222,7 +252,7 @@ export default async function DesignPage({
         </details>
       )}
 
-      {current.canvas && !current.canvasHidden ? (
+      {!current.fullHtml && (current.canvas && !current.canvasHidden ? (
         <div className="space-y-3">
           <CanvasEditor
             key={'canvas:' + current.slug + ':' + site.updatedAt}
@@ -263,7 +293,7 @@ export default async function DesignPage({
             initial={pageView}
           />
         </>
-      )}
+      ))}
     </div>
   )
 }

@@ -13,12 +13,14 @@ export default function FullHtmlPanel({
   siteId,
   pageSlug,
   hasFullHtml,
+  initialHtml,
 }: {
   siteId: string
   pageSlug: string
   hasFullHtml: boolean
+  initialHtml?: string
 }) {
-  const [html, setHtml] = useState('')
+  const [html, setHtml] = useState(initialHtml ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -64,8 +66,8 @@ export default function FullHtmlPanel({
 
       {hasFullHtml ? (
         <p className="font-body text-ash/60 text-xs leading-relaxed">
-          This page shows a pasted full-page design — your own HTML replaces the whole page (no site header/footer).
-          Paste new HTML below to replace it, or remove it to return to the canvas editor.
+          This whole page <em>is</em> your own HTML design (no site header/footer). Edit the code below and press
+          Save — the preview updates. Or paste an updated design over it. Remove it to return to the canvas editor.
         </p>
       ) : (
         <p className="font-body text-ash/60 text-xs leading-relaxed">
@@ -80,7 +82,7 @@ export default function FullHtmlPanel({
         placeholder="Paste your full-page HTML here…"
         spellCheck={false}
         className={inputCls}
-        style={{ minHeight: 96, fontFamily: 'monospace', resize: 'vertical' }}
+        style={{ minHeight: hasFullHtml ? 340 : 120, fontFamily: 'monospace', resize: 'vertical', lineHeight: 1.5 }}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -93,10 +95,10 @@ export default function FullHtmlPanel({
         <button
           type="button"
           disabled={busy || !html.trim()}
-          onClick={() => apply(html, '✓ Set — this is now your full page.')}
+          onClick={() => apply(html, hasFullHtml ? '✓ Saved — your changes are live.' : '✓ Set — this is now your full page.')}
           className="font-label text-[9px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm disabled:opacity-50"
         >
-          {busy ? 'Saving…' : 'Use as full page'}
+          {busy ? 'Saving…' : hasFullHtml ? 'Save changes' : 'Use as full page'}
         </button>
         {hasFullHtml && (
           <button
