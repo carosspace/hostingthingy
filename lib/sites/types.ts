@@ -683,7 +683,12 @@ export const MAX_GUIDES = 24
 // footer always sits at the very end of the page no matter how much content grows.
 // Used identically by the editor and the public renderer so they never disagree.
 export function canvasLayout(elements: CanvasElement[], minBody = 900) {
-  const bodyBottom = Math.max(minBody, ...elements.filter(e => e.pin !== 'footer').map(e => e.y + e.h + 80), 0)
+  // Breathing room below the lowest element — but a full-width band (e.g. a footer), a
+  // divider, or a thin line is meant to sit flush at the page edge, so it adds none. This
+  // stops a pasted full-page design (which ends in a coloured footer band) from showing a
+  // strip of page background beneath it.
+  const pad = (e: CanvasElement) => (e.type === 'divider' || e.w >= CANVAS_W * 0.94 || e.h <= 24 ? 0 : 80)
+  const bodyBottom = Math.max(minBody, ...elements.filter(e => e.pin !== 'footer').map(e => e.y + e.h + pad(e)), 0)
   const footerEls = elements.filter(e => e.pin === 'footer')
   const footerExtent = footerEls.length ? Math.max(0, ...footerEls.map(e => e.y + e.h)) + 40 : 0
   return { bodyBottom, totalH: bodyBottom + footerExtent, hasFooter: footerEls.length > 0 }

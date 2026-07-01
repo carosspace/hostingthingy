@@ -322,7 +322,9 @@ export function CanvasView({ canvas, accent, siteSlug, contactEmail, safeHref, n
   // at the very bottom however much the body grows (identical maths to the editor).
   const layout = canvasLayout(canvas.elements)
   const desktopTop = (el: CanvasElement) => (el.pin === 'footer' ? layout.bodyBottom + el.y : el.y)
-  const desktopH = Math.max(200, layout.totalH, canvas.h)
+  // Height always follows the current layout (not the stored canvas.h) so removing content
+  // — or a formula change like flush footer bands — shrinks the page instead of leaving a gap.
+  const desktopH = Math.max(200, layout.totalH)
 
   return (
     <>
