@@ -753,6 +753,31 @@ export default function CanvasEditor({
     return { L, R, T, B, above, below, left, right }
   })()
 
+  // A Canva-style measurement bracket: a bold coloured line spanning a gap, capped with a
+  // short perpendicular tick at each end, and a bold distance badge at the midpoint. Shared
+  // by the live drag spacing AND the at-rest selection measurements so they look identical.
+  // axis 'y' = a vertical distance (above/below) at x=mid; 'x' = horizontal (left/right) at y=mid.
+  const MEASURE_COL = '#e5478b' // pink — distinct from blue align-guides + violet size-match
+  const measureBracket = (axis: 'x' | 'y', from: number, to: number, mid: number, label: string, color: string, key: string): ReactNode => {
+    const badge: CSSProperties = { position: 'absolute', background: color, color: '#fff', fontSize: 10.5, lineHeight: 1, fontWeight: 700, padding: '2px 6px', borderRadius: 5, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap', boxShadow: '0 1px 5px rgba(0,0,0,0.22)', transform: 'translate(-50%,-50%)' }
+    if (axis === 'y') return (
+      <div key={key} style={{ pointerEvents: 'none', zIndex: 8 }}>
+        <div style={{ position: 'absolute', left: cqv(mid), top: cqv(from), width: 0, height: cqv(to - from), borderLeft: `2px solid ${color}` }} />
+        <div style={{ position: 'absolute', left: cqv(mid), top: cqv(from), width: 13, height: 0, borderTop: `2px solid ${color}`, transform: 'translate(-50%,-1px)' }} />
+        <div style={{ position: 'absolute', left: cqv(mid), top: cqv(to), width: 13, height: 0, borderTop: `2px solid ${color}`, transform: 'translate(-50%,-1px)' }} />
+        <div style={{ ...badge, left: cqv(mid), top: cqv((from + to) / 2) }}>{label}</div>
+      </div>
+    )
+    return (
+      <div key={key} style={{ pointerEvents: 'none', zIndex: 8 }}>
+        <div style={{ position: 'absolute', left: cqv(from), top: cqv(mid), width: cqv(to - from), height: 0, borderTop: `2px solid ${color}` }} />
+        <div style={{ position: 'absolute', left: cqv(from), top: cqv(mid), width: 0, height: 13, borderLeft: `2px solid ${color}`, transform: 'translate(-1px,-50%)' }} />
+        <div style={{ position: 'absolute', left: cqv(to), top: cqv(mid), width: 0, height: 13, borderLeft: `2px solid ${color}`, transform: 'translate(-1px,-50%)' }} />
+        <div style={{ ...badge, left: cqv((from + to) / 2), top: cqv(mid) }}>{label}</div>
+      </div>
+    )
+  }
+
   const touch = () => { dirty.current = true; setSaved(false) }
   // Push the current state onto the undo stack. Rapid edits within 500ms coalesce into one.
   const snapshot = (force = false) => {
@@ -4792,22 +4817,7 @@ export default function CanvasEditor({
                   little px pill at its midpoint. Equal pairs use the editor accent, others a neutral
                   grey. Coordinates are in the active frame's design px (same as the elements), so cqv()
                   places them exactly like the guide lines. Non-interactive. */}
-              {spacing.map((s, i) => {
-                const col = s.equal ? ui : '#8a8f99'
-                const mid = (s.from + s.to) / 2
-                const line = s.axis === 'x'
-                  ? { left: cqv(s.from), top: cqv(s.mid), width: cqv(s.to - s.from), height: 0, borderTop: `1px dashed ${col}` }
-                  : { left: cqv(s.mid), top: cqv(s.from), width: 0, height: cqv(s.to - s.from), borderLeft: `1px dashed ${col}` }
-                const pill = s.axis === 'x'
-                  ? { left: cqv(mid), top: cqv(s.mid), transform: 'translate(-50%,-50%)' }
-                  : { left: cqv(s.mid), top: cqv(mid), transform: 'translate(-50%,-50%)' }
-                return (
-                  <div key={`sp${i}`} style={{ pointerEvents: 'none', zIndex: 6 }}>
-                    <div style={{ position: 'absolute', ...line }} />
-                    <div style={{ position: 'absolute', ...pill, background: col, color: '#fff', fontSize: 10, lineHeight: 1, fontWeight: 600, padding: '2px 5px', borderRadius: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }}>{s.gap}</div>
-                  </div>
-                )
-              })}
+              {spacing.map((s, i) => measureBracket(s.axis, s.from, s.to, s.mid, fmtUnit(s.gap), s.equal ? ui : MEASURE_COL, `sp${i}`))}
               {marquee && <div style={{ position: 'absolute', left: cqv(marquee.x), top: cqv(marquee.y), width: cqv(marquee.w), height: cqv(marquee.h), border: '1px solid #3b82f6', background: 'rgba(59,130,246,0.10)', pointerEvents: 'none', zIndex: 6 }} />}
               {/* Equal-SIZE markers (Canva-style) while resizing: a short violet bar on BOTH the
                   resizing element (selectedId, whose handles are showing) and the matched element,
@@ -4845,7 +4855,7 @@ export default function CanvasEditor({
                   gap to the nearest neighbour on each side, labelled in the chosen unit. */}
               {!editingMobile && selMeasure && (() => {
                 const sm = selMeasure
-                const accentCol = ui, gapCol = '#8a8f99'
+                const accentCol = ui
                 const lblBase: CSSProperties = { position: 'absolute', color: '#fff', fontSize: 10, lineHeight: 1, fontWeight: 600, padding: '2px 5px', borderRadius: 4, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', whiteSpace: 'nowrap' }
                 return (
                   <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 8 }}>
@@ -4864,23 +4874,11 @@ export default function CanvasEditor({
                         <div style={{ ...lblBase, top: cqv(y), left: showRulers ? 21 : 2, transform: 'translateY(-50%)', background: accentCol }}>{fmtUnit(y)}</div>
                       </div>
                     ))}
-                    {/* nearest-neighbour gaps: a bracket + distance, per side */}
-                    {sm.above && (<>
-                      <div style={{ position: 'absolute', left: cqv(sm.above.mid), top: cqv(sm.above.from), width: 0, height: cqv(sm.above.to - sm.above.from), borderLeft: `1px solid ${gapCol}` }} />
-                      <div style={{ ...lblBase, left: cqv(sm.above.mid), top: cqv((sm.above.from + sm.above.to) / 2), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.above.gap)}</div>
-                    </>)}
-                    {sm.below && (<>
-                      <div style={{ position: 'absolute', left: cqv(sm.below.mid), top: cqv(sm.below.from), width: 0, height: cqv(sm.below.to - sm.below.from), borderLeft: `1px solid ${gapCol}` }} />
-                      <div style={{ ...lblBase, left: cqv(sm.below.mid), top: cqv((sm.below.from + sm.below.to) / 2), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.below.gap)}</div>
-                    </>)}
-                    {sm.left && (<>
-                      <div style={{ position: 'absolute', left: cqv(sm.left.from), top: cqv(sm.left.mid), height: 0, width: cqv(sm.left.to - sm.left.from), borderTop: `1px solid ${gapCol}` }} />
-                      <div style={{ ...lblBase, left: cqv((sm.left.from + sm.left.to) / 2), top: cqv(sm.left.mid), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.left.gap)}</div>
-                    </>)}
-                    {sm.right && (<>
-                      <div style={{ position: 'absolute', left: cqv(sm.right.from), top: cqv(sm.right.mid), height: 0, width: cqv(sm.right.to - sm.right.from), borderTop: `1px solid ${gapCol}` }} />
-                      <div style={{ ...lblBase, left: cqv((sm.right.from + sm.right.to) / 2), top: cqv(sm.right.mid), transform: 'translate(-50%,-50%)', background: gapCol }}>{fmtUnit(sm.right.gap)}</div>
-                    </>)}
+                    {/* nearest-neighbour gaps: a bold measurement bracket + distance, per side */}
+                    {sm.above && measureBracket('y', sm.above.from, sm.above.to, sm.above.mid, fmtUnit(sm.above.gap), MEASURE_COL, 'ma')}
+                    {sm.below && measureBracket('y', sm.below.from, sm.below.to, sm.below.mid, fmtUnit(sm.below.gap), MEASURE_COL, 'mb')}
+                    {sm.left && measureBracket('x', sm.left.from, sm.left.to, sm.left.mid, fmtUnit(sm.left.gap), MEASURE_COL, 'ml')}
+                    {sm.right && measureBracket('x', sm.right.from, sm.right.to, sm.right.mid, fmtUnit(sm.right.gap), MEASURE_COL, 'mr')}
                   </div>
                 )
               })()}
