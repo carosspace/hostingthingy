@@ -1835,6 +1835,30 @@ export async function htmlToCanvasAction(formData: FormData): Promise<void> {
   await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: false, fullHtml: undefined })
 }
 
+// Open a FULL-PAGE HTML page in the FREE CANVAS with the design kept EXACTLY, inside a
+// single "Custom HTML" box the owner can drag/resize and surround with other canvas
+// elements. Instant (no AI). Clears fullHtml so the page opens in the free canvas.
+export async function htmlToBoxAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser()
+  if (!user) return
+  const id = String(formData.get('id') ?? '')
+  const pageSlug = String(formData.get('pageSlug') ?? '')
+  if (!id) return
+  const site = await getSite(id)
+  if (!site) return
+  const page = getPages(site.content).find(p => p.slug === pageSlug)
+  const html = String(page?.fullHtml ?? '').trim()
+  if (!html) return
+  // One full-width Custom HTML box holding the exact design; generous height the owner
+  // resizes to fit. Runs through the same sanitize gate as any canvas save.
+  const canvas = sanitizeCanvas({
+    bg: '#efe6d9',
+    h: 3800,
+    elements: [{ id: 'homehtml', type: 'html', x: 0, y: 0, w: 1000, h: 3600, html, radius: 0 }],
+  })
+  await patchCanvasPage(id, pageSlug, { canvas, canvasHidden: false, fullHtml: undefined })
+}
+
 // Search free stock photos via a server-side Pexels proxy (the key never reaches
 // the browser). Returns { error: 'nokey' } when no PEXELS_API_KEY is configured.
 export async function searchStockPhotos(query: string): Promise<{ ok: boolean; error?: string; photos?: StockPhoto[] }> {

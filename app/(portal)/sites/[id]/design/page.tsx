@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getSite } from '@/lib/sites/store'
 import { getPages, THEMES, type SiteContent, type SiteTheme } from '@/lib/sites/types'
-import { generateSiteAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction, htmlToCanvasAction } from '../../actions'
+import { generateSiteAction, removePageAction, duplicatePageAction, updatePageAction, movePageAction, startCanvasAction, htmlToCanvasAction, htmlToBoxAction } from '../../actions'
 import LiveEditor from './LiveEditor'
 import CanvasEditor from './CanvasEditor'
 import NavLinksEditor from './NavLinksEditor'
@@ -212,20 +212,30 @@ export default async function DesignPage({
           <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
             <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Full-page design</p>
             <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">
-              This page is your own HTML, shown full-page (no site header/footer). You can edit the code below and Save —
-              or, to change it visually by dragging, <strong className="text-parchment">rebuild it as editable free-canvas elements</strong>:
+              This page is your own HTML, shown full-page (no site header/footer). Edit the code below and Save — or take
+              it into your <strong className="text-parchment">free canvas</strong>:
             </p>
-            <form action={htmlToCanvasAction} className="mt-2">
-              <input type="hidden" name="id" value={site.id} />
-              <input type="hidden" name="pageSlug" value={current.slug} />
-              <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm">
-                ✎ Edit this in the free canvas
-              </button>
-            </form>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <form action={htmlToBoxAction}>
+                <input type="hidden" name="id" value={site.id} />
+                <input type="hidden" name="pageSlug" value={current.slug} />
+                <button className="font-label text-[10px] tracking-[2px] uppercase bg-gold text-background hover:bg-goldLight px-4 py-2 rounded-sm">
+                  ✎ Open in the free canvas (your design in a box)
+                </button>
+              </form>
+              <form action={htmlToCanvasAction}>
+                <input type="hidden" name="id" value={site.id} />
+                <input type="hidden" name="pageSlug" value={current.slug} />
+                <button className="font-label text-[10px] tracking-[2px] uppercase border border-gold/40 text-gold hover:bg-gold/10 px-4 py-2 rounded-sm">
+                  ⤨ Rebuild as separate pieces (AI · ~30s)
+                </button>
+              </form>
+            </div>
             <p className="font-body text-ash/40 text-[11px] mt-2 leading-relaxed">
-              This rebuilds your page as draggable text/boxes/buttons on the free canvas (takes ~15s). It&rsquo;s an
-              approximate copy you then tidy by dragging — the exact pixel-perfect version is the full-page code above.
-              Your HTML is safe; you can always paste it back.
+              <strong className="text-ash/70">Open in the free canvas</strong> is instant — your exact design goes into a
+              draggable box on the canvas; drag/resize it, add elements around it, edit the design by editing its HTML.
+              <strong className="text-ash/70"> Rebuild as separate pieces</strong> uses AI (~30s, let it churn) to break it
+              into individual draggable text/boxes — approximate. Your HTML is safe either way; paste it back anytime here.
             </p>
           </div>
           <div className="grid lg:grid-cols-2 gap-4 items-start">
