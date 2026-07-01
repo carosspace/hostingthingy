@@ -8,27 +8,42 @@ interface Code {
   redeemedBy: string | null
   redeemedAt: string | null
 }
+interface Access {
+  email: string
+  source: string
+}
 
 const inputCls =
   'w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none'
 const labelCls = 'font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1'
+const cardCls = 'border border-gold/15 rounded-sm p-6 space-y-4'
 
 export default function WorkbookAdmin({
   initialTitle,
   hasContent,
   updatedAt,
   initialCodes,
+  initialAccess,
 }: {
   initialTitle: string
   hasContent: boolean
   updatedAt: string | null
   initialCodes: Code[]
+  initialAccess: Access[]
 }) {
+  // ── Upload ──
   const [title, setTitle] = useState(initialTitle)
   const [html, setHtml] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
+  // ── Gift ──
+  const [access, setAccess] = useState<Access[]>(initialAccess)
+  const [giftEmail, setGiftEmail] = useState('')
+  const [giftBusy, setGiftBusy] = useState(false)
+  const [giftMsg, setGiftMsg] = useState('')
+
+  // ── Codes ──
   const [codes, setCodes] = useState<Code[]>(initialCodes)
   const [howMany, setHowMany] = useState('10')
   const [genBusy, setGenBusy] = useState(false)
@@ -41,8 +56,7 @@ export default function WorkbookAdmin({
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
-    const text = await f.text()
-    setHtml(text)
+    setHtml(await f.text())
     setMsg(`Loaded ${f.name} (${Math.round(f.size / 1024)} KB). Click Save to publish it.`)
   }
 
@@ -59,13 +73,49 @@ export default function WorkbookAdmin({
       if (r.ok) {
         setMsg('✓ Saved — your workbook is live in the portal.')
         setHtml(null)
-      } else {
-        setMsg(d?.error || 'Couldn’t save — try again.')
-      }
+      } else setMsg(d?.error || 'Couldn’t save — try again.')
     } catch {
       setMsg('Couldn’t save — try again.')
     }
     setBusy(false)
+  }
+
+  async function gift() {
+    const email = giftEmail.trim().toLowerCase()
+    if (!email) return
+    setGiftBusy(true)
+    setGiftMsg('')
+    try {
+      const r = await fetch('/api/workbooks/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'grant', email }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok) {
+        setGiftMsg(`✓ Gifted to ${email}. It’ll appear when they log in with that email.`)
+        setAccess(prev => (prev.some(a => a.email === email) ? prev : [{ email, source: 'gift' }, ...prev]))
+        setGiftEmail('')
+      } else setGiftMsg(d?.error || 'Couldn’t gift it — try again.')
+    } catch {
+      setGiftMsg('Couldn’t gift it — try again.')
+    }
+    setGiftBusy(false)
+  }
+
+  async function revoke(email: string) {
+    if (!confirm(`Remove the workbook from ${email}?`)) return
+    try {
+      const r = await fetch('/api/workbooks/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'revoke', email }),
+      })
+      if (r.ok) setAccess(prev => prev.filter(a => a.email !== email))
+      else setGiftMsg('Couldn’t remove it — try again.')
+    } catch {
+      setGiftMsg('Couldn’t remove it — try again.')
+    }
   }
 
   async function generate() {
@@ -83,9 +133,7 @@ export default function WorkbookAdmin({
         const fresh: Code[] = d.codes.map((c: string) => ({ id: c, code: c, redeemedBy: null, redeemedAt: null }))
         setJustMade(d.codes)
         setCodes(prev => [...fresh, ...prev])
-      } else {
-        setCopyMsg(d?.error || 'Couldn’t generate codes — try again.')
-      }
+      } else setCopyMsg(d?.error || 'Couldn’t generate codes — try again.')
     } catch {
       setCopyMsg('Couldn’t generate codes — try again.')
     }
@@ -104,7 +152,7 @@ export default function WorkbookAdmin({
   return (
     <div className="space-y-8 max-w-xl">
       {/* Upload */}
-      <div className="border border-gold/15 rounded-sm p-6 space-y-5">
+      <div className={cardCls}>
         <p className="font-body text-sm text-parchment">
           {hasContent
             ? `✦ A workbook is published${updatedAt ? ` — updated ${new Date(updatedAt).toLocaleDateString()}` : ''}.`
@@ -134,8 +182,62 @@ export default function WorkbookAdmin({
         {msg && <p className="font-body text-ash text-xs">{msg}</p>}
       </div>
 
+      {/* Gift the workbook */}
+      <div className={cardCls}>
+        <span className="font-label text-[10px] tracking-[3px] uppercase text-gold">Gift the workbook</span>
+        <p className="font-body text-ash/70 text-[12px] leading-relaxed">
+          Give a client the workbook for free — no code needed. Use the email they log in with; it appears in their
+          portal (even if they haven’t signed up yet — it’s waiting the moment they do).
+        </p>
+        <div className="flex items-end gap-3">
+          <label className="block flex-1">
+            <span className={labelCls}>Their email</span>
+            <input
+              type="email"
+              value={giftEmail}
+              onChange={e => setGiftEmail(e.target.value)}
+              placeholder="name@email.com"
+              className={inputCls}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={gift}
+            disabled={giftBusy}
+            className="font-label text-[10px] tracking-[3px] uppercase bg-gold text-background hover:opacity-90 disabled:opacity-50 px-4 py-2.5 rounded-sm transition-opacity"
+          >
+            {giftBusy ? 'Gifting…' : 'Gift'}
+          </button>
+        </div>
+        {giftMsg && <p className="font-body text-ash text-xs">{giftMsg}</p>}
+
+        {access.length > 0 && (
+          <div className="pt-1">
+            <p className="font-label text-[9px] tracking-[2px] uppercase text-gold/50 mb-2">
+              Has the workbook · {access.length}
+            </p>
+            <div className="max-h-56 overflow-y-auto space-y-1">
+              {access.map(a => (
+                <div key={a.email} className="flex items-center justify-between gap-2 border-b border-gold/8 py-1.5">
+                  <span className="font-body text-parchment text-xs truncate">
+                    {a.email} <span className="text-ash/50">· {a.source}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => revoke(a.email)}
+                    className="font-label text-[8px] tracking-[1px] uppercase text-ash/40 hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Unlock codes */}
-      <div className="border border-gold/15 rounded-sm p-6 space-y-4">
+      <div className={cardCls}>
         <div className="flex items-baseline justify-between">
           <span className="font-label text-[10px] tracking-[3px] uppercase text-gold">Unlock codes</span>
           <span className="font-body text-ash/60 text-xs">
@@ -146,7 +248,6 @@ export default function WorkbookAdmin({
           Generate codes and give one to each buyer (website, Etsy, anywhere). They enter it in the portal to unlock
           the workbook on their own account.
         </p>
-
         <div className="flex items-end gap-3">
           <label className="block">
             <span className={labelCls}>How many</span>
@@ -174,11 +275,7 @@ export default function WorkbookAdmin({
           <div className="border border-gold/25 bg-gold/5 rounded-sm p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-label text-[9px] tracking-[2px] uppercase text-gold">Just created — copy these now</span>
-              <button
-                type="button"
-                onClick={() => copy(justMade, 'codes')}
-                className="font-label text-[9px] tracking-[1px] uppercase text-gold hover:opacity-80"
-              >
+              <button type="button" onClick={() => copy(justMade, 'codes')} className="font-label text-[9px] tracking-[1px] uppercase text-gold hover:opacity-80">
                 Copy all
               </button>
             </div>

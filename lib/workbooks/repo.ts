@@ -61,3 +61,26 @@ export async function listCodes(ownerId: string): Promise<RedeemCode[]> {
     return []
   }
 }
+
+// Everyone who currently has the workbook (gifted, redeemed a code, etc.), newest
+// first. GRACEFUL: [] if not migrated.
+export interface AccessEntry {
+  email: string
+  source: string
+}
+
+export async function listAccess(ownerId: string): Promise<AccessEntry[]> {
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data, error } = await supabase
+      .from('workbook_access')
+      .select('client_email, source, created_at')
+      .eq('owner_id', ownerId)
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    if (error || !data) return []
+    return data.map(r => ({ email: String(r.client_email), source: String(r.source ?? '') }))
+  } catch {
+    return []
+  }
+}
