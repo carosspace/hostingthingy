@@ -77,6 +77,69 @@ export async function generateSiteContent(siteName: string, description: string)
   }
 }
 
+// Rebuild a raw HTML design (e.g. from an AI design tool) as approximate, DRAGGABLE
+// free-canvas elements. Returns raw element objects positioned on a 1000px-wide design
+// space; the caller sanitises them through the normal canvas save-gate before persisting.
+// This is intentionally an approximation — layout/text/colours are matched with simple
+// movable pieces, not a pixel copy.
+export async function generateCanvasFromHtml(html: string): Promise<Record<string, unknown>[]> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+  const message = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 4000,
+    tools: [
+      {
+        name: 'rebuild_as_canvas',
+        description: 'Recreate an HTML page design as positioned, draggable canvas elements.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            elements: {
+              type: 'array',
+              description: 'The design recreated as 10–40 canvas elements, in visual (top-to-bottom) order.',
+              items: {
+                type: 'object',
+                properties: {
+                  type: { type: 'string', enum: ['text', 'button', 'box', 'image', 'divider'], description: 'text = headings/paragraphs; button = CTAs; box = a coloured panel/background band; image = a picture; divider = a thin line.' },
+                  x: { type: 'number', description: 'Left position in px on a 1000px-wide canvas (0–1000).' },
+                  y: { type: 'number', description: 'Top position in px (page top = 0, growing downward).' },
+                  w: { type: 'number', description: 'Width in px.' },
+                  h: { type: 'number', description: 'Height in px.' },
+                  text: { type: 'string', description: 'The real text content, for text and button elements.' },
+                  fontSize: { type: 'number', description: 'Font size in px (12–120).' },
+                  weight: { type: 'number', description: 'Font weight 300–800.' },
+                  color: { type: 'string', description: 'Text colour as a #rrggbb hex.' },
+                  fill: { type: 'string', description: 'Background fill for box/button, as a #rrggbb hex.' },
+                  align: { type: 'string', enum: ['left', 'center', 'right'] },
+                  fontFamily: { type: 'string', enum: ['display', 'body', 'label'], description: 'display = headings, body = paragraphs, label = small uppercase labels.' },
+                  radius: { type: 'number', description: 'Corner radius in px for box/button.' },
+                  src: { type: 'string', description: 'Image URL (https:// only). Omit if the image is not a plain URL.' },
+                },
+                required: ['type', 'x', 'y', 'w', 'h'],
+              },
+            },
+          },
+          required: ['elements'],
+        },
+      },
+    ],
+    tool_choice: { type: 'tool', name: 'rebuild_as_canvas' },
+    messages: [
+      {
+        role: 'user',
+        content: `Recreate this web page design as draggable canvas elements laid out on a 1000px-wide canvas. Approximate the layout, visual hierarchy, real text, colours and proportions as closely as you can using simple pieces (text, buttons, coloured boxes, images, dividers). Position every element with x/y/w/h so it visually matches the original, stacking down the page. Read the actual text out of the HTML and keep it. Use #rrggbb hex colours only, no gradients. Aim for 10–40 elements.\n\nHTML:\n${html.slice(0, 80000)}`,
+      },
+    ],
+  })
+
+  if (message.stop_reason === 'max_tokens') throw new Error('That design was too complex to rebuild — try a simpler page.')
+  const block = message.content.find(b => b.type === 'tool_use')
+  if (!block || block.type !== 'tool_use') throw new Error('The AI did not return canvas elements. Please try again.')
+  const input = block.input as { elements?: Record<string, unknown>[] }
+  return Array.isArray(input.elements) ? input.elements.slice(0, 60) : []
+}
+
 // Improve/rewrite a single section, or write a brand-new one (when heading+body
 // are empty). Returns the new heading + body. Used by the in-editor AI buttons.
 export async function aiSection(opts: {

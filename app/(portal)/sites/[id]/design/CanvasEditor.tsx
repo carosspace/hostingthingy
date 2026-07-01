@@ -12,7 +12,7 @@ import { CANVAS_TEMPLATES, type CanvasTemplate } from '@/lib/sites/canvasTemplat
 import { SECTION_TEMPLATES, SECTION_CATEGORY_LABELS, SECTION_CATEGORY_ORDER, type SectionTemplate } from '@/lib/sites/sectionTemplates'
 import CropModal from './CropModal'
 import StockPhotos from './StockPhotos'
-import { saveCanvasAction, aiTextAction, aiCanvasAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction, createVideoUploadUrl } from '../../actions'
+import { saveCanvasAction, aiTextAction, aiCanvasAction, aiImportHtmlAction, clearCanvasAction, suggestAltAction, critiqueDesignAction, setBrandVoiceAction, setPageTransitionAction, suggestPaletteAction, polishCopyAction, mobileLayoutAction, addPageAction, duplicatePageAction, removePageAction, applySiteLookAction, aiDesignSiteAction, setSiteLookOptionAction, createVideoUploadUrl } from '../../actions'
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser'
 import type { DesignCritique } from '@/lib/sites/generate'
 import { contrastRatio, contrastVerdict, resolveColor } from '@/lib/sites/a11y'
@@ -469,6 +469,8 @@ export default function CanvasEditor({
     await addPageAction(fd)
   }
   const [aiPageDesc, setAiPageDesc] = useState('')
+  const [importHtml, setImportHtml] = useState('')
+  const [importBusy, setImportBusy] = useState(false)
   const [aiPageBusy, setAiPageBusy] = useState(false)
   // Which Design-panel accordion sections are open. Persisted so it survives reload; default closed.
   const [openSec, setOpenSec] = useState<Record<string, boolean>>(() => {
@@ -1858,6 +1860,31 @@ export default function CanvasEditor({
       }
     } finally {
       setAiPageBusy(false)
+    }
+  }
+  // AI IMPORT: paste raw HTML → Claude rebuilds it as draggable canvas elements (an
+  // approximation). Mirrors runAiCanvas: apply the returned canvas + let autosave persist it.
+  const runImportHtml = async () => {
+    if (importBusy) return
+    const html = importHtml.trim()
+    if (!html) return
+    setImportBusy(true)
+    try {
+      const r = await aiImportHtmlAction({ siteId, html })
+      if (r.ok && r.canvas) {
+        snapshot(true)
+        setEls(r.canvas.elements)
+        if (r.canvas.bg) setBg(r.canvas.bg)
+        setSelectedIds([])
+        setEditingId('')
+        setSec('aiPage', false)
+        setImportHtml('')
+        touch()
+      } else {
+        alert('Couldn’t rebuild that HTML. Try a simpler page — or use the Custom HTML block for an exact copy.')
+      }
+    } finally {
+      setImportBusy(false)
     }
   }
   // Toolbar "✨ AI" trigger: jump to the Design panel and open its per-page AI writer.
@@ -3299,6 +3326,11 @@ export default function CanvasEditor({
             <p className="font-body text-ash/50 text-[11px] leading-relaxed">Describe this page and AI lays it out on the canvas — replaces what&rsquo;s here (undoable).</p>
             <textarea value={aiPageDesc} onChange={e => setAiPageDesc(e.target.value)} rows={3} placeholder="Describe this page — e.g. Reiki, soul readings and meditation circles in Lisbon." style={{ ...inputCss, resize: 'none', fontSize: 12 }} />
             <button type="button" disabled={aiPageBusy || !aiPageDesc.trim()} onClick={runAiCanvas} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{aiPageBusy ? 'Writing…' : '✨ Generate'}</button>
+            <div className="pt-3 mt-1 border-t border-gold/10 space-y-2">
+              <p className="font-body text-ash/50 text-[11px] leading-relaxed">Or paste raw HTML (e.g. an AI-designed page) and AI rebuilds it as draggable pieces — an approximation, not a pixel-perfect copy. For an exact copy, use the <span className="text-ash/70">Custom HTML</span> element instead.</p>
+              <textarea value={importHtml} onChange={e => setImportHtml(e.target.value)} rows={3} placeholder="Paste your HTML here…" spellCheck={false} style={{ ...inputCss, resize: 'none', fontSize: 11, fontFamily: 'monospace' }} />
+              <button type="button" disabled={importBusy || !importHtml.trim()} onClick={runImportHtml} className="font-label text-[9px] tracking-[1px] uppercase bg-gold text-background hover:bg-goldLight px-3 py-1.5 rounded-sm disabled:opacity-50">{importBusy ? 'Rebuilding…' : '⬗ Rebuild from HTML'}</button>
+            </div>
           </div>
         ))}
 

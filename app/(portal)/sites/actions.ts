@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { getEngine } from '@/lib/sites/engine'
-import { generateSiteContent, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, aiMobileLayout, aiSiteLook, type GeneratedPage, type DesignCritique, type MobileEmphasis } from '@/lib/sites/generate'
+import { generateSiteContent, generateCanvasFromHtml, aiSection, aiText, aiRewritePage, aiAltText, aiCritiqueDesign, aiPalette, aiPolishCopy, aiMobileLayout, aiSiteLook, type GeneratedPage, type DesignCritique, type MobileEmphasis } from '@/lib/sites/generate'
 import { slugify } from '@/lib/sites/slug'
 import { canvasFromContent } from '@/lib/sites/canvasFromContent'
 import { submitMessage, setMessageRead, deleteMessageRecord } from '@/lib/sites/messages'
@@ -297,6 +297,34 @@ export async function aiCanvasAction(args: {
       theme: gen.theme,
       accent: site.content?.accentColor,
     }))
+    return { ok: true, canvas }
+  } catch {
+    return { ok: false }
+  }
+}
+
+// AI IMPORT: paste raw HTML (e.g. an AI-designed page) → Claude rebuilds it as approximate,
+// DRAGGABLE canvas elements. Mirrors aiCanvasAction: it only GENERATES + returns the canvas;
+// the editor applies it (and its own autosave persists it), so no forced remount mid-edit.
+export async function aiImportHtmlAction(args: {
+  siteId: string
+  html: string
+}): Promise<{ ok: boolean; canvas?: PageCanvas }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false }
+  const site = await getSite(args.siteId)
+  if (!site) return { ok: false }
+  const html = String(args.html ?? '').trim()
+  if (!html) return { ok: false }
+  try {
+    const raw = await generateCanvasFromHtml(html)
+    const maxBottom = raw.reduce((m, e) => {
+      const y = Number((e as Record<string, unknown>).y) || 0
+      const h = Number((e as Record<string, unknown>).h) || 0
+      return Math.max(m, y + h)
+    }, 0)
+    // Sanitise through the SAME gate as every canvas save; height fits the generated elements.
+    const canvas = sanitizeCanvas({ bg: '#ffffff', h: Math.max(900, maxBottom + 80), elements: raw })
     return { ok: true, canvas }
   } catch {
     return { ok: false }
