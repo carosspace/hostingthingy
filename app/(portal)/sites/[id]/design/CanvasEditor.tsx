@@ -404,6 +404,7 @@ export default function CanvasEditor({
   const [iconQuery, setIconQuery] = useState('') // search filter for the Add-tab icon gallery
   const [iconPickQuery, setIconPickQuery] = useState('') // search filter for the inspector icon picker
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [hoverId, setHoverId] = useState<string | null>(null) // element lit up by hovering its Layers row
   const [editingId, setEditingId] = useState('') // a text/button element being typed into directly
   const [marquee, setMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [hasStyle, setHasStyle] = useState(false) // a style has been copied (format painter)
@@ -3728,6 +3729,8 @@ export default function CanvasEditor({
                   <div
                     key={el.id}
                     onClick={e => selectFromList(e, el.id)}
+                    onMouseEnter={() => setHoverId(el.id)}
+                    onMouseLeave={() => setHoverId(h => (h === el.id ? null : h))}
                     className="flex items-center gap-1 px-1.5 py-1 rounded-sm cursor-pointer"
                     style={{ background: isSel ? ui : 'transparent', color: isSel ? '#fff' : '#5a513f' }}
                   >
@@ -4745,11 +4748,28 @@ export default function CanvasEditor({
                     onPointerDown={e => { if (el.locked || editingId === el.id) return; startDrag(e, el, 'move') }}
                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); if (!selectedIds.includes(el.id)) setSelectedIds(withGroup([el.id])); setCtxMenu({ x: e.clientX, y: e.clientY }) }}
                     onDoubleClick={() => { if (!el.locked && (el.type === 'text' || el.type === 'button')) { setSelectedIds([el.id]); setEditingId(el.id) } }}
-                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${ui}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1 }}
+                    style={{ position: 'absolute', left: cqv(gx(el)), top: cqv(topOf(el)), width: cqv(gw(el)), height: cqv(gh(el)), opacity: (elHidden ? 0.3 : 1) * (el.opacity ?? 100) / 100, transform: el.rotate ? `rotate(${el.rotate}deg)` : undefined, mixBlendMode: el.blend, cursor: el.locked ? 'default' : editingId === el.id ? 'text' : 'move', touchAction: 'none', outline: selectedIds.includes(el.id) ? `2px solid ${ui}` : hoverId === el.id ? `2px solid ${ui}` : elHidden ? '1px dashed rgba(0,0,0,0.25)' : undefined, outlineOffset: 1, boxShadow: hoverId === el.id && !selectedIds.includes(el.id) ? `0 0 0 4px ${ui}33` : undefined }}
                   >
                     {elInner(el)}
                     {selectedId === el.id && !el.locked && (
                       <>
+                        {/* Quick actions (Canva-style): reorder / duplicate / delete right on the element,
+                            no need to hunt in the Layers panel. Above the element, or tucked just inside
+                            the top when the element sits near the canvas top so it never clips. */}
+                        <div
+                          onPointerDown={e => e.stopPropagation()}
+                          onDoubleClick={e => e.stopPropagation()}
+                          style={{ position: 'absolute', left: '50%', top: topOf(el) < 70 ? 4 : -34, transform: 'translateX(-50%)', display: 'flex', gap: 1, background: '#fff', border: '1px solid rgba(0,0,0,0.14)', borderRadius: 7, boxShadow: '0 4px 14px rgba(0,0,0,0.18)', padding: 3, zIndex: 3, whiteSpace: 'nowrap' }}
+                        >
+                          {([
+                            ['⤒', 'Bring to front', () => layerMany([el.id], 1)],
+                            ['⤓', 'Send to back', () => layerMany([el.id], -1)],
+                            ['⧉', 'Duplicate', () => duplicate(el.id)],
+                            ['🗑', 'Delete', () => remove(el.id)],
+                          ] as [string, string, () => void][]).map(([ic, title, fn]) => (
+                            <button key={title} type="button" title={title} onClick={e => { e.stopPropagation(); fn() }} style={{ width: 26, height: 24, borderRadius: 4, fontSize: 13, color: title === 'Delete' ? '#b3402f' : '#3a2e20', background: 'transparent', lineHeight: 1 }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,92,54,0.10)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>{ic}</button>
+                          ))}
+                        </div>
                         {/* East: width only (drag a line wider without thickening it) */}
                         <div onPointerDown={e => startDrag(e, el, 'resize', 'e')} title="Drag to change width" style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 26, borderRadius: 4, background: '#fff', border: `1.5px solid ${ui}`, cursor: 'ew-resize', touchAction: 'none', zIndex: 2 }} />
                         {/* South: height only */}
