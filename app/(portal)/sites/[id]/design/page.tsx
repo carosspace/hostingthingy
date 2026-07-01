@@ -8,6 +8,7 @@ import NavLinksEditor from './NavLinksEditor'
 import PageTabs from './PageTabs'
 import PagesPanelBar from './PagesPanelBar'
 import FullHtmlPanel from './FullHtmlPanel'
+import FullPageHtml from '@/lib/sites/FullPageHtml'
 
 export const dynamic = 'force-dynamic'
 
@@ -202,9 +203,21 @@ export default async function DesignPage({
       </div>
       </PagesPanelBar>
 
+      {current.fullHtml && (
+        <div className="space-y-3">
+          <div className="border border-gold/30 bg-gold/5 rounded-sm p-3">
+            <p className="font-label text-[10px] tracking-[2px] uppercase text-gold">Full-page HTML — live preview</p>
+            <p className="font-body text-ash/60 text-xs mt-1 leading-relaxed">This page shows your pasted design (below). The canvas editor doesn&rsquo;t apply here — to change it, edit the HTML in &ldquo;⚙ … page settings&rdquo; → &ldquo;Full-page HTML&rdquo; above.</p>
+          </div>
+          <div className="border border-gold/20 rounded-sm overflow-hidden" style={{ background: '#fff' }}>
+            <FullPageHtml html={current.fullHtml} />
+          </div>
+        </div>
+      )}
+
       {/* On a free-canvas page the "Write with AI" + block/canvas switch live inside the
           editor (top-left). On a block page they stay here. */}
-      {!current.canvas && (
+      {!current.fullHtml && !current.canvas && (
         <details className="border border-gold/30 bg-gold/5 rounded-sm p-4">
           <summary className="font-label text-[10px] tracking-[3px] uppercase text-gold cursor-pointer">✨ Write this page with AI</summary>
           <p className="font-body text-ash/70 text-sm mt-3 mb-3">Describe this page and Claude writes it — then edit it right here.</p>
@@ -225,7 +238,7 @@ export default async function DesignPage({
         </details>
       )}
 
-      {current.canvas && !current.canvasHidden ? (
+      {!current.fullHtml && (current.canvas && !current.canvasHidden ? (
         <div className="space-y-3">
           <CanvasEditor
             key={'canvas:' + current.slug + ':' + site.updatedAt}
@@ -266,7 +279,7 @@ export default async function DesignPage({
             initial={pageView}
           />
         </>
-      )}
+      ))}
     </div>
   )
 }

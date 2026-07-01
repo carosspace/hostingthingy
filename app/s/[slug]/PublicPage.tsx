@@ -7,6 +7,7 @@ import { embedSrc } from '@/lib/sites/embed'
 import { CanvasView } from '@/lib/sites/CanvasView'
 import { PageTransition } from './PageTransition'
 import Reveal from './Reveal'
+import FullPageHtml from '@/lib/sites/FullPageHtml'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
 function safeHref(href: string): string | null {
@@ -54,14 +55,7 @@ export default function PublicPage({
   // the outer document wrapper so their <link> fonts + <style> + markup inline
   // cleanly. Reversible — clearing fullHtml restores the normal render below.
   if (page.fullHtml && page.fullHtml.trim()) {
-    const inner = page.fullHtml
-      .replace(/<!doctype[^>]*>/gi, '')
-      .replace(/<\/?html[^>]*>/gi, '')
-      .replace(/<head[^>]*>|<\/head>/gi, '')
-      .replace(/<body[^>]*>|<\/body>/gi, '')
-      .replace(/<title[^>]*>[\s\S]*?<\/title>/gi, '')
-      .replace(/<meta[^>]*>/gi, '')
-    return <div dangerouslySetInnerHTML={{ __html: inner }} />
+    return <FullPageHtml html={page.fullHtml} />
   }
 
   const theme = THEMES[(content?.theme as SiteTheme) ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME]
