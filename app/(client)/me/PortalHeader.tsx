@@ -64,6 +64,13 @@ export default function PortalHeader({
               {n.label}
             </a>
           ))}
+          <a
+            href="https://blueprint.animatemple.com"
+            className="font-label transition-opacity hover:opacity-70"
+            style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: accent, border: `1px solid ${accent}59`, borderRadius: 999, padding: '5px 14px' }}
+          >
+            Divine Blueprint
+          </a>
         </nav>
 
         <form action={signOutClient}>
