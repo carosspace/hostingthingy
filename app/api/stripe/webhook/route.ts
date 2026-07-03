@@ -115,6 +115,7 @@ export async function POST(req: Request) {
       const isPay = !kind || kind === 'pay'
       const isBooking = kind === 'booking'
       const isMembership = kind === 'membership'
+      const isWorkbook = kind === 'workbook'
       // On a Connect event this carries the connected account that processed the charge; on a
       // direct charge to the platform account it is ABSENT.
       const eventAccount = (event as Stripe.Event & { account?: string }).account || null
@@ -306,6 +307,50 @@ export async function POST(req: Request) {
           if (error && error.code !== '23505') {
             console.error('[stripe webhook] sales insert failed for session', sessionId, error.message)
           }
+        }
+      }
+      // WORKBOOK purchase (Tuned In, bought on the public site): grant access to the buyer's
+      // Stripe-verified email, record the sale, and email them a one-click sign-in link to open
+      // it. ownerId comes from OUR metadata (server-authoritative). Idempotent + never throws.
+      if (isWorkbook && siteId && sessionId) {
+        const ownerId = session.metadata?.ownerId || null
+        const email = (session.customer_details?.email || session.customer_email || '').trim().toLowerCase() || null
+        if (ownerId && email) {
+          try {
+            const { data: existing } = await admin
+              .from('workbook_access')
+              .select('id')
+              .eq('owner_id', ownerId)
+              .eq('client_email', email)
+              .limit(1)
+            if (!existing || existing.length === 0) {
+              const { error: accErr } = await admin
+                .from('workbook_access')
+                .insert({ owner_id: ownerId, client_email: email, source: 'purchase' })
+              if (accErr) console.error('[stripe webhook] workbook grant failed for session', sessionId, accErr.message)
+            }
+          } catch (e) {
+            console.error('[stripe webhook] workbook grant threw for session', sessionId, e)
+          }
+          const amountCents = typeof session.amount_total === 'number' ? session.amount_total : 0
+          const currency = (session.currency || 'eur').toLowerCase()
+          const product = session.metadata?.productName || 'Tuned In'
+          const { error: wbSalesErr } = await admin.from('sales').insert({
+            site_id: siteId,
+            amount_cents: amountCents,
+            currency,
+            product,
+            customer_email: email,
+            stripe_session_id: sessionId,
+          })
+          if (wbSalesErr && wbSalesErr.code !== '23505') {
+            console.error('[stripe webhook] workbook sale insert failed for session', sessionId, wbSalesErr.message)
+          }
+          void inviteToPortal(email, {
+            nextPath: '/me/workbook',
+            intro: "Your workbook is ready. Here's your private space — open Tuned In whenever you like.",
+            nextLabel: 'Open Tuned In',
+          }).catch(() => {})
         }
       }
     } else if (event.type === 'account.updated') {

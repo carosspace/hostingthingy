@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
     brand?: string
     footer?: string
     navLinks?: { label: string; href: string; newTab?: boolean }[]
+    workbookPriceCents?: number
+    workbookCurrency?: string
+    workbookTitle?: string
   }
   try {
     body = await req.json()
@@ -88,6 +91,9 @@ export async function POST(req: NextRequest) {
     if (typeof body.theme === 'string') content.theme = body.theme
     if (typeof body.brand === 'string') content.brand = body.brand
     if (typeof body.footer === 'string') content.footer = body.footer
+    if (Number.isInteger(body.workbookPriceCents)) content.workbookPriceCents = body.workbookPriceCents
+    if (typeof body.workbookCurrency === 'string') content.workbookCurrency = body.workbookCurrency
+    if (typeof body.workbookTitle === 'string') content.workbookTitle = body.workbookTitle
     if (Array.isArray(body.navLinks)) {
       content.navLinks = body.navLinks
         .filter(l => l && typeof l.label === 'string' && typeof l.href === 'string')
