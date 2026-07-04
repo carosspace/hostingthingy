@@ -31,7 +31,7 @@ export default function FullPageHtml({ html, initialHeight = 1400 }: { html: str
       srcDoc={doc}
       title="Page"
       scrolling="no"
-      sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-top-navigation-by-user-activation"
+      sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-top-navigation allow-popups-to-escape-sandbox"
       style={{ width: '100%', height, border: 0, display: 'block', overflow: 'hidden' }}
     />
   )
