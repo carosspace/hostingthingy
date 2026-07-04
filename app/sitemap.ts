@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
-import { listPublicPages, siteSlugForDomain } from '@/lib/sites/public'
+import { listPublicPages, siteSlugForDomain, getPublicSite } from '@/lib/sites/public'
+import { getPages } from '@/lib/sites/types'
 import { siteBaseUrl } from '@/lib/sites/baseurl'
 
 export const dynamic = 'force-dynamic'
@@ -29,9 +30,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // --- Custom domain: one site, clean URLs -------------------------------------------------
   if (domainSlug) {
-    const site = sites.find(s => s.slug === domainSlug)
-    const lastModified = site?.updatedAt ? new Date(site.updatedAt) : undefined
-    const slugs = Array.from(new Set(site?.pageSlugs.length ? site.pageSlugs : ['']))
+    const idx = sites.find(s => s.slug === domainSlug)
+    const lastModified = idx?.updatedAt ? new Date(idx.updatedAt) : undefined
+    // Read the REAL page list so offline/hidden pages (old orphans) are excluded — the
+    // list_public_pages index doesn't carry those flags.
+    const full = await getPublicSite(domainSlug).catch(() => null)
+    const visible = full ? getPages(full.content).filter(p => !p.hidden && !p.offline) : []
+    const slugs = visible.length ? Array.from(new Set(visible.map(p => p.slug))) : ['']
     const entries: MetadataRoute.Sitemap = [{ url: BASE, lastModified, changeFrequency: 'weekly' }]
     for (const p of slugs) {
       if (p === '') continue // home already added as BASE
