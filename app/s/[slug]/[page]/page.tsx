@@ -17,13 +17,16 @@ export async function generateMetadata({ params }: { params: { slug: string; pag
   if (!page) return {}
   const title = page.seoTitle || `${page.title || page.headline || 'Page'} · ${c?.seoTitle || brand}`
   const description = page.seoDescription || c?.seoDescription || page.subheadline || brand
-  const share = page.seoImage || (page.heroImage && page.heroImage.startsWith('http') ? page.heroImage : undefined)
+  const siteShare = (c as Record<string, unknown> | null)?.seoImage
+  const share = page.seoImage || (page.heroImage && page.heroImage.startsWith('http') ? page.heroImage : undefined) || (typeof siteShare === 'string' ? siteShare : undefined)
   const img = share && share.startsWith('http') ? [share] : undefined
+  const canonical = `${siteBaseUrl()}/${params.page}`
   return {
     title,
     description,
+    alternates: { canonical },
     icons: c?.faviconImage ? { icon: c.faviconImage } : undefined,
-    openGraph: { title, description, images: img, type: 'website' },
+    openGraph: { title, description, url: canonical, images: img, type: 'website' },
     twitter: { card: 'summary_large_image', title, description, images: img },
   }
 }

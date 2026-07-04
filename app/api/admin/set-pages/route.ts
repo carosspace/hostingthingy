@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'service role not configured' }, { status: 500 })
 
   let body: {
-    pages?: { slug: string; title?: string; navLabel?: string; fullHtml?: string; canvas?: unknown; hideChrome?: boolean; hidden?: boolean; offline?: boolean }[]
+    pages?: { slug: string; title?: string; navLabel?: string; fullHtml?: string; canvas?: unknown; hideChrome?: boolean; hidden?: boolean; offline?: boolean; seoTitle?: string; seoDescription?: string; seoImage?: string }[]
     fontSystem?: string
     contactEmail?: string
     accentColor?: string
@@ -70,6 +70,12 @@ export async function POST(req: NextRequest) {
     workbookPriceCents?: number
     workbookCurrency?: string
     workbookTitle?: string
+    seoTitle?: string
+    seoDescription?: string
+    seoImage?: string
+    faviconImage?: string
+    logoImage?: string
+    socials?: { kind: string; url: string }[]
   }
   try {
     body = await req.json()
@@ -94,6 +100,16 @@ export async function POST(req: NextRequest) {
     if (Number.isInteger(body.workbookPriceCents)) content.workbookPriceCents = body.workbookPriceCents
     if (typeof body.workbookCurrency === 'string') content.workbookCurrency = body.workbookCurrency
     if (typeof body.workbookTitle === 'string') content.workbookTitle = body.workbookTitle
+    if (typeof body.seoTitle === 'string') content.seoTitle = body.seoTitle
+    if (typeof body.seoDescription === 'string') content.seoDescription = body.seoDescription
+    if (typeof body.seoImage === 'string') content.seoImage = body.seoImage
+    if (typeof body.faviconImage === 'string') content.faviconImage = body.faviconImage
+    if (typeof body.logoImage === 'string') content.logoImage = body.logoImage
+    if (Array.isArray(body.socials)) {
+      content.socials = body.socials
+        .filter(s => s && typeof s.kind === 'string' && typeof s.url === 'string')
+        .map(s => ({ kind: String(s.kind).slice(0, 20), url: String(s.url).slice(0, 400) }))
+    }
     if (Array.isArray(body.navLinks)) {
       content.navLinks = body.navLinks
         .filter(l => l && typeof l.label === 'string' && typeof l.href === 'string')
@@ -107,7 +123,7 @@ export async function POST(req: NextRequest) {
       const slug = String(inc.slug ?? '')
       const hasCanvas = inc.canvas && typeof inc.canvas === 'object'
       const html = String(inc.fullHtml ?? '')
-      if (!hasCanvas && !html && inc.hidden === undefined && inc.offline === undefined && inc.navLabel === undefined && inc.hideChrome === undefined) continue
+      if (!hasCanvas && !html && inc.hidden === undefined && inc.offline === undefined && inc.navLabel === undefined && inc.hideChrome === undefined && inc.seoTitle === undefined && inc.seoDescription === undefined && inc.seoImage === undefined) continue
 
       const existing = pages.find(p => String(p.slug ?? '') === slug)
       const target = existing ?? (() => {
@@ -121,6 +137,9 @@ export async function POST(req: NextRequest) {
       if (inc.hideChrome !== undefined) target.hideChrome = !!inc.hideChrome
       if (inc.hidden !== undefined) target.hidden = !!inc.hidden
       if (inc.offline !== undefined) target.offline = !!inc.offline
+      if (inc.seoTitle !== undefined) target.seoTitle = inc.seoTitle
+      if (inc.seoDescription !== undefined) target.seoDescription = inc.seoDescription
+      if (inc.seoImage !== undefined) target.seoImage = inc.seoImage
 
       if (hasCanvas) {
         target.canvas = inc.canvas
