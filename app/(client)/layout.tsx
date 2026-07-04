@@ -17,13 +17,16 @@ export default async function ClientAreaLayout({ children }: { children: React.R
   const families = portalGoogleFamilies(portal)
   return (
     <>
-      {families.length > 0 && (
-        <>
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-          <link rel="stylesheet" href={googleHref(families)} />
-        </>
-      )}
+      {/* The Anima Temple brand faces — always loaded so the portal wears the same
+          Cormorant / Mulish / Space Grotesk type as the public website. */}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Mulish:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      />
+      {/* Plus any Google families the owner's role fonts use (Site Look). */}
+      {families.length > 0 && <link rel="stylesheet" href={googleHref(families)} />}
       {children}
     </>
   )

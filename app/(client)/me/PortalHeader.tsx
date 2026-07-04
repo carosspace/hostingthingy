@@ -7,6 +7,7 @@ const SITE_NAV: { label: string; href: string }[] = [
   { label: 'Coaching', href: SITE_URL + '/coaching' },
   { label: 'Energy Healing', href: SITE_URL + '/healing' },
   { label: 'Resources', href: SITE_URL + '/resources' },
+  { label: 'Contact', href: SITE_URL + '/contact' },
 ]
 
 // The portal's shared header chrome: brand (logo or accent label) on the left — now a link
