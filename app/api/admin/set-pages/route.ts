@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     workbookPriceCents?: number
     workbookCurrency?: string
     workbookTitle?: string
+    workbookHtml?: string
     seoTitle?: string
     seoDescription?: string
     seoImage?: string
@@ -84,8 +85,25 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { data: site, error: e1 } = await admin.from('sites').select('id, content').eq('slug', 'animatemple-com').single()
+    const { data: site, error: e1 } = await admin.from('sites').select('id, owner_id, content').eq('slug', 'animatemple-com').single()
     if (e1 || !site) return NextResponse.json({ error: 'site not found' }, { status: 404 })
+
+    // --- interactive workbook (Tuned In) content: separate `workbooks` table, keyed by owner.
+    // Update-only so the owner's title/tier stay intact; insert if somehow missing. ---
+    if (typeof body.workbookHtml === 'string' && body.workbookHtml.trim().length > 100) {
+      if (body.workbookHtml.length > 8_000_000) return NextResponse.json({ error: 'workbook too large (max ~8MB)' }, { status: 400 })
+      const ownerId = (site as { owner_id: string }).owner_id
+      const wb = { html_content: body.workbookHtml, updated_at: new Date().toISOString() }
+      const { data: exist } = await admin.from('workbooks').select('owner_id').eq('owner_id', ownerId).maybeSingle()
+      if (exist) {
+        const { error: ew } = await admin.from('workbooks').update(wb).eq('owner_id', ownerId)
+        if (ew) return NextResponse.json({ error: 'workbook: ' + ew.message }, { status: 500 })
+      } else {
+        const { error: ew } = await admin.from('workbooks').insert({ owner_id: ownerId, title: 'Tuned In', ...wb })
+        if (ew) return NextResponse.json({ error: 'workbook: ' + ew.message }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true, workbook: exist ? 'updated' : 'created', bytes: body.workbookHtml.length })
+    }
 
     const content = (site.content || {}) as Record<string, unknown>
 
