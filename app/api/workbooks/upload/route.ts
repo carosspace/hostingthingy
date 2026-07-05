@@ -19,18 +19,23 @@ export async function POST(request: NextRequest) {
     if (html !== null && html.length > 8_000_000) {
       return NextResponse.json({ error: 'That file is too large (max ~8MB).' }, { status: 400 })
     }
+    // Which product this saves (an owner may have more than one workbook). Defaults to
+    // the original 'tuned-in'. The upsert key must match the (owner_id, slug) primary key.
+    const rawSlug = String(body.slug ?? 'tuned-in').toLowerCase()
+    const slug = /^[a-z0-9-]{1,60}$/.test(rawSlug) ? rawSlug : 'tuned-in'
 
     const supabase = createSupabaseServerClient()
     // Config-only save (no new file) keeps the existing html_content untouched.
     const row: Record<string, unknown> = {
       owner_id: user.id,
+      slug,
       title,
       tier_id: tierId,
       updated_at: new Date().toISOString(),
     }
     if (html !== null) row.html_content = html
 
-    const { error } = await supabase.from('workbooks').upsert(row, { onConflict: 'owner_id' })
+    const { error } = await supabase.from('workbooks').upsert(row, { onConflict: 'owner_id,slug' })
     if (error) {
       const code = (error as { code?: string }).code
       if (code === '42P01' || code === 'PGRST205') {

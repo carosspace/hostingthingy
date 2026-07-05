@@ -14,7 +14,7 @@ import { getMyAppointments } from '@/lib/portal/bookings'
 import { getMyCourses } from '@/lib/portal/courses'
 import { getMyMemberships } from '@/lib/portal/memberships'
 import { getMyResources } from '@/lib/portal/resources'
-import { getMyWorkbook } from '@/lib/portal/workbook'
+import { getMyWorkbooks } from '@/lib/portal/workbook'
 import ClientLogin from './ClientLogin'
 import PortalHeader from './PortalHeader'
 
@@ -93,11 +93,11 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
     moduleOn('resources') ? getMyResources(slug).then(r => r.length > 0).catch(() => false) : Promise.resolve(false),
   ])
 
-  // The interactive workbook — its own tile, shown whenever the client is entitled
-  // (gifted or via a code) and it has content. It behaves like a resource, but
-  // interactive, so it opens full-screen at /me/workbook.
-  const workbook = await getMyWorkbook(slug).catch(() => null)
-  const hasWorkbook = !!workbook && workbook.entitled && workbook.hasContent
+  // Interactive workbooks (Tuned In, Meeting Yourself, …) live under Resources. If
+  // the member owns ANY of them, the Resources star lights up. Each opens
+  // full-screen at /me/workbook?w=<slug> from the Resources page.
+  const myWorkbooks = await getMyWorkbooks(slug).catch(() => [])
+  const hasWorkbook = myWorkbooks.some(w => w.entitled && w.hasContent)
 
   // The portal's tabs — each a card with a STAR that turns gold once it's the member's.
   // Flagship offerings (Divine Blueprint, Resources) always appear so a member can discover

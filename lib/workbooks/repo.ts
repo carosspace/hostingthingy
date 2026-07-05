@@ -9,19 +9,23 @@ export interface OwnerWorkbook {
   hasContent: boolean
 }
 
-export async function getOwnerWorkbook(ownerId: string): Promise<OwnerWorkbook | null> {
+export async function getOwnerWorkbook(ownerId: string, workbookSlug = 'tuned-in'): Promise<OwnerWorkbook | null> {
   try {
     const supabase = createSupabaseServerClient()
+    // An owner may now have more than one workbook (keyed by slug); scope to one so
+    // maybeSingle() never trips over multiple rows.
     const { data, error } = await supabase
       .from('workbooks')
       .select('title, updated_at')
       .eq('owner_id', ownerId)
+      .eq('slug', workbookSlug)
       .maybeSingle()
     if (error || !data) return null
     const { count } = await supabase
       .from('workbooks')
       .select('owner_id', { count: 'exact', head: true })
       .eq('owner_id', ownerId)
+      .eq('slug', workbookSlug)
       .not('html_content', 'is', null)
     return {
       title: String(data.title ?? 'Workbook'),

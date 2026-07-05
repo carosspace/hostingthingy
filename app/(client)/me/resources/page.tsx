@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPortalSite } from '@/lib/portal/site'
 import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
 import { getMyResources, type MyResource } from '@/lib/portal/resources'
-import { getMyWorkbook } from '@/lib/portal/workbook'
+import { getMyWorkbooks } from '@/lib/portal/workbook'
 import PortalHeader from '../PortalHeader'
 import DownloadButton from './DownloadButton'
 
@@ -50,9 +50,11 @@ export default async function ClientResourcesPage() {
 
   // Graceful: empty list if migration 022 isn't applied (no crash).
   const resources = await getMyResources(slug)
-  // The interactive workbook lives here too now — shown as an "open" card, not a download.
-  const workbook = await getMyWorkbook(slug).catch(() => null)
-  const hasWorkbook = !!workbook && workbook.entitled && workbook.hasContent
+  // Interactive workbooks live here too — shown as "open" cards, not downloads. A
+  // member may own more than one (e.g. Tuned In + Meeting Yourself); show each.
+  const workbooks = (await getMyWorkbooks(slug).catch(() => []))
+    .filter(w => w.entitled && w.hasContent)
+  const hasWorkbook = workbooks.length > 0
 
   const footer = content?.footer || brand
 
@@ -117,9 +119,10 @@ export default async function ClientResourcesPage() {
           </p>
         ) : (
           <div className="mt-12 grid gap-5 sm:grid-cols-2">
-            {hasWorkbook && (
+            {workbooks.map(w => (
               <a
-                href="/me/workbook"
+                key={w.slug}
+                href={`/me/workbook?w=${encodeURIComponent(w.slug)}`}
                 className="p-6 flex flex-col gap-2 transition-opacity hover:opacity-80"
                 style={cardStyle}
               >
@@ -130,7 +133,7 @@ export default async function ClientResourcesPage() {
                   </span>
                 </div>
                 <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
-                  {workbook!.title}
+                  {w.title}
                 </h2>
                 <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
                   Open it any time — everything you write is saved to your account.
@@ -139,7 +142,7 @@ export default async function ClientResourcesPage() {
                   Open workbook →
                 </span>
               </a>
-            )}
+            ))}
             {resources.map(r => (
               <Card key={r.id} r={r} />
             ))}

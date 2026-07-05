@@ -19,12 +19,15 @@ export async function POST(request: NextRequest) {
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 })
     }
+    // Which product to gift/revoke (defaults to the original 'tuned-in').
+    const rawSlug = String(body.slug ?? 'tuned-in').toLowerCase()
+    const wbSlug = /^[a-z0-9-]{1,60}$/.test(rawSlug) ? rawSlug : 'tuned-in'
     const supabase = createSupabaseServerClient()
 
     if (action === 'grant') {
       const { error } = await supabase.from('workbook_access').upsert(
-        { owner_id: user.id, client_email: email, source: 'gift' },
-        { onConflict: 'owner_id,client_email', ignoreDuplicates: true },
+        { owner_id: user.id, slug: wbSlug, client_email: email, source: 'gift' },
+        { onConflict: 'owner_id,slug,client_email', ignoreDuplicates: true },
       )
       if (error) {
         const c = (error as { code?: string }).code
@@ -41,6 +44,7 @@ export async function POST(request: NextRequest) {
         .from('workbook_access')
         .delete()
         .eq('owner_id', user.id)
+        .eq('slug', wbSlug)
         .eq('client_email', email)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ ok: true })

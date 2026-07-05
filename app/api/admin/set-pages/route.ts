@@ -71,6 +71,8 @@ export async function POST(req: NextRequest) {
     workbookCurrency?: string
     workbookTitle?: string
     workbookHtml?: string
+    workbookSlug?: string
+    workbookProducts?: Record<string, { priceCents?: number; currency?: string; title?: string }>
     seoTitle?: string
     seoDescription?: string
     seoImage?: string
@@ -88,21 +90,30 @@ export async function POST(req: NextRequest) {
     const { data: site, error: e1 } = await admin.from('sites').select('id, owner_id, content').eq('slug', 'animatemple-com').single()
     if (e1 || !site) return NextResponse.json({ error: 'site not found' }, { status: 404 })
 
-    // --- interactive workbook (Tuned In) content: separate `workbooks` table, keyed by owner.
-    // Update-only so the owner's title/tier stay intact; insert if somehow missing. ---
+    // --- interactive workbook content: `workbooks` table, keyed by (owner, slug) so an
+    // owner can hold more than one (Tuned In, Meeting Yourself, …). Update in place if the
+    // product row exists (keeps title/tier), else insert. ---
     if (typeof body.workbookHtml === 'string' && body.workbookHtml.trim().length > 100) {
       if (body.workbookHtml.length > 8_000_000) return NextResponse.json({ error: 'workbook too large (max ~8MB)' }, { status: 400 })
       const ownerId = (site as { owner_id: string }).owner_id
-      const wb = { html_content: body.workbookHtml, updated_at: new Date().toISOString() }
-      const { data: exist } = await admin.from('workbooks').select('owner_id').eq('owner_id', ownerId).maybeSingle()
+      const rawSlug = (typeof body.workbookSlug === 'string' && body.workbookSlug.trim()) ? body.workbookSlug.trim().toLowerCase() : 'tuned-in'
+      if (!/^[a-z0-9-]{1,60}$/.test(rawSlug)) return NextResponse.json({ error: 'bad workbookSlug' }, { status: 400 })
+      const title = (typeof body.workbookTitle === 'string' && body.workbookTitle.trim())
+        ? body.workbookTitle.trim().slice(0, 120)
+        : (rawSlug === 'tuned-in' ? 'Tuned In' : 'Workbook')
+      const stamp = new Date().toISOString()
+      const { data: exist } = await admin.from('workbooks').select('slug').eq('owner_id', ownerId).eq('slug', rawSlug).maybeSingle()
       if (exist) {
-        const { error: ew } = await admin.from('workbooks').update(wb).eq('owner_id', ownerId)
+        // Only overwrite the title when one was explicitly provided.
+        const upd: Record<string, unknown> = { html_content: body.workbookHtml, updated_at: stamp }
+        if (typeof body.workbookTitle === 'string' && body.workbookTitle.trim()) upd.title = title
+        const { error: ew } = await admin.from('workbooks').update(upd).eq('owner_id', ownerId).eq('slug', rawSlug)
         if (ew) return NextResponse.json({ error: 'workbook: ' + ew.message }, { status: 500 })
       } else {
-        const { error: ew } = await admin.from('workbooks').insert({ owner_id: ownerId, title: 'Tuned In', ...wb })
+        const { error: ew } = await admin.from('workbooks').insert({ owner_id: ownerId, slug: rawSlug, title, html_content: body.workbookHtml, updated_at: stamp })
         if (ew) return NextResponse.json({ error: 'workbook: ' + ew.message }, { status: 500 })
       }
-      return NextResponse.json({ ok: true, workbook: exist ? 'updated' : 'created', bytes: body.workbookHtml.length })
+      return NextResponse.json({ ok: true, workbook: exist ? 'updated' : 'created', slug: rawSlug, bytes: body.workbookHtml.length })
     }
 
     const content = (site.content || {}) as Record<string, unknown>
@@ -118,6 +129,20 @@ export async function POST(req: NextRequest) {
     if (Number.isInteger(body.workbookPriceCents)) content.workbookPriceCents = body.workbookPriceCents
     if (typeof body.workbookCurrency === 'string') content.workbookCurrency = body.workbookCurrency
     if (typeof body.workbookTitle === 'string') content.workbookTitle = body.workbookTitle
+    // Per-product buy config for extra workbooks: content.workbookProducts[slug] =
+    // { priceCents, currency, title }. Merged (not replaced) so each call can add one.
+    if (body.workbookProducts && typeof body.workbookProducts === 'object') {
+      const existing = (content.workbookProducts && typeof content.workbookProducts === 'object' ? content.workbookProducts : {}) as Record<string, unknown>
+      for (const [k, v] of Object.entries(body.workbookProducts)) {
+        if (!/^[a-z0-9-]{1,60}$/.test(k) || !v || typeof v !== 'object') continue
+        const cur = (existing[k] && typeof existing[k] === 'object' ? existing[k] : {}) as Record<string, unknown>
+        if (Number.isInteger(v.priceCents)) cur.priceCents = v.priceCents
+        if (typeof v.currency === 'string') cur.currency = v.currency.slice(0, 10)
+        if (typeof v.title === 'string') cur.title = v.title.slice(0, 120)
+        existing[k] = cur
+      }
+      content.workbookProducts = existing
+    }
     if (typeof body.seoTitle === 'string') content.seoTitle = body.seoTitle
     if (typeof body.seoDescription === 'string') content.seoDescription = body.seoDescription
     if (typeof body.seoImage === 'string') content.seoImage = body.seoImage

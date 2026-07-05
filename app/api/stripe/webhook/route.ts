@@ -315,18 +315,24 @@ export async function POST(req: Request) {
       if (isWorkbook && siteId && sessionId) {
         const ownerId = session.metadata?.ownerId || null
         const email = (session.customer_details?.email || session.customer_email || '').trim().toLowerCase() || null
+        // Which product was bought (defaults to 'tuned-in' for back-compat with sessions
+        // created before productSlug existed). Grant access to THAT product only.
+        const rawSlug = (session.metadata?.productSlug || 'tuned-in').toLowerCase()
+        const productSlug = /^[a-z0-9-]{1,60}$/.test(rawSlug) ? rawSlug : 'tuned-in'
+        const productName = session.metadata?.productName || 'Tuned In'
         if (ownerId && email) {
           try {
             const { data: existing } = await admin
               .from('workbook_access')
-              .select('id')
+              .select('owner_id')
               .eq('owner_id', ownerId)
+              .eq('slug', productSlug)
               .eq('client_email', email)
               .limit(1)
             if (!existing || existing.length === 0) {
               const { error: accErr } = await admin
                 .from('workbook_access')
-                .insert({ owner_id: ownerId, client_email: email, source: 'purchase' })
+                .insert({ owner_id: ownerId, slug: productSlug, client_email: email, source: 'purchase' })
               if (accErr) console.error('[stripe webhook] workbook grant failed for session', sessionId, accErr.message)
             }
           } catch (e) {
@@ -334,12 +340,11 @@ export async function POST(req: Request) {
           }
           const amountCents = typeof session.amount_total === 'number' ? session.amount_total : 0
           const currency = (session.currency || 'eur').toLowerCase()
-          const product = session.metadata?.productName || 'Tuned In'
           const { error: wbSalesErr } = await admin.from('sales').insert({
             site_id: siteId,
             amount_cents: amountCents,
             currency,
-            product,
+            product: productName,
             customer_email: email,
             stripe_session_id: sessionId,
           })
@@ -347,9 +352,9 @@ export async function POST(req: Request) {
             console.error('[stripe webhook] workbook sale insert failed for session', sessionId, wbSalesErr.message)
           }
           void inviteToPortal(email, {
-            nextPath: '/me/workbook',
-            intro: "Your workbook is ready. Here's your private space — open Tuned In whenever you like.",
-            nextLabel: 'Open Tuned In',
+            nextPath: `/me/workbook?w=${encodeURIComponent(productSlug)}`,
+            intro: `Your workbook is ready. Here's your private space — open ${productName} whenever you like.`,
+            nextLabel: `Open ${productName}`,
           }).catch(() => {})
         }
       }

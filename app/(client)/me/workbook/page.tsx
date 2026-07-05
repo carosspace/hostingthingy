@@ -8,17 +8,21 @@ import PortalHeader from '../PortalHeader'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ClientWorkbookPage() {
+export default async function ClientWorkbookPage({ searchParams }: { searchParams: { w?: string } }) {
   const portal = await getPortalSite()
   const { slug, brand, content, accent } = portal
   const rootStyle = portalRootStyle(portal)
   const { text: portalText, muted: portalMuted } = portalTextColors(portal)
 
+  // Which workbook to open (product slug). Defaults to the original 'tuned-in'.
+  const raw = String(searchParams?.w ?? 'tuned-in').toLowerCase()
+  const workbookSlug = /^[a-z0-9-]{1,60}$/.test(raw) ? raw : 'tuned-in'
+
   // Sub-pages require sign-in; /me itself renders the login. Redirect there.
   const user = await getCurrentUser()
   if (!user) redirect('/me')
 
-  const workbook = await getMyWorkbook(slug)
+  const workbook = await getMyWorkbook(slug, workbookSlug)
   const ready = !!workbook && workbook.hasContent
   const entitled = !!workbook && workbook.entitled
 
@@ -39,7 +43,7 @@ export default async function ClientWorkbookPage() {
           </span>
         </div>
         <iframe
-          src="/api/client/workbook"
+          src={`/api/client/workbook?w=${encodeURIComponent(workbookSlug)}`}
           title={workbook!.title}
           className="flex-1 w-full border-0"
           style={{ height: 'calc(100vh - 37px)' }}

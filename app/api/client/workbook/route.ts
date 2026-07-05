@@ -16,12 +16,15 @@ function message(title: string, body: string, status: number): Response {
 // Serves the workbook HTML — but ONLY to a signed-in, entitled member. The RPC
 // re-checks entitlement server-side on every request (the iframe src can't be
 // cached past a session), so this can't be scraped by a logged-out visitor.
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const user = await getCurrentUser()
   if (!user) {
     return message('Please sign in', 'Sign in to your portal to open your workbook.', 401)
   }
-  const html = await getMyWorkbookHtml(PORTAL_SITE_SLUG)
+  // Which product to serve (?w=<slug>); defaults to the original 'tuned-in'.
+  const raw = (new URL(req.url).searchParams.get('w') || 'tuned-in').toLowerCase()
+  const workbookSlug = /^[a-z0-9-]{1,60}$/.test(raw) ? raw : 'tuned-in'
+  const html = await getMyWorkbookHtml(PORTAL_SITE_SLUG, workbookSlug)
   if (!html) {
     return message(
       'Not unlocked yet',
