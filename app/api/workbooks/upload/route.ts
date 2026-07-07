@@ -20,9 +20,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'That file is too large (max ~8MB).' }, { status: 400 })
     }
     // Which product this saves (an owner may have more than one workbook). Defaults to
-    // the original 'tuned-in'. The upsert key must match the (owner_id, slug) primary key.
-    const rawSlug = String(body.slug ?? 'tuned-in').toLowerCase()
-    const slug = /^[a-z0-9-]{1,60}$/.test(rawSlug) ? rawSlug : 'tuned-in'
+    // the original 'tuned-in' ONLY when no slug is sent; an explicitly provided but invalid
+    // slug is rejected (never silently coerced to 'tuned-in', which would clobber it).
+    const hasSlug = body.slug !== undefined && body.slug !== null && String(body.slug).trim() !== ''
+    const slug = hasSlug ? String(body.slug).toLowerCase().trim() : 'tuned-in'
+    if (!/^[a-z0-9-]{1,60}$/.test(slug)) {
+      return NextResponse.json({ error: 'Invalid book id.' }, { status: 400 })
+    }
 
     const supabase = createSupabaseServerClient()
     // Config-only save (no new file) keeps the existing html_content untouched.

@@ -28,6 +28,18 @@ const CORS: Record<string, string> = {
 // other product reads content.workbookProducts[slug] = { priceCents, currency, title }.
 interface ProductCfg { amountCents: number; currency: string; productName: string }
 function productConfig(content: Record<string, unknown>, product: string): ProductCfg | null {
+  // Prefer the structured per-product config (set on the Books page) for ANY product…
+  const map = (content.workbookProducts ?? {}) as Record<string, unknown>
+  const cfg = map[product] as Record<string, unknown> | undefined
+  if (cfg) {
+    const amountCents = Number(cfg.priceCents)
+    if (Number.isInteger(amountCents)) {
+      const currency = typeof cfg.currency === 'string' && cfg.currency ? cfg.currency.toLowerCase() : 'eur'
+      const productName = (typeof cfg.title === 'string' && cfg.title.trim()) ? cfg.title.trim().slice(0, 120) : product
+      return { amountCents, currency, productName }
+    }
+  }
+  // …falling back to the legacy top-level keys for Tuned In.
   if (product === 'tuned-in') {
     const amountCents = Number(content.workbookPriceCents)
     if (!Number.isInteger(amountCents)) return null
@@ -35,14 +47,7 @@ function productConfig(content: Record<string, unknown>, product: string): Produ
     const productName = (typeof content.workbookTitle === 'string' && content.workbookTitle.trim()) ? content.workbookTitle.trim().slice(0, 120) : 'Tuned In'
     return { amountCents, currency, productName }
   }
-  const map = (content.workbookProducts ?? {}) as Record<string, unknown>
-  const cfg = map[product] as Record<string, unknown> | undefined
-  if (!cfg) return null
-  const amountCents = Number(cfg.priceCents)
-  if (!Number.isInteger(amountCents)) return null
-  const currency = typeof cfg.currency === 'string' && cfg.currency ? cfg.currency.toLowerCase() : 'eur'
-  const productName = (typeof cfg.title === 'string' && cfg.title.trim()) ? cfg.title.trim().slice(0, 120) : product
-  return { amountCents, currency, productName }
+  return null
 }
 
 // Shared checkout builder. `product` is the workbook product slug (default 'tuned-in').

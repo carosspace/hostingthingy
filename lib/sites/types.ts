@@ -751,6 +751,24 @@ export interface SitePage {
   ctaHref?: string
 }
 
+// A sellable interactive book/workbook the owner manages on the Books page. The HTML
+// content itself lives in the `workbooks` table (keyed by owner + this slug); this record
+// holds everything that lives in site content: price, cover, library copy, and the landing
+// page (either a simple form the system renders, or the owner's own pasted HTML).
+export interface WorkbookProduct {
+  title: string
+  priceCents: number
+  currency?: string // default 'eur'
+  description?: string // short line for the Resources library card + the form-landing intro
+  coverImage?: string // data URL (resized) shown on the library card + landing
+  tagline?: string // optional italic sub-title on the form landing
+  landingMode?: 'form' | 'html' // 'form' = system renders from the fields; 'html' = owner's own
+  landingBody?: string // form mode: the body, paragraphs separated by blank lines
+  landingHtml?: string // html mode: the owner's raw landing HTML (pre render-safe transform)
+  order?: number // library sort order (lower first)
+  hidden?: boolean // keep it off the library without deleting
+}
+
 // A whole-site snapshot the owner can keep in one of a few slots and switch back to.
 // `snapshot` is a full SiteContent copy WITHOUT its own savedDesigns (no nesting).
 export interface SavedDesign {
@@ -831,6 +849,12 @@ export interface SiteContent {
   inheritLook?: boolean
   // The member portal: which modules clients can see + a custom welcome message.
   memberPortal?: MemberPortalConfig
+  // Sellable interactive books/workbooks, managed on the Books page. Keyed by product slug.
+  workbookProducts?: Record<string, WorkbookProduct>
+  // Legacy single-workbook (Tuned In) buy config, mirrored into workbookProducts['tuned-in'].
+  workbookPriceCents?: number
+  workbookCurrency?: string
+  workbookTitle?: string
 }
 
 // Always returns the page list, migrating a legacy single-page site on the fly.
