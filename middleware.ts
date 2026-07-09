@@ -53,6 +53,25 @@ export async function middleware(request: NextRequest) {
     .split(':')[0]
   const path = request.nextUrl.pathname
 
+  // --- Static PWAs in /public (e.g. the Magalis Planner) ---------------------
+  // These are plain static apps under public/<name>/. Next serves them at their
+  // full file path (/planner/index.html) but NOT at the clean directory URL, and
+  // the custom-domain rewrite below would otherwise swallow the extension-less
+  // path into the owner's site tree (→ themed 404, "lost in the stars"). So:
+  //   /planner   → 308 redirect to /planner/  (trailing slash, so the app's
+  //                relative manifest/sw.js/icon links resolve under /planner/)
+  //   /planner/  → rewrite to /planner/index.html (serve the file, keep the URL)
+  if (path === '/planner') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/planner/'
+    return NextResponse.redirect(url, 308)
+  }
+  if (path === '/planner/') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/planner/index.html'
+    return NextResponse.rewrite(url)
+  }
+
   // --- Custom-domain routing -------------------------------------------------
   // For a non-platform host, serve the site that owns that domain. The platform
   // host short-circuits before any lookup, so app.animatemple.com is untouched.
