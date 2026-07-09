@@ -3,6 +3,11 @@ const nextConfig = {
   // Self-contained server bundle so the platform runs in a small Docker image
   // on our own infrastructure (Hetzner/Coolify).
   output: "standalone",
+  // Don't auto-redirect trailing slashes. Next's default would 308 /planner/ ->
+  // /planner, which fights the middleware rule that serves the static Planner PWA
+  // at /planner/ (it 308s /planner -> /planner/) and creates a redirect loop.
+  // With this off, the middleware is the sole authority on those paths.
+  skipTrailingSlashRedirect: true,
   experimental: {
     // A canvas page is saved as one JSON server-action body and can carry many
     // embedded images (background photos, slideshows, the uploads library). The
