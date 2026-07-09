@@ -351,9 +351,12 @@ export async function POST(req: Request) {
           if (wbSalesErr && wbSalesErr.code !== '23505') {
             console.error('[stripe webhook] workbook sale insert failed for session', sessionId, wbSalesErr.message)
           }
+          const productKind = session.metadata?.productKind === 'download' ? 'download' : 'workbook'
           void inviteToPortal(email, {
-            nextPath: `/me/workbook?w=${encodeURIComponent(productSlug)}`,
-            intro: `Your workbook is ready. Here's your private space — open ${productName} whenever you like.`,
+            nextPath: productKind === 'download' ? '/me/resources' : `/me/workbook?w=${encodeURIComponent(productSlug)}`,
+            intro: productKind === 'download'
+              ? `Your download is ready. Here's your private space — ${productName} is waiting for you.`
+              : `Your workbook is ready. Here's your private space — open ${productName} whenever you like.`,
             nextLabel: `Open ${productName}`,
           }).catch(() => {})
         }

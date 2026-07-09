@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getCheckoutSite } from '@/lib/sites/public'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { createConnectCheckout, createDirectCheckout, stripeConfigured } from '@/lib/stripe'
 
 // Stripe checkout to BUY the interactive workbook (Tuned In) from the public website. The price
@@ -28,12 +29,18 @@ const CORS: Record<string, string> = {
 // other product reads content.workbookProducts[slug] = { priceCents, currency, title }.
 interface ProductCfg { amountCents: number; currency: string; productName: string }
 function productConfig(content: Record<string, unknown>, product: string): ProductCfg | null {
-  // Prefer the structured per-product config (set on the Books page) for ANY product…
+  // Prefer the structured per-product config (set on the Resources page) for ANY product…
   const map = (content.workbookProducts ?? {}) as Record<string, unknown>
   const cfg = map[product] as Record<string, unknown> | undefined
   if (cfg) {
-    const amountCents = Number(cfg.priceCents)
-    if (Number.isInteger(amountCents)) {
+    // Only items sold à la carte are buyable; free / members-only are not.
+    const access = cfg.access
+    if (access === 'free' || access === 'members') return null
+    const priceCents = Number(cfg.priceCents)
+    if (Number.isInteger(priceCents) && priceCents >= 100) {
+      const sale = Number(cfg.salePriceCents)
+      // Charge the reduced price when it's set + genuinely lower.
+      const amountCents = Number.isInteger(sale) && sale >= 100 && sale < priceCents ? sale : priceCents
       const currency = typeof cfg.currency === 'string' && cfg.currency ? cfg.currency.toLowerCase() : 'eur'
       const productName = (typeof cfg.title === 'string' && cfg.title.trim()) ? cfg.title.trim().slice(0, 120) : product
       return { amountCents, currency, productName }
@@ -64,11 +71,28 @@ async function startCheckout(slug: string, product: string): Promise<{ url?: str
     return { error: 'not_for_sale', status: 400 }
   }
 
+  // The DATABASE is authoritative for buyability (content can drift): the product must be
+  // sold à la carte, and a downloadable file must actually have a file to deliver. Read the
+  // product's own row via service role — this is a public checkout with no owner session.
+  let prodKind: 'workbook' | 'download' = 'workbook'
+  const admin = getSupabaseAdmin()
+  if (admin) {
+    const { data: row } = await admin
+      .from('workbooks')
+      .select('access, kind, file_path')
+      .eq('owner_id', site.ownerId)
+      .eq('slug', product)
+      .maybeSingle()
+    if (!row || row.access !== 'paid') return { error: 'not_for_sale', status: 400 }
+    if (row.kind === 'download' && !row.file_path) return { error: 'not_for_sale', status: 400 }
+    prodKind = row.kind === 'download' ? 'download' : 'workbook'
+  }
+
   if (!stripeConfigured()) return { error: 'not_setup', status: 400 }
 
   const successUrl = `${PORTAL}/me?bought=workbook`
   const cancelUrl = `${SITE}/resources`
-  const metadata = { kind: 'workbook', siteId: site.id, ownerId: site.ownerId, productName, productSlug: product }
+  const metadata = { kind: 'workbook', siteId: site.id, ownerId: site.ownerId, productName, productSlug: product, productKind: prodKind }
 
   const useConnect = !!(site.stripeAccountId && site.stripeChargesEnabled)
   const url = useConnect

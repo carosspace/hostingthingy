@@ -45,6 +45,9 @@ export async function getMyWorkbook(slug: string, workbookSlug = 'tuned-in'): Pr
 // GRACEFUL: [] on any error (e.g. migration 024 not applied).
 export interface MyWorkbookListItem extends MyWorkbook {
   slug: string
+  kind: 'workbook' | 'download'
+  access: 'free' | 'members' | 'paid'
+  hidden: boolean
 }
 
 export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]> {
@@ -52,11 +55,11 @@ export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]
     const supabase = createSupabaseServerClient()
     const { data, error } = await supabase.rpc('get_my_workbooks', { p_site_slug: slug })
     if (error) {
-      // Transitional: before migration 024 there is no get_my_workbooks and only the
-      // single 'tuned-in' workbook exists. Fall back to it so Resources keeps working.
+      // Transitional: before migration 024/025 there may be no get_my_workbooks / no kind
+      // column. Fall back to the single 'tuned-in' workbook so Resources keeps working.
       const one = await getMyWorkbook(slug, 'tuned-in')
-      if (one) return [{ slug: 'tuned-in', ...one }]
-      console.error('[workbook] get_my_workbooks failed (migration 024 applied?):', error.message)
+      if (one) return [{ slug: 'tuned-in', kind: 'workbook', access: 'paid', hidden: false, ...one }]
+      console.error('[workbook] get_my_workbooks failed (migration 024/025 applied?):', error.message)
       return []
     }
     const rows = Array.isArray(data) ? data : []
@@ -64,6 +67,9 @@ export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]
       .map(r => ({
         slug: String(r.slug ?? ''),
         title: String(r.title ?? 'Workbook'),
+        kind: (r.kind === 'download' ? 'download' : 'workbook') as 'workbook' | 'download',
+        access: (r.access === 'free' || r.access === 'members' ? r.access : 'paid') as 'free' | 'members' | 'paid',
+        hidden: !!r.hidden,
         hasContent: !!r.has_content,
         entitled: !!r.entitled,
       }))
@@ -71,6 +77,29 @@ export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]
   } catch (e) {
     console.error('[workbook] get_my_workbooks threw:', e)
     return []
+  }
+}
+
+// The gated download path for a file product — returned by the RPC ONLY when the caller
+// is entitled (free / members / bought), else null. The caller turns it into a short-lived
+// signed URL from the private site-resources bucket.
+export interface MyDownload {
+  filePath: string
+  fileName: string | null
+  mime: string | null
+}
+
+export async function getMyDownload(slug: string, workbookSlug: string): Promise<MyDownload | null> {
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data, error } = await supabase.rpc('get_my_download_path', { p_site_slug: slug, p_workbook_slug: workbookSlug })
+    if (error) { console.error('[workbook] get_my_download_path failed:', error.message); return null }
+    const row = Array.isArray(data) ? data[0] : data
+    if (!row || !row.file_path) return null
+    return { filePath: String(row.file_path), fileName: (row.file_name as string) ?? null, mime: (row.mime as string) ?? null }
+  } catch (e) {
+    console.error('[workbook] get_my_download_path threw:', e)
+    return null
   }
 }
 

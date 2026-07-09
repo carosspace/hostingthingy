@@ -10,6 +10,7 @@ alter table public.workbooks add column if not exists file_path text;  -- downlo
 alter table public.workbooks add column if not exists file_name text;
 alter table public.workbooks add column if not exists file_size bigint;
 alter table public.workbooks add column if not exists mime text;
+alter table public.workbooks add column if not exists hidden boolean not null default false; -- kept off the public library
 
 -- Unified entitlement: a member may OPEN a workbook / DOWNLOAD a file when ANY of:
 --   • they hold a per-person access row (bought / gifted / redeemed a code)  ← unchanged paid path
@@ -33,14 +34,16 @@ returns boolean language sql stable set search_path = public as $$
     ));
 $$;
 
--- List every product the owner offers, tagged with kind/access + per-member entitlement.
+-- List every product the owner offers, tagged with kind/access/hidden + per-member entitlement.
+drop function if exists public.get_my_workbooks(text);
 create or replace function public.get_my_workbooks(p_site_slug text)
-returns table (slug text, title text, kind text, access text, has_content boolean, entitled boolean)
+returns table (slug text, title text, kind text, access text, has_content boolean, entitled boolean, hidden boolean)
 language sql security definer set search_path = public stable as $$
   select w.slug, w.title, w.kind, w.access,
     (case when w.kind = 'download' then w.file_path is not null
           else (w.html_content is not null and length(w.html_content) > 0) end) as has_content,
-    public.entitled_to_product(w) as entitled
+    public.entitled_to_product(w) as entitled,
+    coalesce(w.hidden, false) as hidden
   from public.workbooks w
   where w.owner_id = (select owner_id from public.sites where slug = p_site_slug limit 1)
   order by w.updated_at desc;
@@ -71,6 +74,7 @@ returns text language sql security definer set search_path = public stable as $$
   from public.workbooks w
   where w.owner_id = (select owner_id from public.sites where slug = p_site_slug limit 1)
     and w.slug = p_workbook_slug
+    and w.kind = 'workbook' -- never serve stale HTML for a row that's now a download
     and public.entitled_to_product(w)
   limit 1;
 $$;

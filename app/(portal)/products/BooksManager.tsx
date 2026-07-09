@@ -1,13 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { resizeToDataUrl } from '@/lib/sites/image'
+import { createSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { createResourceUploadUrl } from '../resources/actions'
 
 export interface ProductInput {
   slug: string
   title: string
+  kind: 'workbook' | 'download'
+  access: 'free' | 'members' | 'paid'
+  tierId: string | null
   priceCents: number
+  salePriceCents: number | null
   currency: string
   description: string
   coverImage: string
@@ -15,10 +21,23 @@ export interface ProductInput {
   landingMode: 'form' | 'html'
   landingBody: string
   landingHtml: string
+  fileName: string | null
+  mime: string | null
   hidden: boolean
   hasContent: boolean
   updatedAt: string | null
 }
+
+// Download file types (mirror of the resources allowlist) + a content-type per extension.
+const CONTENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf', epub: 'application/epub+zip', doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'video/mp4', mov: 'video/quicktime', zip: 'application/zip',
+}
+const FILE_EXTS = Object.keys(CONTENT_TYPES)
+const MAX_FILE_BYTES = 104857600 // 100 MB
 
 const input = 'w-full bg-surface border border-gold/20 focus:border-gold/60 text-parchment font-body text-sm px-3 py-2 rounded-sm outline-none'
 const label = 'font-label text-[9px] tracking-[2px] uppercase text-gold/60 block mb-1'
@@ -27,18 +46,19 @@ const btn = 'font-label text-[10px] tracking-[3px] uppercase bg-gold text-backgr
 function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
 }
-
 function blank(): ProductInput {
-  return { slug: '', title: '', priceCents: 2200, currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'form', landingBody: '', landingHtml: '', hidden: false, hasContent: false, updatedAt: null }
+  return { slug: '', title: '', kind: 'workbook', access: 'paid', tierId: null, priceCents: 2200, salePriceCents: null, currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'form', landingBody: '', landingHtml: '', fileName: null, mime: null, hidden: false, hasContent: false, updatedAt: null }
 }
 
-function BookCard({ initial, siteBase }: { initial: ProductInput; siteBase: string }) {
+function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBase: string; tiers: { id: string; name: string }[] }) {
   const router = useRouter()
   const isNew = !initial.slug
   const [p, setP] = useState<ProductInput>(initial)
   const [priceStr, setPriceStr] = useState(String((initial.priceCents || 0) / 100))
-  const [newHtml, setNewHtml] = useState<string | null>(null) // freshly chosen workbook file
-  const [newHtmlName, setNewHtmlName] = useState('')
+  const [saleStr, setSaleStr] = useState(initial.salePriceCents ? String(initial.salePriceCents / 100) : '')
+  const [newHtml, setNewHtml] = useState<string | null>(null)
+  const [newFile, setNewFile] = useState<File | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [open, setOpen] = useState(isNew)
@@ -47,63 +67,96 @@ function BookCard({ initial, siteBase }: { initial: ProductInput; siteBase: stri
   const slug = p.slug || slugify(p.title)
 
   async function onCover(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
+    const f = e.target.files?.[0]; if (!f) return
     try { set({ coverImage: await resizeToDataUrl(f, 900, 0.82) }) } catch { setMsg('Couldn’t read that image.') }
   }
   async function onWorkbook(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]
-    if (!f) return
+    const f = e.target.files?.[0]; if (!f) return
     setNewHtml(await f.text())
-    setNewHtmlName(f.name)
+  }
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    setNewFile(e.target.files?.[0] || null)
   }
 
   async function save() {
-    const priceCents = Math.round(parseFloat(priceStr) * 100)
-    if (!p.title.trim()) { setMsg('Give the book a title.'); return }
-    if (!slug) { setMsg('That title can’t be turned into a web address — please add some letters or numbers.'); return }
-    if (!Number.isFinite(priceCents) || priceCents < 100) { setMsg('Enter a price (at least 1).'); return }
+    if (!p.title.trim()) { setMsg('Give it a title.'); return }
+    if (!slug) { setMsg('That title can’t be turned into a web address — add some letters.'); return }
+    let priceCents = 0, salePriceCents: number | null = null
+    if (p.access === 'paid') {
+      priceCents = Math.round(parseFloat(priceStr) * 100)
+      if (!Number.isFinite(priceCents) || priceCents < 100) { setMsg('Enter a price (at least 1).'); return }
+      if (saleStr.trim()) {
+        salePriceCents = Math.round(parseFloat(saleStr) * 100)
+        if (!Number.isFinite(salePriceCents) || salePriceCents < 100 || salePriceCents >= priceCents) { setMsg('The reduced price must be lower than the price.'); return }
+      }
+    }
+    if (p.access === 'members' && !p.tierId) { setMsg('Pick the membership that unlocks this.'); return }
+
     setBusy(true); setMsg('')
     try {
-      // 1) save metadata + landing + library card FIRST. This validates the web address, so
-      //    a rejected save never leaves an orphan file or overwrites another book's upload.
+      // For a download, the file must be in storage before we save (save records its path).
+      let filePath: string | undefined, fileName: string | undefined, fileSize: number | undefined, mime: string | undefined
+      if (p.kind === 'download' && newFile) {
+        const ext = (newFile.name.split('.').pop() || '').toLowerCase()
+        if (!FILE_EXTS.includes(ext)) { setMsg('Use a PDF, ebook, doc, audio, video or zip file.'); setBusy(false); return }
+        if (newFile.size > MAX_FILE_BYTES) { setMsg('That file is over 100 MB.'); setBusy(false); return }
+        const up = await createResourceUploadUrl(ext)
+        if (!up.ok) { setMsg(up.error); setBusy(false); return }
+        const supabase = createSupabaseBrowserClient()
+        const contentType = CONTENT_TYPES[ext] || newFile.type || 'application/octet-stream'
+        const put = await supabase.storage.from('site-resources').uploadToSignedUrl(up.path, up.token, newFile, { contentType })
+        if (put.error) { setMsg('The file didn’t upload — try again.'); setBusy(false); return }
+        filePath = up.path; fileName = newFile.name; fileSize = newFile.size; mime = contentType
+      }
+
       const r = await fetch('/api/products/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug, title: p.title.trim(), priceCents, currency: p.currency,
-          description: p.description, tagline: p.tagline, coverImage: p.coverImage,
-          landingMode: p.landingMode, landingBody: p.landingBody, landingHtml: p.landingHtml, hidden: p.hidden,
+          slug, kind: p.kind, access: p.access, tierId: p.tierId, priceCents, salePriceCents,
+          currency: p.currency, title: p.title.trim(), description: p.description, tagline: p.tagline,
+          coverImage: p.coverImage, landingMode: p.landingMode, landingBody: p.landingBody, landingHtml: p.landingHtml,
+          hidden: p.hidden, filePath, fileName, fileSize, mime,
         }),
       })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { setMsg(d?.error || 'Couldn’t save — try again.'); setBusy(false); return }
-      // 2) then upload the interactive workbook file, if a new one was chosen.
-      if (newHtml) {
-        const up = await fetch('/api/workbooks/upload', {
+
+      // For an interactive workbook, upload the HTML after save (avoids clobbering the row).
+      if (p.kind === 'workbook' && newHtml) {
+        const upl = await fetch('/api/workbooks/upload', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug, title: p.title.trim(), html: newHtml }),
+          body: JSON.stringify({ slug, html: newHtml }),
         })
-        if (!up.ok) { const e = await up.json().catch(() => ({})); setMsg(`Saved — but the workbook file didn’t upload (${e?.error || 'try again'}). Click Save once more.`); setBusy(false); return }
+        if (!upl.ok) { const e = await upl.json().catch(() => ({})); setMsg(`Saved — but the workbook file didn’t upload (${e?.error || 'try again'}). Click Save once more.`); setBusy(false); return }
       }
-      setMsg('✓ Saved — it’s live.')
-      setNewHtml(null); setNewHtmlName('')
+      setMsg('✓ Saved — it’s live.'); setNewHtml(null); setNewFile(null); if (fileRef.current) fileRef.current.value = ''
       router.refresh()
-    } catch {
-      setMsg('Couldn’t save — try again.')
-    }
+    } catch { setMsg('Couldn’t save — try again.') }
     setBusy(false)
   }
 
+  async function del() {
+    if (!p.slug) return
+    if (!confirm(`Delete “${p.title}”? This removes it from your library, its sales page, and anyone’s access. This can’t be undone.`)) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await fetch('/api/products/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: p.slug }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setMsg(d?.error || 'Couldn’t delete — try again.'); setBusy(false); return }
+      router.refresh()
+    } catch { setMsg('Couldn’t delete — try again.'); setBusy(false) }
+  }
+
+  const accessLabel = p.access === 'free' ? 'Free' : p.access === 'members' ? 'Members only' : (p.priceCents ? `€${p.priceCents / 100}${p.salePriceCents ? ` (sale €${p.salePriceCents / 100})` : ''}` : 'no price')
+
   return (
     <div className="border border-gold/15 rounded-sm overflow-hidden">
-      {/* header row */}
       <button type="button" onClick={() => setOpen(o => !o)} className="w-full flex items-center gap-4 p-4 text-left hover:bg-gold/5 transition-colors">
-        <div className="w-12 h-16 rounded-sm flex-shrink-0 bg-cover bg-center border border-gold/15"
-          style={{ background: p.coverImage ? `url('${p.coverImage}') center/cover` : 'linear-gradient(160deg,#241307,#3D2415)' }} />
+        <div className="w-12 h-16 rounded-sm flex-shrink-0 bg-cover bg-center border border-gold/15" style={{ background: p.coverImage ? `url('${p.coverImage}') center/cover` : 'linear-gradient(160deg,#241307,#3D2415)' }} />
         <div className="min-w-0 flex-1">
-          <p className="font-body text-parchment truncate">{p.title || 'Untitled book'}</p>
+          <p className="font-body text-parchment truncate">{p.title || 'Untitled'}</p>
           <p className="font-body text-ash/60 text-xs mt-0.5">
-            {p.priceCents ? `€${(p.priceCents / 100)}` : 'no price'} · {p.hasContent ? 'workbook uploaded' : 'no workbook yet'}{p.hidden ? ' · hidden' : ''}
+            {p.kind === 'download' ? 'File' : 'Interactive'} · {accessLabel} · {p.hasContent ? 'ready' : (p.kind === 'download' ? 'no file yet' : 'no workbook yet')}{p.hidden ? ' · hidden' : ''}
           </p>
         </div>
         <span className="font-label text-[9px] tracking-[2px] uppercase text-gold/60">{open ? 'Close' : 'Edit'}</span>
@@ -111,39 +164,78 @@ function BookCard({ initial, siteBase }: { initial: ProductInput; siteBase: stri
 
       {open && (
         <div className="p-5 pt-0 space-y-4 border-t border-gold/10">
-          <div className="grid sm:grid-cols-2 gap-4 pt-4">
+          {/* Type */}
+          <div className="pt-4">
+            <span className={label}>Type</span>
+            <div className="flex gap-4 text-xs">
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.kind === 'workbook'} onChange={() => set({ kind: 'workbook' })} /> <span className="text-parchment">Interactive workbook</span></label>
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.kind === 'download'} onChange={() => set({ kind: 'download' })} /> <span className="text-parchment">File (ebook / PDF / meditation)</span></label>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
             <label className="block sm:col-span-2"><span className={label}>Title</span>
               <input value={p.title} onChange={e => set({ title: e.target.value })} className={input} placeholder="Meeting Yourself" />
               {isNew && p.title && <span className="font-body text-ash/40 text-[11px] mt-1 block">web address: {siteBase}/{slug}</span>}
             </label>
-            <label className="block"><span className={label}>Price</span>
-              <div className="flex items-center gap-2">
-                <select value={p.currency} onChange={e => set({ currency: e.target.value })} className={input} style={{ width: 70 }}>
-                  <option value="eur">€</option><option value="usd">$</option><option value="gbp">£</option>
-                </select>
-                <input value={priceStr} onChange={e => setPriceStr(e.target.value)} className={input} inputMode="decimal" placeholder="22" />
-              </div>
-            </label>
-            <label className="block"><span className={label}>Cover picture</span>
-              <input type="file" accept="image/*" onChange={onCover}
-                className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
-              {p.coverImage && <button type="button" onClick={() => set({ coverImage: '' })} className="font-label text-[9px] tracking-[1px] uppercase text-ash/50 hover:text-red-400 mt-1">Remove cover</button>}
-            </label>
             <label className="block sm:col-span-2"><span className={label}>Short line (shown on the library card)</span>
               <input value={p.description} onChange={e => set({ description: e.target.value })} className={input} placeholder="A book and ten quiet rooms for the slow walk home to yourself." />
             </label>
+            <label className="block"><span className={label}>Cover picture</span>
+              <input type="file" accept="image/*" onChange={onCover} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
+              {p.coverImage && <button type="button" onClick={() => set({ coverImage: '' })} className="font-label text-[9px] tracking-[1px] uppercase text-ash/50 hover:text-red-400 mt-1">Remove cover</button>}
+            </label>
           </div>
 
-          {/* workbook file */}
-          <label className="block"><span className={label}>{p.hasContent ? 'Replace the workbook file (optional)' : 'Upload the workbook file (the interactive .html)'}</span>
-            <input type="file" accept=".html,text/html" onChange={onWorkbook}
-              className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
-            {newHtmlName && <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready: {newHtmlName} — click Save to publish it.</span>}
-          </label>
-
-          {/* landing page */}
+          {/* Pricing / access */}
           <div className="border border-gold/10 rounded-sm p-4 space-y-3">
-            <span className={label} style={{ marginBottom: 6 }}>Landing page (the sales page)</span>
+            <span className={label} style={{ marginBottom: 6 }}>Pricing</span>
+            <div className="flex flex-wrap gap-4 text-xs">
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.access === 'free'} onChange={() => set({ access: 'free' })} /> <span className="text-parchment">Free</span></label>
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.access === 'members'} onChange={() => set({ access: 'members' })} /> <span className="text-parchment">Members only</span></label>
+              <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.access === 'paid'} onChange={() => set({ access: 'paid' })} /> <span className="text-parchment">Sell it (price)</span></label>
+            </div>
+            {p.access === 'members' && (
+              <label className="block"><span className={label}>Which membership unlocks it</span>
+                <select value={p.tierId || ''} onChange={e => set({ tierId: e.target.value || null })} className={input}>
+                  <option value="">Choose a membership…</option>
+                  {tiers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                {tiers.length === 0 && <span className="font-body text-ash/40 text-[11px] mt-1 block">You have no memberships yet — create one under Memberships first.</span>}
+              </label>
+            )}
+            {p.access === 'paid' && (
+              <div className="flex items-end gap-3">
+                <label className="block"><span className={label}>Price</span>
+                  <div className="flex items-center gap-2">
+                    <select value={p.currency} onChange={e => set({ currency: e.target.value })} className={input} style={{ width: 64 }}><option value="eur">€</option><option value="usd">$</option><option value="gbp">£</option></select>
+                    <input value={priceStr} onChange={e => setPriceStr(e.target.value)} className={input} inputMode="decimal" placeholder="22" style={{ width: 90 }} />
+                  </div>
+                </label>
+                <label className="block"><span className={label}>Reduced price (optional)</span>
+                  <input value={saleStr} onChange={e => setSaleStr(e.target.value)} className={input} inputMode="decimal" placeholder="—" style={{ width: 100 }} />
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Content */}
+          {p.kind === 'workbook' ? (
+            <label className="block"><span className={label}>{p.hasContent ? 'Replace the workbook file (optional)' : 'Upload the workbook file (the interactive .html)'}</span>
+              <input type="file" accept=".html,text/html" onChange={onWorkbook} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
+              {newHtml && <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready — click Save to publish it.</span>}
+            </label>
+          ) : (
+            <label className="block"><span className={label}>{p.hasContent ? 'Replace the file (optional)' : 'Upload the file (PDF, ebook, audio, video…)'}</span>
+              <input ref={fileRef} type="file" accept={FILE_EXTS.map(e => `.${e}`).join(',')} onChange={onFile} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
+              {newFile && <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready: {newFile.name} — click Save.</span>}
+              {!newFile && p.fileName && <span className="font-body text-ash/40 text-[11px] mt-1 block">Current: {p.fileName}</span>}
+            </label>
+          )}
+
+          {/* Landing page */}
+          <div className="border border-gold/10 rounded-sm p-4 space-y-3">
+            <span className={label} style={{ marginBottom: 6 }}>Its page {p.access === 'paid' ? '(the sales page)' : ''}</span>
             <div className="flex gap-4 text-xs">
               <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.landingMode === 'form'} onChange={() => set({ landingMode: 'form' })} /> <span className="text-parchment">Simple — build it for me</span></label>
               <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={p.landingMode === 'html'} onChange={() => set({ landingMode: 'html' })} /> <span className="text-parchment">My own HTML</span></label>
@@ -153,22 +245,22 @@ function BookCard({ initial, siteBase }: { initial: ProductInput; siteBase: stri
                 <label className="block"><span className={label}>Tagline (optional)</span>
                   <input value={p.tagline} onChange={e => set({ tagline: e.target.value })} className={input} placeholder="the quiet work of finding your way back" /></label>
                 <label className="block"><span className={label}>The words (one thought per paragraph — leave a blank line between)</span>
-                  <textarea value={p.landingBody} onChange={e => set({ landingBody: e.target.value })} className={input} rows={7} placeholder={'You have probably done this before…\n\nThis is not more of that.'} /></label>
+                  <textarea value={p.landingBody} onChange={e => set({ landingBody: e.target.value })} className={input} rows={6} /></label>
               </>
             ) : (
-              <label className="block"><span className={label}>Paste your landing HTML (I’ll wire the Buy button + fix sizing)</span>
-                <textarea value={p.landingHtml} onChange={e => set({ landingHtml: e.target.value })} className={`${input} font-mono text-[11px]`} rows={8} placeholder="<!DOCTYPE html>…" />
-                <span className="font-body text-ash/40 text-[11px] mt-1 block">Tip: put <code className="text-gold/70">{'{{BUY}}'}</code> where you want the Buy button. If you don’t, one is added at the bottom.</span></label>
+              <label className="block"><span className={label}>Paste your page HTML</span>
+                <textarea value={p.landingHtml} onChange={e => set({ landingHtml: e.target.value })} className={`${input} font-mono text-[11px]`} rows={7} placeholder="<!DOCTYPE html>…" /></label>
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-1.5 cursor-pointer text-xs"><input type="checkbox" checked={p.hidden} onChange={e => set({ hidden: e.target.checked })} /> <span className="text-ash">Hide from the library</span></label>
             {p.slug && <a href={`${siteBase}/${p.slug}`} target="_blank" rel="noreferrer" className="font-label text-[9px] tracking-[2px] uppercase text-ash hover:text-gold">View page ↗</a>}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <button type="button" onClick={save} disabled={busy} className={btn}>{busy ? 'Saving…' : 'Save'}</button>
+            {p.slug && <button type="button" onClick={del} disabled={busy} className="font-label text-[10px] tracking-[2px] uppercase text-red-400/80 hover:text-red-400 disabled:opacity-40">Delete</button>}
             {msg && <span className="font-body text-ash text-xs">{msg}</span>}
           </div>
         </div>
@@ -177,14 +269,14 @@ function BookCard({ initial, siteBase }: { initial: ProductInput; siteBase: stri
   )
 }
 
-export default function BooksManager({ products, siteBase }: { products: ProductInput[]; siteBase: string }) {
+export default function BooksManager({ products, siteBase, tiers = [] }: { products: ProductInput[]; siteBase: string; tiers?: { id: string; name: string }[] }) {
   const [adding, setAdding] = useState(false)
   return (
     <div className="space-y-4 max-w-2xl">
-      {products.map(p => <BookCard key={p.slug} initial={p} siteBase={siteBase} />)}
+      {products.map(p => <ItemCard key={p.slug} initial={p} siteBase={siteBase} tiers={tiers} />)}
       {adding
-        ? <BookCard initial={blank()} siteBase={siteBase} />
-        : <button type="button" onClick={() => setAdding(true)} className="w-full border border-dashed border-gold/25 rounded-sm py-4 font-label text-[10px] tracking-[3px] uppercase text-gold/70 hover:text-gold hover:border-gold/50 transition-colors">+ Add a book</button>}
+        ? <ItemCard initial={blank()} siteBase={siteBase} tiers={tiers} />
+        : <button type="button" onClick={() => setAdding(true)} className="w-full border border-dashed border-gold/25 rounded-sm py-4 font-label text-[10px] tracking-[3px] uppercase text-gold/70 hover:text-gold hover:border-gold/50 transition-colors">+ Add a resource</button>}
     </div>
   )
 }

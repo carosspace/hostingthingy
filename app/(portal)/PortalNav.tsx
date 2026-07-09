@@ -7,13 +7,13 @@ import { useState } from 'react'
 // header doesn't crowd (and never collides with the logo).
 const PRIMARY = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/products', label: 'Books' },
+  { href: '/products', label: 'Resources' },
   { href: '/bookings', label: 'Bookings' },
 ]
 const MORE = [
   { href: '/courses', label: 'Courses' },
   { href: '/memberships', label: 'Memberships' },
-  { href: '/resources', label: 'Resources' },
+  { href: '/resources', label: 'Gift & codes' },
   { href: '/subscribers', label: 'Subscribers' },
 ]
 

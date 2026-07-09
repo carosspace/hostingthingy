@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 })
   try {
     const body = await request.json()
-    const title = String(body.title ?? '').trim().slice(0, 200) || 'Workbook'
-    const tierId = String(body.tierId ?? '').trim() || null
     const html = typeof body.html === 'string' ? body.html : null
     if (html !== null && html.length > 8_000_000) {
       return NextResponse.json({ error: 'That file is too large (max ~8MB).' }, { status: 400 })
@@ -29,14 +27,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createSupabaseServerClient()
-    // Config-only save (no new file) keeps the existing html_content untouched.
-    const row: Record<string, unknown> = {
-      owner_id: user.id,
-      slug,
-      title,
-      tier_id: tierId,
-      updated_at: new Date().toISOString(),
-    }
+    // Only touch what's provided so this never clobbers the row's kind/access/tier/file
+    // (the products save route is the authoritative writer of those). Config-only save
+    // (no new file) keeps the existing html_content untouched.
+    const row: Record<string, unknown> = { owner_id: user.id, slug, updated_at: new Date().toISOString() }
+    if (body.title !== undefined) row.title = String(body.title).trim().slice(0, 200) || 'Workbook'
+    if (body.tierId !== undefined) row.tier_id = String(body.tierId).trim() || null
     if (html !== null) row.html_content = html
 
     const { error } = await supabase.from('workbooks').upsert(row, { onConflict: 'owner_id,slug' })

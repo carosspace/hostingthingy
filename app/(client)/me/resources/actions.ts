@@ -3,6 +3,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { getPortalSite } from '@/lib/portal/site'
 import { getMyResourcePath } from '@/lib/portal/resources'
+import { getMyDownload } from '@/lib/portal/workbook'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 const RESOURCES_BUCKET = 'site-resources'
@@ -40,6 +41,32 @@ export async function getResourceDownloadUrl(
     // Short-lived (60s) signed URL from the PRIVATE bucket — generated server-side only after the
     // entitlement check above passed.
     const { data, error } = await admin.storage.from(RESOURCES_BUCKET).createSignedUrl(filePath, 60)
+    if (error || !data?.signedUrl) return { ok: false, error: 'Couldn’t prepare that download. Try again.' }
+    return { ok: true, url: data.signedUrl }
+  } catch {
+    return { ok: false, error: 'Couldn’t prepare that download. Try again.' }
+  }
+}
+
+// Mint a short-lived signed URL for a PRODUCT that is a downloadable file (ebook / PDF /
+// meditation). Same layered gate as above, but entitlement comes from get_my_download_path
+// (free / active member of its tier / bought). The path is returned ONLY when entitled.
+export async function getProductDownloadUrl(
+  productSlug: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'Please sign in again.' }
+  const { slug: portalSlug } = await getPortalSite()
+  const ps = String(productSlug ?? '').toLowerCase().trim()
+  if (!/^[a-z0-9-]{1,60}$/.test(ps)) return { ok: false, error: 'That download is unavailable.' }
+
+  const d = await getMyDownload(portalSlug, ps)
+  if (!d) return { ok: false, error: 'You don’t have access to that download yet.' }
+
+  const admin = getSupabaseAdmin()
+  if (!admin) return { ok: false, error: 'Downloads aren’t available right now.' }
+  try {
+    const { data, error } = await admin.storage.from(RESOURCES_BUCKET).createSignedUrl(d.filePath, 60, { download: d.fileName || true })
     if (error || !data?.signedUrl) return { ok: false, error: 'Couldn’t prepare that download. Try again.' }
     return { ok: true, url: data.signedUrl }
   } catch {

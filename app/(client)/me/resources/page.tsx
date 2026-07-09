@@ -7,6 +7,7 @@ import { getMyResources, type MyResource } from '@/lib/portal/resources'
 import { getMyWorkbooks } from '@/lib/portal/workbook'
 import PortalHeader from '../PortalHeader'
 import DownloadButton from './DownloadButton'
+import ProductDownloadButton from './ProductDownloadButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,9 +53,14 @@ export default async function ClientResourcesPage() {
   const resources = await getMyResources(slug)
   // Interactive workbooks live here too — shown as "open" cards, not downloads. A
   // member may own more than one (e.g. Tuned In + Meeting Yourself); show each.
-  const workbooks = (await getMyWorkbooks(slug).catch(() => []))
-    .filter(w => w.entitled && w.hasContent)
-  const hasWorkbook = workbooks.length > 0
+  const owned = (await getMyWorkbooks(slug).catch(() => []))
+    // Entitled + ready, and not a HIDDEN FREE item (free = everyone entitled, so a hidden
+    // free product would otherwise surface in every visitor's portal). Hidden paid/members
+    // items still show to the people who actually own them.
+    .filter(w => w.entitled && w.hasContent && !(w.hidden && w.access === 'free'))
+  const openItems = owned.filter(w => w.kind === 'workbook') // interactive → open in portal
+  const downloadItems = owned.filter(w => w.kind === 'download') // file → download
+  const hasWorkbook = owned.length > 0
 
   const footer = content?.footer || brand
 
@@ -119,7 +125,7 @@ export default async function ClientResourcesPage() {
           </p>
         ) : (
           <div className="mt-12 grid gap-5 sm:grid-cols-2">
-            {workbooks.map(w => (
+            {openItems.map(w => (
               <a
                 key={w.slug}
                 href={`/me/workbook?w=${encodeURIComponent(w.slug)}`}
@@ -142,6 +148,18 @@ export default async function ClientResourcesPage() {
                   Open workbook →
                 </span>
               </a>
+            ))}
+            {downloadItems.map(w => (
+              <div key={w.slug} className="p-6 flex flex-col gap-2" style={cardStyle}>
+                <div className="flex items-start justify-between gap-3">
+                  <span aria-hidden="true" style={{ color: accent, fontSize: 22, lineHeight: 1 }}>⤓</span>
+                  <span className="font-label" style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: accent }}>
+                    Download
+                  </span>
+                </div>
+                <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>{w.title}</h2>
+                <ProductDownloadButton productSlug={w.slug} accent={accent} />
+              </div>
             ))}
             {resources.map(r => (
               <Card key={r.id} r={r} />
