@@ -58,7 +58,7 @@ input,textarea,select{font-family:inherit;color:var(--espresso)}
 /* ---------- LAYOUT ---------- */
 .app{display:flex;min-height:100vh}
 .main{flex:1;min-width:0;padding:0 clamp(18px,4vw,52px) 120px;max-width:1180px;margin:0 auto;width:100%}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:26px 0 22px;gap:16px;flex-wrap:wrap;padding-left:56px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 20px) 0 18px 60px;gap:16px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:12px}
 .brand .star{color:var(--gold);font-size:20px;line-height:1}
 .brand .name{font-family:'Cinzel',serif;letter-spacing:.2em;font-size:14px;text-transform:uppercase;color:var(--espresso)}
@@ -69,7 +69,7 @@ input,textarea,select{font-family:inherit;color:var(--espresso)}
 .icon-btn:hover{border-color:var(--gold);color:var(--gold)}
 
 /* ---------- RIGHT NAV ---------- */
-.starbtn{position:fixed;top:15px;left:15px;z-index:80;width:46px;height:46px;border-radius:50%;background:var(--espresso);color:var(--gold-bright);border:1px solid var(--gold);display:grid;place-items:center;font-size:21px;line-height:1;box-shadow:var(--shadow);cursor:pointer;transition:transform .16s}
+.starbtn{position:fixed;top:calc(env(safe-area-inset-top,0px) + 13px);left:15px;z-index:80;width:46px;height:46px;border-radius:50%;background:var(--espresso);color:var(--gold-bright);border:1px solid var(--gold);display:grid;place-items:center;font-size:21px;line-height:1;box-shadow:var(--shadow);cursor:pointer;transition:transform .16s}
 .starbtn:hover{transform:scale(1.06)}
 .starbtn:active{transform:scale(.96)}
 .navscrim{position:fixed;inset:0;background:rgba(28,17,7,.34);backdrop-filter:blur(2px);z-index:78;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -78,7 +78,7 @@ input,textarea,select{font-family:inherit;color:var(--espresso)}
   position:fixed;top:0;left:0;height:100vh;width:252px;z-index:79;
   background:linear-gradient(180deg,var(--card) 0%,var(--card-2) 100%);
   border-right:1px solid var(--line);
-  padding:74px 16px 20px;display:flex;flex-direction:column;gap:4px;
+  padding:calc(env(safe-area-inset-top,0px) + 72px) 16px calc(env(safe-area-inset-bottom,0px) + 20px);display:flex;flex-direction:column;gap:4px;
   overflow-y:auto;transform:translateX(-104%);transition:transform .22s ease;
   box-shadow:8px 0 40px rgba(44,26,10,.12);
 }
@@ -94,13 +94,54 @@ input,textarea,select{font-family:inherit;color:var(--espresso)}
 .navlink:hover{background:var(--gold-wash);color:var(--espresso)}
 .navlink.active{background:var(--espresso);color:var(--cream)}
 .navlink.active svg{stroke:var(--gold-bright)}
-.nav-foot{margin-top:auto;padding:16px 10px 0;border-top:1px solid var(--line-soft);flex-shrink:0}
-.nav-foot small{color:var(--ink-mute);font-style:italic;font-family:'Cormorant Garamond',serif;font-size:13px}
+.nav-foot{margin-top:auto;padding:16px 6px 0;border-top:1px solid var(--line-soft);flex-shrink:0}
+.nav-settings{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:9px;color:var(--espresso-soft);font-size:13.5px;background:none;border:none;cursor:pointer;text-align:left;margin-bottom:8px;transition:.16s}
+.nav-settings svg{stroke:var(--clay)}
+.nav-settings:hover{background:var(--gold-wash);color:var(--espresso)}
+.nav-foot small{color:var(--ink-mute);font-style:italic;font-family:'Cormorant Garamond',serif;font-size:13px;padding:0 12px;display:block}
 
 /* ---------- GENERIC ---------- */
-.view-head{margin:8px 0 26px}
+.view-head{margin:8px 0 26px;position:relative}
 .view-head h1{font-size:clamp(34px,5vw,46px);letter-spacing:-.01em}
 .view-head .lead{color:var(--ink-mute);font-family:'Cormorant Garamond',serif;font-style:italic;font-size:19px;margin-top:4px}
+.moonchip{display:inline-flex;align-items:center;color:var(--gold);vertical-align:middle}
+.moonchip .moon{display:block}
+.moon-tr{position:absolute;top:4px;right:2px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--gold)}
+.moon-tr .moon-lab{font-family:'Cinzel',serif;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-mute);white-space:nowrap}
+.month-moon{display:flex;justify-content:flex-end;align-items:center;color:var(--gold);margin-bottom:2px;padding-right:2px}
+.astro-big{font-family:'Cormorant Garamond',serif;font-size:23px;color:var(--espresso);display:flex;align-items:center;gap:7px;line-height:1.2}
+.astro-ev{display:grid;grid-template-columns:30px 30px 1fr;gap:12px;align-items:start;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.astro-now-ev{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.astro-now-ev:last-child{border-bottom:none}
+.astro-now-ev .ae-glyph{font-size:19px;line-height:1;width:24px;text-align:center;flex-shrink:0;padding-top:2px}
+.astro-now-ev .ae-body{flex:1;min-width:0}
+.astro-ev:last-child{border-bottom:none}
+.ae-date{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--gold);text-align:center;line-height:1.1}
+.ae-icon{display:flex;align-items:center;justify-content:center;padding-top:3px}
+.ae-icon .moonchip{color:var(--gold)}
+.ae-sign{font-size:20px;color:var(--gold)}
+.ae-glyph{font-size:19px;line-height:1}
+.ae-glyph.terra{color:var(--terra)}
+.ae-glyph.sage{color:var(--sage)}
+.ae-title{font-size:14.5px;color:var(--espresso)}
+.ae-mean{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:14px;color:var(--ink-mute);margin-top:2px;line-height:1.4}
+.ae-ritual{font-size:12.5px;color:var(--gold);margin-top:6px;line-height:1.45;background:var(--gold-wash);padding:7px 10px;border-radius:8px}
+.jr-prompt{background:linear-gradient(135deg,var(--gold-wash),var(--card));display:flex;flex-direction:column;gap:4px}
+.jr-prompt-text{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--espresso);font-style:italic}
+.jr-new-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.jr-new-head input[type=date]{width:150px}
+.jr-newbox{min-height:120px;font-size:15px;line-height:1.6}
+.jr-entry .jr-date{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.jr-entry textarea{border:none;background:none;box-shadow:none;padding:0;font-size:14.5px;line-height:1.6;min-height:40px}
+.jr-entry textarea:focus{outline:none}
+.chip.rep-on{color:var(--gold);border-color:var(--gold);opacity:1}
+.notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.notecard{position:relative;border:1px solid var(--line);border-radius:12px;padding:16px 14px 12px;box-shadow:var(--shadow);min-height:150px;display:flex}
+.notecard textarea{flex:1;border:none;background:none;box-shadow:none;padding:0;font-size:14px;line-height:1.55;resize:none;color:var(--espresso);font-family:inherit}
+.notecard textarea:focus{outline:none}
+.notecard textarea::placeholder{color:var(--ink-mute)}
+.note-x{position:absolute;top:5px;right:8px;background:none;border:none;color:var(--ink-mute);font-size:18px;cursor:pointer;opacity:.45;line-height:1;padding:2px}
+.note-x:hover{opacity:1;color:var(--terra)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
 .card.flat{box-shadow:none;background:var(--card-2)}
 .grid{display:grid;gap:18px}
@@ -283,6 +324,8 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .boardchip{padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:var(--card);font-size:12.5px;color:var(--clay);cursor:pointer;transition:.14s}
 .boardchip:hover{border-color:var(--gold)}
 .boardchip.active{background:var(--espresso);color:var(--cream);border-color:var(--espresso)}
+.boardchip[contenteditable]{cursor:text;outline:none}
+.boardchip[contenteditable]:focus{box-shadow:0 0 0 3px var(--gold-wash)}
 .bs-layout{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
 .canvaswrap{border:1px solid var(--line);border-radius:var(--radius);background:
   radial-gradient(circle at 1px 1px,rgba(44,26,10,.06) 1px,transparent 0) 0 0/22px 22px,var(--card);
@@ -334,6 +377,11 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .keyrow summary{cursor:pointer;color:var(--ink-mute);font-size:12px;font-style:italic;font-family:'Cormorant Garamond',serif;font-size:14px}
 /* ---------- HOME / CLOCK / AGENDA ---------- */
 .homehero .clock{font-family:'Cormorant Garamond',serif;font-size:52px;line-height:1;color:var(--gold-bright);margin:6px 0 2px}
+.intent-bar{display:flex;align-items:center;gap:14px;padding:11px 18px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:18px;box-shadow:var(--shadow)}
+.intent-bar .ib-label{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);white-space:nowrap;flex-shrink:0}
+.intent-bar input{flex:1;border:none;background:none;box-shadow:none;padding:3px 2px;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;color:var(--espresso)}
+.intent-bar input:focus{outline:none}
+.intent-bar input::placeholder{color:var(--ink-mute);font-style:italic}
 .agenda{display:flex;flex-direction:column}
 .ag-row{display:flex;gap:14px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line-soft)}
 .ag-row .ag-time{font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--ink-mute);width:56px;flex-shrink:0}
@@ -475,25 +523,20 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
     <div class="topbar">
       <div class="brand">
         <span class="name">Magalis Planner</span>
-        <span class="sub">dein Planer</span>
-      </div>
-      <div class="topmeta">
-        <span class="datechip" id="todaychip"></span>
-        <button class="icon-btn" id="btn-settings" title="Backup & Daten" aria-label="Daten">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
       </div>
     </div>
     <div id="content"></div>
   </div>
 
   <nav class="nav" id="nav">
-    <div class="nav-head">
-      <div class="k">Heute</div>
-      <div class="d" id="nav-date"></div>
-    </div>
     <!-- links injected -->
-    <div class="nav-foot"><small id="nav-quote">Langsam ist eine Strategie, keine Verzögerung.</small></div>
+    <div class="nav-foot">
+      <button class="nav-settings" id="btn-settings" title="Backup & Daten" aria-label="Daten">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Backup &amp; Daten</span>
+      </button>
+      <small id="nav-quote">Langsam ist eine Strategie, keine Verzögerung.</small>
+    </div>
   </nav>
 </div>
 
@@ -545,6 +588,142 @@ function euro(n){
   catch(e){return '€'+n.toFixed(2);}
 }
 function fmtLong(d){return DOW[(d.getDay()+6)%7]+', '+d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear();}
+/* ---- moon phase ---- */
+const SYNODIC=29.53058867;
+const MOON_EPOCH=Date.UTC(2000,0,6,18,14,0);
+const MOON_NAMES=['Neumond','zunehmende Sichel','erstes Viertel','zunehmender Mond','Vollmond','abnehmender Mond','letztes Viertel','abnehmende Sichel'];
+function moonFrac(date){let e=(moonLon(date)-sunLon(date));e=((e%360)+360)%360;return e/360;}
+function moonSVG(f,size){
+  size=size||15;const r=size/2;
+  const cosv=Math.cos(2*Math.PI*f);const rx=r*Math.abs(cosv);
+  const waxing=f<=0.5;const outer=waxing?1:0;
+  let inner;if(waxing)inner=cosv<0?1:0;else inner=cosv<0?0:1;
+  const d='M'+r+',0 A'+r+','+r+' 0 0 '+outer+' '+r+','+size+' A'+rx+','+r+' 0 0 '+inner+' '+r+',0 Z';
+  return '<svg class="moon" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'"><circle cx="'+r+'" cy="'+r+'" r="'+(r-0.5)+'" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="1"/><path d="'+d+'" fill="currentColor"/></svg>';
+}
+function moonChip(date,size){const f=moonFrac(date);const name=MOON_NAMES[Math.round(f*8)%8];return '<span class="moonchip" title="'+name+'">'+moonSVG(f,size||15)+'</span>';}
+
+/* ================= ASTRONOMY ENGINE ================= */
+const DEG=Math.PI/180, DEG2=180/Math.PI;
+function julianDay(date){return date.getTime()/86400000+2440587.5;}
+function jcenturies(jd){return (jd-2451545.0)/36525;}
+const PLANETS={
+ Mercury:{el:[0.38709927,0.20563593,7.00497902,252.25032350,77.45779628,48.33076593],rt:[0.00000037,0.00001906,-0.00594749,149472.67411175,0.16047689,-0.12534081]},
+ Venus:{el:[0.72333566,0.00677672,3.39467605,181.97909950,131.60246718,76.67984255],rt:[0.00000390,-0.00004107,-0.00078890,58517.81538729,0.00268329,-0.27769418]},
+ Earth:{el:[1.00000261,0.01671123,-0.00001531,100.46457166,102.93768193,0.0],rt:[0.00000562,-0.00004392,-0.01294668,35999.37244981,0.32327364,0.0]},
+ Mars:{el:[1.52371034,0.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891],rt:[0.00001847,0.00007882,-0.00813131,19140.30268499,0.44441088,-0.29257343]},
+ Jupiter:{el:[5.20288700,0.04838624,1.30439695,34.39644051,14.72847983,100.47390909],rt:[-0.00011607,-0.00013253,-0.00183714,3034.74612775,0.21252668,0.20469106]},
+ Saturn:{el:[9.53667594,0.05386179,2.48599187,49.95424423,92.59887831,113.66242448],rt:[-0.00125060,-0.00050991,0.00193609,1222.49362201,-0.41897216,-0.28867794]}
+};
+function helio(name,T){
+ const p=PLANETS[name],a=p.el[0]+p.rt[0]*T,e=p.el[1]+p.rt[1]*T,I=(p.el[2]+p.rt[2]*T)*DEG,L=p.el[3]+p.rt[3]*T,wbar=p.el[4]+p.rt[4]*T,Om=(p.el[5]+p.rt[5]*T)*DEG;
+ let M=((L-wbar)%360+540)%360-180;M*=DEG;
+ const w=(wbar*DEG)-Om;
+ let E=M+e*Math.sin(M);
+ for(let i=0;i<10;i++){const dE=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));E-=dE;if(Math.abs(dE)<1e-9)break;}
+ const xp=a*(Math.cos(E)-e),yp=a*Math.sqrt(1-e*e)*Math.sin(E);
+ const cw=Math.cos(w),sw=Math.sin(w),cO=Math.cos(Om),sO=Math.sin(Om),cI=Math.cos(I),sI=Math.sin(I);
+ return {x:(cw*cO-sw*sO*cI)*xp+(-sw*cO-cw*sO*cI)*yp, y:(cw*sO+sw*cO*cI)*xp+(-sw*sO+cw*cO*cI)*yp};
+}
+function geoLon(name,date){const T=jcenturies(julianDay(date));const pl=helio(name,T),ea=helio('Earth',T);return (Math.atan2(pl.y-ea.y,pl.x-ea.x)*DEG2%360+360)%360;}
+function isRetro(name,date){let a=geoLon(name,new Date(date.getTime()-43200000)),b=geoLon(name,new Date(date.getTime()+43200000));let d=b-a;if(d>180)d-=360;if(d<-180)d+=360;return d<0;}
+function sunLon(date){const n=julianDay(date)-2451545.0;let L=(280.460+0.9856474*n)%360,g=((357.528+0.9856003*n)%360)*DEG;let lam=L+1.915*Math.sin(g)+0.020*Math.sin(2*g);return (lam%360+360)%360;}
+function moonLon(date){const n=julianDay(date)-2451545.0;const Lp=218.316+13.176396*n,Mp=(134.963+13.064993*n)*DEG,D=(297.850+12.190749*n)*DEG,M=(357.529+0.985600*n)*DEG,F=(93.272+13.229350*n)*DEG;let lon=Lp+6.289*Math.sin(Mp)-1.274*Math.sin(Mp-2*D)+0.658*Math.sin(2*D)-0.186*Math.sin(M)+0.214*Math.sin(2*Mp)-0.114*Math.sin(2*F);return (lon%360+360)%360;}
+const SIGNS=[['Widder','♈'],['Stier','♉'],['Zwillinge','♊'],['Krebs','♋'],['Löwe','♌'],['Jungfrau','♍'],['Waage','♎'],['Skorpion','♏'],['Schütze','♐'],['Steinbock','♑'],['Wassermann','♒'],['Fische','♓']];
+function signOf(lon){return SIGNS[Math.floor((((lon%360)+360)%360)/30)];}
+const SIGN_MEANING={
+ Widder:'Feuer und Aufbruch. Mutige Anfänge, Tatkraft, der Drang zu handeln.',
+ Stier:'Erde und Beständigkeit. Genuss, die Sinne, Geduld, langsames Bauen.',
+ Zwillinge:'Luft und Neugier. Reden, Lernen, Verbinden, viele Fäden zugleich.',
+ Krebs:'Wasser und Zuhause. Fühlen, Nähren, Geborgenheit, die innere Welt pflegen.',
+ Löwe:'Feuer und Herz. Wärme, Kreativität, gesehen werden, großzügiger Ausdruck.',
+ Jungfrau:'Erde und Sorgfalt. Ordnen, Verfeinern, Dienen, die Schönheit im Detail.',
+ Waage:'Luft und Balance. Beziehung, Harmonie, Fairness, Schönheit, Ausgleich.',
+ Skorpion:'Wasser und Tiefe. Intensität, Wahrheit, Wandlung, das Verborgene.',
+ Schütze:'Feuer und Horizont. Sinn, Reisen, Freiheit, das große Ganze.',
+ Steinbock:'Erde und Struktur. Disziplin, Ziele, der lange Aufstieg, stille Ambition.',
+ Wassermann:'Luft und Vision. Das Ungewöhnliche, das Kollektive, Freiheit, Zukunft.',
+ Fische:'Wasser und Traum. Mitgefühl, Fantasie, Hingabe, der Raum dazwischen.'
+};
+const PLANET_GLYPH={Mercury:'☿',Venus:'♀',Mars:'♂',Jupiter:'♃',Saturn:'♄'};
+const RETRO_MEANING={
+ Mercury:'Kommunikation, Technik, Reisen und Pläne können sich verheddern. Eine Zeit zum Prüfen, Überarbeiten und Nachschauen, nicht zum Starten.',
+ Venus:'Liebe, Geld, Werte und Schönheit kommen auf den Prüfstand. Alte Beziehungen und Fragen nach dem eigenen Wert tauchen wieder auf.',
+ Mars:'Der Antrieb verlangsamt sich. Lieber die Strategie verfeinern als vorpreschen. Alter Ärger und liegengebliebenes Handeln kehren zurück.',
+ Jupiter:'Wachstum wendet sich nach innen. Überprüf deine Überzeugungen, deine Ziele und wo du dich übernommen hast.',
+ Saturn:'Eine innere Bestandsaufnahme. Sieh dir deine Strukturen, Verpflichtungen und wo du dir mehr Disziplin schuldest noch einmal an.'
+};
+const PHASE_MEANING={
+ 'Neumond':'Ein Neuanfang. Setz eine Absicht und pflanz sie ein.',
+ 'Erstes Viertel':'Ein Schub. Handle an dem, was du begonnen hast, und begegne dem ersten Widerstand.',
+ 'Vollmond':'Höhepunkt und Klarheit. Dinge kommen ans Licht. Lass los, was vollendet ist.',
+ 'Letztes Viertel':'Loslassen und Raum schaffen. Reflektiere, bevor sich der nächste Zyklus dreht.'
+};
+const RITUAL_THEME={
+ 'Neumond':'Für Absichten & Neuanfänge',
+ 'Erstes Viertel':'Für Mut & Handeln',
+ 'Vollmond':'Für Dankbarkeit, Selbstliebe & Loslassen',
+ 'Letztes Viertel':'Für Loslassen & Klären'
+};
+const RITUALS={
+ 'Neumond':[
+  'Schreib drei Absichten auf und leg sie an einen Ort, wo du sie nächsten Monat wiederfindest.',
+  'Zünde eine Kerze an, benenne, was du einlädst, und lass sie ein Stück herunterbrennen.',
+  'Pflanz einen Samen oder eine kleine Pflanze als lebendige Absicht.',
+  'Reinige deinen Raum, dann setz eine klare Absicht für den Zyklus.',
+  'Mach eine kleine Vision-Notiz oder ein Bild von dem, was wachsen soll.',
+  'Flüster dem dunklen Himmel vor dem Schlafen einen Wunsch zu.'
+ ],
+ 'Erstes Viertel':[
+  'Mach einen kleinen, mutigen Schritt auf das zu, was du bei Neumond benannt hast.',
+  'Beweg deinen Körper, um Widerstand abzuschütteln.',
+  'Schreib auf, was im Weg steht, dann die eine Handlung, die ihm begegnet.',
+  'Erledige heute die schwere Aufgabe zuerst, vor allem anderen.',
+  'Sag diese Woche zu einer Sache Nein, die dich leise auslaugt.'
+ ],
+ 'Vollmond':[
+  'Lass ein warmes Bad mit Kräutern oder Salz ein und entspann bei Kerzenlicht.',
+  'Verbrenn ein wenig getrocknete Kräuter, Rosmarin, Lavendel oder Salbei, und lass den Rauch den Raum klären.',
+  'Schreib bei Vollmond auf, wofür du dankbar bist.',
+  'Lad ein Glas Wasser oder einen Kristall über Nacht auf der Fensterbank auf.',
+  'Schreib, was du loslassen willst, dann verbrenn oder zerreiß das Papier sicher.',
+  'Schenk dir eine langsame Selbstmassage mit warmem Öl.'
+ ],
+ 'Letztes Viertel':[
+  'Räum eine Schublade, eine Ecke oder eine offene Sache auf.',
+  'Schreib, was du loslässt, und lass das Papier gehen.',
+  'Vergib dir eine Sache, laut ausgesprochen.',
+  'Ruh dich früh aus und lass die Woche ausklingen.',
+  'Räum eine digitale Sache auf oder melde dich ab, die dich genervt hat.'
+ ]
+};
+function moonRitual(phase,y,m){const pool=RITUALS[phase];return {theme:RITUAL_THEME[phase],text:pool[(((y*12+m)%pool.length)+pool.length)%pool.length]};}
+const RETRO_PLANETS=['Mercury','Venus','Mars','Jupiter','Saturn'];
+function retroEndDate(name,from){let d=new Date(from);for(let i=0;i<200;i++){d.setDate(d.getDate()+1);if(!isRetro(name,d))return d;}return null;}
+function astroEvents(y,m){
+ const dim=daysInMonth(y,m),evs=[];
+ const noon=(dd)=>new Date(y,m,dd,12,0,0);
+ for(let d=1;d<=dim;d++){
+   // sun ingress
+   const s0=signOf(sunLon(noon(d-1)))[0], s1s=signOf(sunLon(noon(d)));
+   if(s1s[0]!==s0)evs.push({day:d,kind:'sun',glyph:s1s[1],title:'Sonne wechselt in '+s1s[0],meaning:SIGN_MEANING[s1s[0]]});
+   // moon phases via elongation crossing
+   const e0=((moonLon(noon(d-1))-sunLon(noon(d-1)))%360+360)%360;
+   const e1=((moonLon(noon(d))-sunLon(noon(d)))%360+360)%360;
+   [[0,'Neumond'],[90,'Erstes Viertel'],[180,'Vollmond'],[270,'Letztes Viertel']].forEach(function(pr){
+     let a=((e0-pr[0]+540)%360)-180, b=((e1-pr[0]+540)%360)-180;
+     if(a<0&&b>=0){const ms=signOf(moonLon(noon(d)));evs.push({day:d,kind:'moon',frac:moonFrac(noon(d)),title:pr[1]+' in '+ms[0],meaning:PHASE_MEANING[pr[1]],ritual:moonRitual(pr[1],y,m)});}
+   });
+   // retrograde stations
+   RETRO_PLANETS.forEach(function(pn){
+     const r0=isRetro(pn,noon(d-1)), r1=isRetro(pn,noon(d));
+     if(!r0&&r1)evs.push({day:d,kind:'retro',glyph:PLANET_GLYPH[pn],title:pn+' wird rückläufig',meaning:RETRO_MEANING[pn]});
+     if(r0&&!r1)evs.push({day:d,kind:'direct',glyph:PLANET_GLYPH[pn],title:pn+' wird direktläufig',meaning:pn+' nimmt den Faden wieder auf. Was stockte, kann sich wieder bewegen.'});
+   });
+ }
+ evs.sort((a,b)=>a.day-b.day);
+ return evs;
+}
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function monthKey(y,m){return y+'-'+pad(m+1);}
 
@@ -608,11 +787,13 @@ DB.birthdays=DB.birthdays||[];
 DB.birthdays.forEach(b=>{b.gifts=b.gifts||[];});
 DB.challenges=DB.challenges||[];
 DB.challenges.forEach(c=>{c.entries=c.entries||[];});
+DB.journal=DB.journal||[];
+DB.notes=DB.notes||[];
 // migrate old year goals into the generic goal store
 if(DB.yearGoals){Object.keys(DB.yearGoals).forEach(y=>{const k='year:'+y;if(!DB.goalSets[k]&&DB.yearGoals[y]&&DB.yearGoals[y].length)DB.goalSets[k]=DB.yearGoals[y];});}
 
 /* view state */
-const S={view:'home',date:new Date(TODAY),year:TODAY.getFullYear(),month:TODAY.getMonth(),budgetMonth:monthKey(TODAY.getFullYear(),TODAY.getMonth()),board:null,selNode:null,zoom:1,moneyTab:'planner'};
+const S={view:'home',date:new Date(TODAY),year:TODAY.getFullYear(),month:TODAY.getMonth(),budgetMonth:monthKey(TODAY.getFullYear(),TODAY.getMonth()),board:null,selNode:null,zoom:1,moneyTab:'planner',astroY:TODAY.getFullYear(),astroM:TODAY.getMonth()};
 
 /* ================= NAV ================= */
 const NAV=[
@@ -628,6 +809,9 @@ const NAV=[
   ['projects','Projekte','M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4'],
   ['money','Finanzen','M12 3a9 9 0 1 0 9 9h-9z M12 3v9h9'],
   ['cycle','Zyklus','M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'],
+  ['astro','Astrologie','M12 3v2M12 19v2M3 12h2M19 12h2M6 6l1.5 1.5M16.5 16.5L18 18M18 6l-1.5 1.5M7.5 16.5L6 18M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
+  ['journal','Tagebuch','M6 3h11a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6'],
+  ['notes','Notizen','M4 4h13l3 3v13H4zM8 10h8M8 14h5'],
   ['fitness','Bewegung','M3 12h4l3-8 4 16 3-8h4']
 ];
 function buildNav(){
@@ -641,7 +825,6 @@ function buildNav(){
     b.innerHTML='<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="'+path+'"/></svg><span>'+label+'</span>';
     nav.insertBefore(b,foot);
   });
-  document.getElementById('nav-date').textContent=S.date.getDate()+' '+MONTHS[S.date.getMonth()].slice(0,3);
 }
 
 /* ================= RENDER ROUTER ================= */
@@ -649,7 +832,7 @@ const C=()=>document.getElementById('content');
 function render(){
   buildNav();
   const v=S.view;
-  const map={home:renderHome,today:renderDay,week:renderWeek,month:renderMonth,year:renderYear,bucket:renderBucket,challenges:renderChallenges,birthday:renderBirthdays,brainstorm:renderBrainstorm,projects:renderProjects,money:renderMoney,cycle:renderCycle,fitness:renderFitness};
+  const map={home:renderHome,today:renderDay,week:renderWeek,month:renderMonth,year:renderYear,bucket:renderBucket,challenges:renderChallenges,birthday:renderBirthdays,astro:renderAstro,journal:renderJournal,notes:renderNotes,brainstorm:renderBrainstorm,projects:renderProjects,money:renderMoney,cycle:renderCycle,fitness:renderFitness};
   (map[v]||renderHome)();
   C().querySelectorAll('[data-autoheight]').forEach(autoGrow);
 }
@@ -675,6 +858,10 @@ function taskHTML(t){
   let pri='';
   if(t.priority&&t.priority!=='none'){pri='<span class="chip p-'+t.priority+'" data-pri="'+t.id+'">'+t.priority+'</span>';}
   else{pri='<span class="chip" data-pri="'+t.id+'" style="opacity:.55">+ Priorität</span>';}
+  let rep='';
+  if(t.recOf){rep='<span class="chip" style="opacity:.5" title="Part of a repeating task">↻</span>';}
+  else if(t.repeat&&t.repeat!=='none'){rep='<span class="chip rep-on" data-repeat="'+t.id+'">↻ '+t.repeat+'</span>';}
+  else{rep='<span class="chip" data-repeat="'+t.id+'" style="opacity:.55">+ wiederholen</span>';}
   let proj='';
   const p=DB.projects.find(p=>p.id===t.project);
   if(p)proj='<span class="chip" style="color:var(--gold)">✦ '+esc(p.name)+'</span>';
@@ -687,7 +874,7 @@ function taskHTML(t){
     '<div class="dot '+t.status+'" data-cycle="'+t.id+'" title="Tap to move through: to begin, in progress, done"></div>'+
     '<div class="t-body">'+
       '<div class="t-titlerow">'+iconPre+'<div class="t-title" contenteditable data-title="'+t.id+'">'+esc(t.title)+'</div></div>'+
-      '<div class="t-meta">'+catChip+due+pri+proj+'</div>'+
+      '<div class="t-meta">'+catChip+due+pri+rep+proj+'</div>'+
     '</div>'+
     '<button class="t-del" data-del="'+t.id+'" title="Löschen">×</button>'+
   '</div>';
@@ -718,6 +905,10 @@ function renderHome(){
     '<div class="clock" id="clock">'+nowTime()+'</div>'+
     '<p>'+(openToday.length?openToday.length+(openToday.length>1?' Aufgaben':' Aufgabe')+' heute noch offen.':'Ich wünsche dir einen sanften, schönen Tag.')+'</p>'+
   '</div>'+
+  '<div class="intent-bar">'+
+    '<span class="ib-label">✦ Absicht</span>'+
+    '<input data-intent="day:'+TODAY_KEY+'" placeholder="Wie möchtest du durch den Tag gehen?" value="'+esc(DB.intentions.day[TODAY_KEY]||'')+'">'+
+  '</div>'+
   '<div class="grid g2">'+
     '<div style="display:flex;flex-direction:column;gap:18px">'+
       '<div class="card">'+
@@ -736,10 +927,6 @@ function renderHome(){
         '<div class="sec-title"><h3>Tägliche Rituale</h3></div>'+
         ritualsHTML(rituals,rlog)+
         '<div class="qadd" style="margin-top:12px"><input placeholder="Ritual hinzufügen, z. B. Hautpflege" data-addritual><button class="btn primary" data-addritualbtn>Add</button></div>'+
-      '</div>'+
-      '<div class="card">'+
-        '<div class="sec-title"><h3>Absicht</h3></div>'+
-        '<textarea data-autoheight data-intent="day:'+TODAY_KEY+'" placeholder="Wie möchtest du durch den Tag gehen?">'+esc(DB.intentions.day[TODAY_KEY]||'')+'</textarea>'+
       '</div>'+
     '</div>'+
   '</div>';
@@ -881,6 +1068,127 @@ function renderBirthdays(){
   }).join(''):'<div class="empty"><div class="e-star">✦</div><p>Noch keine Geburtstage. Füg die Menschen hinzu, die du nie vergessen willst.</p></div>');
 }
 
+/* ================= ASTROLOGY ================= */
+function renderAstro(){
+  const y=S.astroY,m=S.astroM;
+  const today=TODAY;
+  const sun=signOf(sunLon(today));
+  const f=moonFrac(today);const phase=MOON_NAMES[Math.round(f*8)%8];
+  const illum=Math.round((1-Math.cos(2*Math.PI*f))/2*100);
+  const moonSign=signOf(moonLon(today));
+  // current retrogrades
+  const retros=RETRO_PLANETS.filter(p=>isRetro(p,today)).map(function(p){
+    const end=retroEndDate(p,today);
+    return {p,end};
+  });
+  const evs=astroEvents(y,m);
+
+  const nowCard=
+   '<div class="card astro-now">'+
+     '<div class="grid g2" style="gap:20px">'+
+       '<div>'+
+         '<div class="eyebrow" style="margin-bottom:6px">Die Sonne</div>'+
+         '<div class="astro-big">'+sun[1]+' Sonne in '+sun[0]+'</div>'+
+         '<div class="ae-mean" style="margin-top:4px">'+SIGN_MEANING[sun[0]]+'</div>'+
+       '</div>'+
+       '<div>'+
+         '<div class="eyebrow" style="margin-bottom:6px">Der Mond</div>'+
+         '<div class="astro-big"><span class="moonchip" style="margin-right:6px">'+moonSVG(f,20)+'</span>'+phase+'</div>'+
+         '<div class="ae-mean" style="margin-top:4px">'+illum+'% beleuchtet · Mond in '+moonSign[0]+' '+moonSign[1]+'</div>'+
+       '</div>'+
+     '</div>'+
+     '<div class="divider"></div>'+
+     '<div class="eyebrow" style="margin-bottom:8px">Rückläufig gerade jetzt</div>'+
+     (retros.length?retros.map(function(r){
+        return '<div class="astro-now-ev"><div class="ae-glyph terra">'+PLANET_GLYPH[r.p]+'</div><div class="ae-body"><div class="ae-title">'+r.p+' rückläufig'+(r.end?' · bis '+r.end.getDate()+' '+MONTHS[r.end.getMonth()].slice(0,3):'')+'</div><div class="ae-mean">'+RETRO_MEANING[r.p]+'</div></div></div>';
+     }).join(''):'<div class="ae-mean">Alle Planeten direktläufig. Der Himmel bewegt sich vorwärts.</div>')+
+   '</div>';
+
+  const evList=evs.length?evs.map(function(e){
+    let glyph;
+    if(e.kind==='moon')glyph='<span class="moonchip">'+moonSVG(e.frac,20)+'</span>';
+    else if(e.kind==='sun')glyph='<span class="ae-sign">'+e.glyph+'</span>';
+    else glyph='<span class="'+(e.kind==='retro'?'ae-glyph terra':'ae-glyph sage')+'">'+e.glyph+'</span>';
+    return '<div class="astro-ev">'+
+      '<div class="ae-date">'+e.day+'</div>'+
+      '<div class="ae-icon">'+glyph+'</div>'+
+      '<div class="ae-body"><div class="ae-title">'+esc(e.title)+'</div><div class="ae-mean">'+esc(e.meaning)+'</div>'+(e.ritual?'<div class="ae-ritual">✦ '+esc(e.ritual.theme)+': '+esc(e.ritual.text)+'</div>':'')+'</div>'+
+    '</div>';
+  }).join(''):'<div class="empty"><div class="e-star">✦</div><p>Ein ruhiger Monat am Himmel.</p></div>';
+
+  C().innerHTML=
+  '<div class="view-head">'+
+    '<div class="eyebrow">Der Himmel</div>'+
+    '<h1>Astrologie</h1>'+
+    '<div class="lead">Der Mond, die rückläufigen Planeten und wann jede Tierkreis-Jahreszeit beginnt. Für den echten Himmel berechnet, nicht erfunden.</div>'+
+  '</div>'+
+  nowCard+
+  '<div class="calhead" style="margin:22px 0 14px">'+
+    '<div><div class="eyebrow">'+y+'</div><h3 style="font-size:28px">'+MONTHS[m]+'</h3></div>'+
+    '<div class="calnav"><button class="btn ghost small" data-astromo="-1">‹</button><button class="btn ghost small" data-astromo="today">Jetzt</button><button class="btn ghost small" data-astromo="1">›</button></div>'+
+  '</div>'+
+  '<div class="card">'+evList+'</div>';
+}
+
+/* ================= JOURNAL ================= */
+const JOURNAL_PROMPTS=[
+ 'Wofür machst du gerade Raum?',
+ 'Worum hat dich der heutige Tag leise gebeten?',
+ 'Was bist du bereit loszulassen?',
+ 'Wo hast du dich heute am meisten wie du selbst gefühlt?',
+ 'Was wächst langsam unter der Oberfläche?',
+ 'Was musst du gerade am meisten hören?',
+ 'Wofür bist du dankbar, ehrlich?',
+ 'Welcher Wahrheit bist du ausgewichen?',
+ 'Was fühlte sich heute schwer an, und was leicht?',
+ 'Wem oder was gibst du deine Energie?',
+ 'Wie sähe Ruhe diese Woche aus?',
+ 'Worauf bist du stolz, das niemand gesehen hat?'
+];
+function dayOfYear(d){return Math.floor((d-new Date(d.getFullYear(),0,0))/86400000);}
+function renderJournal(){
+  const entries=[...DB.journal].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.created||0)-(a.created||0));
+  const prompt=JOURNAL_PROMPTS[dayOfYear(TODAY)%JOURNAL_PROMPTS.length];
+  C().innerHTML=
+  '<div class="view-head"><div class="eyebrow">Der innere Bericht</div><h1>Tagebuch</h1><div class="lead">Ein Ort, um ehrlich mit dir zu sein. Undatierte Gedanken leben in Notizen; das hier ist für das Tiefere.</div></div>'+
+  '<div class="card jr-prompt"><span class="eyebrow" style="color:var(--gold)">Ein Impuls, falls du magst</span><div class="jr-prompt-text">'+esc(prompt)+'</div></div>'+
+  '<div class="card">'+
+    '<div class="jr-new-head"><span class="eyebrow">Neuer Eintrag</span><input type="date" data-journal-date value="'+TODAY_KEY+'"></div>'+
+    '<textarea class="jr-newbox" data-autoheight data-journal-new placeholder="Schreib frei. Niemand liest außer dir."></textarea>'+
+    '<div style="text-align:right;margin-top:10px"><button class="btn primary" data-savejournal>Eintrag speichern</button></div>'+
+  '</div>'+
+  (entries.length?'<div class="eyebrow" style="margin:22px 0 10px">Frühere Einträge</div>'+entries.map(function(e){
+    const dd=parseKey(e.date);
+    return '<div class="card jr-entry">'+
+      '<div class="jr-date">'+DOW[(dd.getDay()+6)%7]+', '+dd.getDate()+' '+MONTHS[dd.getMonth()]+' '+dd.getFullYear()+'<button class="t-del" data-journaldel="'+e.id+'" style="opacity:.5;float:right">×</button></div>'+
+      '<textarea data-autoheight data-journaltext="'+e.id+'">'+esc(e.text||'')+'</textarea>'+
+    '</div>';
+  }).join(''):'');
+}
+function saveJournal(){
+  const box=document.querySelector('[data-journal-new]');
+  const date=document.querySelector('[data-journal-date]');
+  if(!box)return;const v=box.value.trim();if(!v)return;
+  DB.journal.push({id:uid(),date:(date&&date.value)||TODAY_KEY,text:v,created:Date.now()});
+  box.value='';persist();render();
+}
+
+/* ================= NOTES ================= */
+const NOTE_TINTS=['#FCF3F8','#F1ECF9','#EAF4EF','#FBF1EA','#F7EEF4','#EEF2FA'];
+function renderNotes(){
+  const notes=[...DB.notes].sort((a,b)=>(b.created||0)-(a.created||0));
+  C().innerHTML=
+  '<div class="view-head"><div class="eyebrow">Lose Gedanken</div><h1>Notizen</h1><div class="lead">Kleine Fenster für alles: ein Gedanke, eine Liste, etwas zum Merken. Datierte Reflexionen kommen ins Tagebuch.</div></div>'+
+  '<div style="text-align:right;margin-bottom:14px"><button class="btn primary" data-addnotebtn>+ Neue Notiz</button></div>'+
+  (notes.length?'<div class="notes-grid">'+notes.map(function(n){
+    return '<div class="notecard" style="background:'+(n.tint||NOTE_TINTS[0])+'"><button class="note-x" data-notedel="'+n.id+'" title="Löschen">×</button><textarea data-notetext="'+n.id+'" placeholder="Schreib etwas …">'+esc(n.text||'')+'</textarea></div>';
+  }).join('')+'</div>':'<div class="empty"><div class="e-star">✦</div><p>Noch keine Notizen. Öffne dein erstes kleines Fenster.</p></div>');
+}
+function addNote(){
+  DB.notes.push({id:uid(),text:'',tint:NOTE_TINTS[DB.notes.length%NOTE_TINTS.length],created:Date.now()});
+  persist();render();
+}
+
 /* ================= CHALLENGES ================= */
 function renderChallenges(){
   const list=DB.challenges;
@@ -955,6 +1263,28 @@ function dayDiagramHTML(k){
     '<div class="legend">'+slices.map(s=>'<div class="li"><span class="sw" style="background:'+s.color+'"></span>'+esc(s.label)+'<span class="amt">'+fmtDur(s.amount)+'</span></div>').join('')+'</div>'+
   '</div>';
 }
+function weekTimeStats(ws){
+  const total={};
+  for(let i=0;i<7;i++){
+    const d=new Date(ws.getFullYear(),ws.getMonth(),ws.getDate()+i);
+    const day=dayTimeStats(keyOf(d));
+    for(const c in day){total[c]=(total[c]||0)+day[c];}
+  }
+  return total;
+}
+function weekDiagramHTML(ws){
+  const counts=weekTimeStats(ws);const cats=Object.keys(counts);
+  if(!cats.length)return '<div class="empty" style="padding:20px"><div class="e-star">✦</div><p>Buch Zeitblöcke über deine Tage, und die Woche summiert sich hier.</p></div>';
+  const total=cats.reduce((s,c)=>s+counts[c],0);
+  const slices=cats.map(c=>{
+    if(c==='__')return {label:'Ohne',amount:counts[c],color:'#C9B79A'};
+    const cat=catOf(c);return {label:cat?cat.label:'Andere',amount:counts[c],color:cat?cat.color:'#C9B79A'};
+  }).sort((a,b)=>b.amount-a.amount);
+  return '<div style="display:grid;grid-template-columns:180px 1fr;gap:26px;align-items:center">'+
+    '<div style="justify-self:center">'+hoursDonut(slices,total)+'</div>'+
+    '<div class="legend">'+slices.map(s=>'<div class="li"><span class="sw" style="background:'+s.color+'"></span>'+esc(s.label)+'<span class="amt">'+fmtDur(s.amount)+'</span></div>').join('')+'</div>'+
+  '</div>';
+}
 function blocksHTML(k){
   const blocks=[...(DB.blocks[k]||[])].sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   if(!blocks.length)return '';
@@ -1008,7 +1338,7 @@ function renderDay(){
     '</div>'+
     '<div class="eyebrow">'+(isToday?'Heute':'')+'</div>'+
     '<h1>'+DOW[(d.getDay()+6)%7]+'</h1>'+
-    '<div class="lead">'+d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear()+'</div>'+
+    '<div class="lead">'+d.getDate()+' '+MONTHS[d.getMonth()]+' '+d.getFullYear()+' '+moonChip(d)+'</div>'+
   '</div>'+
   '<div class="day-grid">'+
     '<div class="card">'+
@@ -1078,8 +1408,14 @@ function renderWeek(){
     '</div>'+
     '<div class="eyebrow">Die Woche</div>'+
     '<h1>'+ws.getDate()+' '+MONTHS[ws.getMonth()].slice(0,3)+' — '+we.getDate()+' '+MONTHS[we.getMonth()].slice(0,3)+'</h1>'+
+    '<div class="moon-tr">'+moonChip(new Date(ws.getFullYear(),ws.getMonth(),ws.getDate()+3),18)+'</div>'+
   '</div>'+
   '<div class="weekgrid">'+cols+'</div>'+
+  '<div class="card" style="margin-top:18px">'+
+    '<div class="sec-title"><h3>Wohin die Woche ging</h3></div>'+
+    '<p class="ta-note" style="margin-top:0">Deine gebuchte Zeit über alle sieben Tage, nach Farbe summiert.</p>'+
+    weekDiagramHTML(ws)+
+  '</div>'+
   '<div class="card" style="margin-top:18px">'+
     '<div class="sec-title"><h3>Ziele für die Woche</h3></div>'+
     goalsBlockHTML('week:'+keyOf(ws),'Ein Ziel für diese Woche','Was möchtest du diese Woche voranbringen?')+
@@ -1107,6 +1443,7 @@ function renderMonth(){
     '<div class="eyebrow" style="margin-bottom:8px">Focus for '+MONTHS[m]+'</div>'+
     '<textarea data-autoheight data-intent="month:'+monthKey(y,m)+'" placeholder="Wofür ist dieser Monat da? Nenn das Thema.">'+esc(intent)+'</textarea>'+
   '</div>'+
+  '<div class="month-moon">'+moonChip(new Date(y,m,15),18)+'</div>'+
   '<div class="calgrid" style="margin-bottom:8px">'+DOW.map(d=>'<div class="cal-dow">'+d+'</div>').join('')+'</div>'+
   '<div class="calgrid">'+cells+'</div>'+
   '<div class="card" style="margin-top:18px">'+
@@ -1849,6 +2186,13 @@ function addChild(parentId){
   board.nodes.push({id,text:'Neue Idee',x:nx,y:ny,parent:parent.id});
   S.selNode=id;persist();render();
 }
+function addNodeAt(x,y){
+  const board=getBoard();
+  const parent=(S.selNode&&board.nodes.find(n=>n.id===S.selNode))||board.nodes.find(n=>!n.parent);
+  const id=uid();
+  board.nodes.push({id,text:'Neue Idee',x:Math.max(10,Math.min(1320,x)),y:Math.max(10,Math.min(850,y)),parent:parent?parent.id:null});
+  persist();editNode(id);
+}
 function deleteNode(id){
   const board=getBoard();const n=board.nodes.find(x=>x.id===id);if(!n||!n.parent)return;
   const kill=[id,...descendants(board,id)];
@@ -1873,13 +2217,13 @@ function buildOutline(board){
 function localPlan(board){
   const seed=board.nodes.find(n=>!n.parent)||board.nodes[0];
   const tops=childrenOf(board,seed.id);
-  const phases=[{title:'Klar werden',steps:[{text:'Definiere, was "'+seed.text+'" wirklich heißt und wie fertig aussieht',done:false},{text:'Nenn das eine Ergebnis, das am meisten zählt',done:false}]}];
+  const phases=[{title:'Get clear',steps:[{text:'Define what "'+seed.text+'" really means, and what finished looks like',done:false},{text:'Name the one outcome that matters most',done:false}]}];
   tops.forEach(t=>{
     const kids=childrenOf(board,t.id);
-    const steps=[{text:'Ausarbeiten: '+t.text,done:false}].concat(kids.map(k=>({text:k.text,done:false})));
+    const steps=[{text:'Work out: '+t.text,done:false}].concat(kids.map(k=>({text:k.text,done:false})));
     phases.push({title:t.text,steps});
   });
-  phases.push({title:'Rausbringen',steps:[{text:'Leg fest, wo es lebt, und setz ein echtes Datum',done:false},{text:'Mach zuerst die kleinste ehrliche Version',done:false}]});
+  phases.push({title:'Ship it',steps:[{text:'Pick where this lives and set a real date',done:false},{text:'Do the smallest honest version first',done:false}]});
   return phases;
 }
 async function callClaude(outline){
@@ -1986,7 +2330,9 @@ function renderBrainstorm(){
   '</div>'+
   '<div class="bs-toolbar">'+
     '<div class="boardchips">'+
-      DB.boards.map(b=>'<button class="boardchip '+(b.id===board.id?'active':'')+'" data-boardswitch="'+b.id+'">'+esc(b.title||'Untitled')+'</button>').join('')+
+      DB.boards.map(b=>b.id===board.id
+        ? '<span class="boardchip active" contenteditable data-boardtitle spellcheck="false" title="Board umbenennen">'+esc(b.title||'Ohne Titel')+'</span>'
+        : '<button class="boardchip" data-boardswitch="'+b.id+'">'+esc(b.title||'Ohne Titel')+'</button>').join('')+
       '<button class="boardchip" data-newboard>+ Neu</button>'+
     '</div>'+
     '<div style="margin-left:auto;display:flex;gap:8px">'+
@@ -2004,7 +2350,6 @@ function renderBrainstorm(){
             '<div class="bnode-text" data-nodetext="'+n.id+'">'+esc(n.text)+'</div>'+
             '<div class="bnode-ctrls">'+
               '<button class="bnode-ctrl" data-nodeadd="'+n.id+'" title="Idee verzweigen">+</button>'+
-              '<button class="bnode-ctrl" data-nodeedit="'+n.id+'" title="Bearbeiten">✎</button>'+
               (seed?'':'<button class="bnode-ctrl del" data-nodedel="'+n.id+'" title="Löschen">×</button>')+
             '</div>'+
           '</div>';
@@ -2016,7 +2361,7 @@ function renderBrainstorm(){
         '<button data-zoom="in" title="Vergrößern">+</button>'+
         '<button class="zfit" data-zoom="fit" title="Ganze Karte einpassen">Alles</button>'+
       '</div>'+
-      '<p class="bs-hint">Tipp eine Blase an zum Auswählen, dann + zum Verzweigen, ✎ zum Bearbeiten. Zum Anordnen ziehen.</p>'+
+      '<p class="bs-hint">Tipp eine Blase an, um sie zu beschreiben. Doppelklick auf die Fläche für eine neue Idee. Mit + verzweigen, ziehen zum Anordnen, × zum Löschen.</p>'+
     '</div>'+
     '<div class="card planpanel">'+planPanel+'<div class="divider"></div>'+keyBlock+'</div>'+
   '</div>';
@@ -2031,16 +2376,17 @@ function autoGrow(el){el.style.height='auto';el.style.height=Math.max(el.scrollH
 function touchProject(id){const p=DB.projects.find(p=>p.id===id);if(p)p.updated=keyOf(new Date());}
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-nav],[data-cycle],[data-del],[data-addbtn],[data-jump],[data-day],[data-week],[data-mo],[data-yr],[data-openmonth],[data-editdue],[data-pri],[data-pmove],[data-pdel],[data-addprojectbtn],[data-addbill],[data-billpaid],[data-billdel],[data-addmoneybtn],[data-mdel],[data-bmo],[data-addgoalbtn],[data-goaltoggle],[data-goaldel],[data-settings],[data-perioddel],[data-periodtoday],[data-perioddate],[data-flow],[data-cenergy],[data-symptom],[data-addwo],[data-wodel],[data-wo-feel],[data-nodeadd],[data-nodeedit],[data-nodedel],[data-boardswitch],[data-newboard],[data-boarddel],[data-addidea],[data-genplan],[data-planstep],[data-saveplanproject],[data-zoom],[data-ritualtoggle],[data-ritualdel],[data-addritualbtn],[data-catdel],[data-caticon],[data-addcatbtn],[data-mtab],[data-mexpicon],[data-mexpdel],[data-addexpbtn],[data-sgicon],[data-sgdel],[data-addsgbtn],[data-lnicon],[data-lndel],[data-addlnbtn],[data-addweightbtn],[data-weightdel],[data-addplanbtn],[data-plandel],[data-addex],[data-exdel],[data-iconpick],[data-iconchoose],[data-buckettoggle],[data-bucketdel],[data-addbucketbtn],[data-invdel],[data-addinvbtn],[data-addbday],[data-bdaydel],[data-addgiftbtn],[data-giftbought],[data-giftdel],[data-addchal],[data-chdel],[data-addentry],[data-entdel],[data-addblock],[data-bldel]');
+  const t=e.target.closest('[data-nav],[data-cycle],[data-del],[data-addbtn],[data-jump],[data-day],[data-week],[data-mo],[data-yr],[data-openmonth],[data-editdue],[data-pri],[data-pmove],[data-pdel],[data-addprojectbtn],[data-addbill],[data-billpaid],[data-billdel],[data-addmoneybtn],[data-mdel],[data-bmo],[data-addgoalbtn],[data-goaltoggle],[data-goaldel],[data-settings],[data-perioddel],[data-periodtoday],[data-perioddate],[data-flow],[data-cenergy],[data-symptom],[data-addwo],[data-wodel],[data-wo-feel],[data-nodeadd],[data-nodeedit],[data-nodedel],[data-boardswitch],[data-newboard],[data-boarddel],[data-addidea],[data-genplan],[data-planstep],[data-saveplanproject],[data-zoom],[data-ritualtoggle],[data-ritualdel],[data-addritualbtn],[data-catdel],[data-caticon],[data-addcatbtn],[data-mtab],[data-mexpicon],[data-mexpdel],[data-addexpbtn],[data-sgicon],[data-sgdel],[data-addsgbtn],[data-lnicon],[data-lndel],[data-addlnbtn],[data-addweightbtn],[data-weightdel],[data-addplanbtn],[data-plandel],[data-addex],[data-exdel],[data-iconpick],[data-iconchoose],[data-astromo],[data-buckettoggle],[data-bucketdel],[data-addbucketbtn],[data-invdel],[data-addinvbtn],[data-addbday],[data-bdaydel],[data-addgiftbtn],[data-giftbought],[data-giftdel],[data-addchal],[data-chdel],[data-addentry],[data-entdel],[data-addblock],[data-bldel],[data-savejournal],[data-journaldel],[data-addnotebtn],[data-notedel],[data-repeat]');
   if(!t)return;
   // nav
   if(t.dataset.nav){S.view=t.dataset.nav;pendingFeel=null;setNav(false);render();return;}
   // icon picker
   if(t.dataset.iconpick){openIconPicker(t.dataset.iconpick);return;}
   if(t.dataset.iconchoose){if(iconTarget){setIcon(iconTarget,t.dataset.iconchoose);iconTarget=null;}document.getElementById('iconmodal').classList.remove('on');render();return;}
+  if(t.dataset.astromo!==undefined){const v=t.dataset.astromo;if(v==='today'){S.astroY=TODAY.getFullYear();S.astroM=TODAY.getMonth();}else{S.astroM+=+v;if(S.astroM<0){S.astroM=11;S.astroY--;}if(S.astroM>11){S.astroM=0;S.astroY++;}}render();return;}
   // task status cycle
   if(t.dataset.cycle){const id=t.dataset.cycle;const task=DB.tasks.find(x=>x.id===id);if(task){task.status=cycleStatus(task.status);persist();render();}return;}
-  if(t.dataset.del){DB.tasks=DB.tasks.filter(x=>x.id!==t.dataset.del);persist();render();return;}
+  if(t.dataset.del){const did=t.dataset.del;clearRecInstances(did);DB.tasks=DB.tasks.filter(x=>x.id!==did);persist();render();return;}
   if(t.dataset.addbtn){addTaskFromInput(t.dataset.addbtn);return;}
   if(t.dataset.jump){S.date=parseKey(t.dataset.jump);S.year=S.date.getFullYear();S.month=S.date.getMonth();S.view='today';render();return;}
   if(t.dataset.day!==undefined){const n=+t.dataset.day;if(n===0)S.date=new Date(TODAY);else S.date.setDate(S.date.getDate()+n);render();return;}
@@ -2078,6 +2424,11 @@ document.addEventListener('click',e=>{
   if(t.dataset.giftdel){const[bid,gid]=t.dataset.giftdel.split(':');const b=DB.birthdays.find(x=>x.id===bid);if(b){b.gifts=b.gifts.filter(x=>x.id!==gid);persist();render();}return;}
   // challenges
   if(t.hasAttribute('data-addchal')){addChallenge();return;}
+  if(t.hasAttribute('data-savejournal')){saveJournal();return;}
+  if(t.dataset.journaldel){DB.journal=DB.journal.filter(x=>x.id!==t.dataset.journaldel);persist();render();return;}
+  if(t.hasAttribute('data-addnotebtn')){addNote();return;}
+  if(t.dataset.repeat){const task=DB.tasks.find(x=>x.id===t.dataset.repeat);if(task){const order=['none','daily','weekly','monthly'];task.repeat=order[(order.indexOf(task.repeat||'none')+1)%order.length];clearRecInstances(task.id);if(task.repeat!=='none')syncRecurringTasks();persist();render();}return;}
+  if(t.dataset.notedel){DB.notes=DB.notes.filter(x=>x.id!==t.dataset.notedel);persist();render();return;}
   if(t.dataset.chdel){DB.challenges=DB.challenges.filter(x=>x.id!==t.dataset.chdel);persist();render();return;}
   if(t.dataset.addentry){const c=DB.challenges.find(x=>x.id===t.dataset.addentry);if(c){c.entries=c.entries||[];c.entries.push({id:uid(),what:'',feeling:'',date:TODAY_KEY});persist();render();}return;}
   if(t.dataset.entdel){const[cid,eid]=t.dataset.entdel.split(':');const c=DB.challenges.find(x=>x.id===cid);if(c){c.entries=c.entries.filter(x=>x.id!==eid);persist();render();}return;}
@@ -2101,7 +2452,7 @@ document.addEventListener('click',e=>{
   if(t.dataset.nodedel){deleteNode(t.dataset.nodedel);return;}
   if(t.dataset.boardswitch){S.board=t.dataset.boardswitch;S.selNode=null;render();return;}
   if(t.hasAttribute('data-newboard')){createBoard('Neue Idee');render();return;}
-  if(t.hasAttribute('data-boarddel')){const b=getBoard();if(confirm('Delete this whole brainstorm board?')){DB.boards=DB.boards.filter(x=>x.id!==b.id);S.board=DB.boards.length?DB.boards[0].id:null;S.selNode=null;persist();render();}return;}
+  if(t.hasAttribute('data-boarddel')){const b=getBoard();if(confirm('Dieses ganze Ideen-Board löschen?')){DB.boards=DB.boards.filter(x=>x.id!==b.id);S.board=DB.boards.length?DB.boards[0].id:null;S.selNode=null;persist();render();}return;}
   if(t.hasAttribute('data-addidea')){const b=getBoard();const seed=b.nodes.find(n=>!n.parent);addChild(S.selNode||seed.id);return;}
   if(t.hasAttribute('data-genplan')){generatePlan();return;}
   if(t.dataset.planstep){const[pi,si]=t.dataset.planstep.split(':').map(Number);const b=getBoard();if(b.plan){b.plan.phases[pi].steps[si].done=!b.plan.phases[pi].steps[si].done;persist();render();}return;}
@@ -2153,6 +2504,7 @@ function addWorkout(){
 document.addEventListener('keydown',e=>{
   if(e.key!=='Enter')return;
   const el=e.target;
+  if(el.dataset.boardtitle!==undefined){e.preventDefault();el.blur();return;}
   if(el.dataset.add!==undefined){e.preventDefault();addTaskFromInput(el.dataset.add);}
   else if(el.hasAttribute('data-addproject')){e.preventDefault();addProject();}
   else if(el.dataset.addmoney){e.preventDefault();addMoney(el.dataset.addmoney);}
@@ -2208,11 +2560,13 @@ function handleFieldSave(e){
   else if(el.dataset.chtarget!==undefined){const c=DB.challenges.find(x=>x.id===el.dataset.chtarget);if(c){c.target=+el.value||0;touched=true;if(e.type==='change'){persist();render();return;}}}
   else if(el.dataset.entwhat!==undefined){const[cid,eid]=el.dataset.entwhat.split(':');const c=DB.challenges.find(x=>x.id===cid);const en=c&&c.entries.find(x=>x.id===eid);if(en){en.what=el.value;touched=true;}}
   else if(el.dataset.entfeel!==undefined){const[cid,eid]=el.dataset.entfeel.split(':');const c=DB.challenges.find(x=>x.id===cid);const en=c&&c.entries.find(x=>x.id===eid);if(en){en.feeling=el.value;touched=true;}}
+  else if(el.dataset.journaltext!==undefined){const j=DB.journal.find(x=>x.id===el.dataset.journaltext);if(j){j.text=el.value;touched=true;}}
+  else if(el.dataset.notetext!==undefined){const n=DB.notes.find(x=>x.id===el.dataset.notetext);if(n){n.text=el.value;touched=true;}}
   else if(el.dataset.clognote!==undefined){ensureCLog().note=el.value;touched=true;}
   else if(el.dataset.cavg!==undefined){DB.cycle.avgCycle=Math.max(15,Math.min(45,+el.value||28));touched=true;if(e.type==='change'){persist();render();return;}}
   else if(el.dataset.cperiod!==undefined){DB.cycle.avgPeriod=Math.max(1,Math.min(12,+el.value||5));touched=true;if(e.type==='change'){persist();render();return;}}
   else if(el.dataset.wointent!==undefined){DB.fitness.weekIntent[el.dataset.wointent]=el.value;touched=true;}
-  else if(el.dataset.boardtitle!==undefined){const b=getBoard();b.title=el.textContent.trim()||'Untitled';touched=true;}
+  else if(el.dataset.boardtitle!==undefined){const b=getBoard();b.title=el.textContent.trim()||'Ohne Titel';persist();render();return;}
   else if(el.dataset.nodetext!==undefined){const b=getBoard();const n=b.nodes.find(x=>x.id===el.dataset.nodetext);if(n){n.text=el.textContent.trim()||'…';el.contentEditable='false';drawConnectors();touched=true;}}
   else if(el.dataset.apikey!==undefined){try{localStorage.setItem('anima_api_key',el.value.trim());}catch(err){}}
   else if(el.dataset.taskcat!==undefined){const task=DB.tasks.find(x=>x.id===el.dataset.taskcat);if(task){task.cat=el.value||null;persist();render();return;}}
@@ -2367,6 +2721,26 @@ function addProject(){
   input.value='';persist();render();
 }
 function daysInMonth(y,m){return new Date(y,m+1,0).getDate();}
+function clearRecInstances(tid){DB.tasks=DB.tasks.filter(t=>!(t.recOf===tid&&t.date>=TODAY_KEY&&t.status!=='done'));}
+function syncRecurringTasks(){
+  const templates=DB.tasks.filter(t=>t.repeat&&t.repeat!=='none'&&!t.recOf);
+  if(!templates.length)return;
+  const end=new Date(TODAY);end.setDate(end.getDate()+42);
+  templates.forEach(function(tpl){
+    const base=parseKey(tpl.date||TODAY_KEY);
+    for(let d=new Date(TODAY);d<=end;d.setDate(d.getDate()+1)){
+      const k=keyOf(d);
+      if(k===tpl.date)continue;
+      let match=false;
+      if(tpl.repeat==='daily')match=true;
+      else if(tpl.repeat==='weekly')match=(d.getDay()===base.getDay());
+      else if(tpl.repeat==='monthly')match=(d.getDate()===Math.min(base.getDate(),daysInMonth(d.getFullYear(),d.getMonth())));
+      if(!match)continue;
+      if(DB.tasks.some(x=>x.recOf===tpl.id&&x.date===k))continue;
+      DB.tasks.push({id:uid(),title:tpl.title,date:k,status:'todo',priority:tpl.priority||'none',project:tpl.project||null,due:null,notes:'',cat:tpl.cat||null,recOf:tpl.id});
+    }
+  });
+}
 function clearBillTasks(billId){DB.tasks=DB.tasks.filter(t=>!(t.bill===billId&&t.date>=TODAY_KEY&&t.status!=='done'));}
 function syncBillTasks(){
   if(!DB.bills||!DB.bills.length)return;
@@ -2460,7 +2834,7 @@ document.addEventListener('pointermove',e=>{
 document.addEventListener('pointerup',()=>{
   if(!bdrag)return;const d=bdrag;bdrag=null;
   if(d.moved){persist();}
-  else{S.selNode=d.id;render();}
+  else{editNode(d.id);}
 });
 document.addEventListener('click',e=>{
   if(S.view!=='brainstorm')return;
@@ -2470,7 +2844,12 @@ document.addEventListener('click',e=>{
 document.addEventListener('dblclick',e=>{
   if(S.view!=='brainstorm')return;
   const txt=e.target.closest('.bnode-text');
-  if(txt)editNode(txt.dataset.nodetext);
+  if(txt){editNode(txt.dataset.nodetext);return;}
+  if(e.target.closest('.bnode'))return;
+  if(!e.target.closest('.canvaswrap'))return;
+  const bc=document.querySelector('.bcanvas');if(!bc)return;
+  const r=bc.getBoundingClientRect();
+  addNodeAt((e.clientX-r.left)/S.zoom-40,(e.clientY-r.top)/S.zoom-16);
 });
 window.addEventListener('resize',()=>{if(S.view==='brainstorm')drawConnectors();});
 
@@ -2489,8 +2868,7 @@ document.addEventListener('wheel',e=>{
 },{passive:false});
 
 /* ================= INIT ================= */
-document.getElementById('todaychip').textContent=fmtLong(TODAY);
-syncBillTasks();persist();
+syncBillTasks();syncRecurringTasks();persist();
 /* live clock on home */
 setInterval(()=>{const el=document.getElementById('clock');if(el)el.textContent=nowTime();},15000);
 /* PWA: register service worker */

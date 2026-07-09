@@ -2,7 +2,7 @@
 // as a PWA and opens offline. The planner keeps all data in the browser's localStorage;
 // this only caches the static files. API calls (api.anthropic.com) + Google Fonts are
 // left to the network and never cached.
-const CACHE = 'magali-planner-v1'
+const CACHE = 'magali-planner-v2'
 const ASSETS = ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']
 
 self.addEventListener('install', e => {
