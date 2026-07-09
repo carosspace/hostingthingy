@@ -3,10 +3,17 @@ import type { SiteContent, WorkbookProduct } from '@/lib/sites/types'
 
 // The owner's view of one sellable book: the site-content metadata merged with the
 // `workbooks` table (which holds the actual interactive HTML, keyed by owner + slug).
+export type ProductKind = 'workbook' | 'download'
+export type ProductAccess = 'free' | 'members' | 'paid'
+
 export interface OwnerProduct {
   slug: string
   title: string
+  kind: ProductKind
+  access: ProductAccess
+  tierId: string | null // when access='members'
   priceCents: number
+  salePriceCents: number | null // reduced price (< priceCents) when on sale
   currency: string
   description: string
   coverImage: string
@@ -14,10 +21,19 @@ export interface OwnerProduct {
   landingMode: 'form' | 'html'
   landingBody: string
   landingHtml: string
+  // download file (kind='download'):
+  fileName: string | null
+  fileSize: number | null
+  mime: string | null
   order: number
   hidden: boolean
-  hasContent: boolean // an interactive HTML file has been uploaded for this slug
+  hasContent: boolean // an interactive HTML file OR a download file exists for this slug
   updatedAt: string | null
+}
+
+// The amount actually charged (sale price when set + lower, else the regular price).
+export function effectivePriceCents(p: { priceCents: number; salePriceCents: number | null }): number {
+  return p.salePriceCents && p.salePriceCents > 0 && p.salePriceCents < p.priceCents ? p.salePriceCents : p.priceCents
 }
 
 const PORTAL = (process.env.NEXT_PUBLIC_PORTAL_URL || 'https://app.animatemple.com').replace(/\/+$/, '')
@@ -52,38 +68,59 @@ export interface OwnerProductList {
 
 export async function listOwnerProducts(ownerId: string, content: SiteContent | null): Promise<OwnerProductList> {
   const map: Record<string, OwnerProduct> = {}
+  const dbSlugs = new Set<string>()
   const blank = (slug: string): OwnerProduct => ({
-    slug, title: slug, priceCents: 0, currency: 'eur', description: '', coverImage: '', tagline: '',
-    landingMode: 'html', landingBody: '', landingHtml: '', order: 0, hidden: false, hasContent: false, updatedAt: null,
+    slug, title: slug, kind: 'workbook', access: 'paid', tierId: null, priceCents: 0, salePriceCents: null,
+    currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'html', landingBody: '', landingHtml: '',
+    fileName: null, fileSize: null, mime: null, order: 0, hidden: false, hasContent: false, updatedAt: null,
   })
 
-  // 1) workbook rows — the source of truth for which products exist + have content.
-  // workbooksOk tells the caller the list is COMPLETE: if this read fails we must NOT
-  // regenerate the library cards (we'd silently drop products that live only as a row).
+  // 1) workbook/product rows — the source of truth for which products exist, their kind/
+  // access/file, and whether content exists. workbooksOk tells the caller the list is
+  // COMPLETE: if this read fails we must NOT regenerate the library cards (we'd silently
+  // drop products that live only as a row).
   let workbooksOk = false
   try {
     const sb = createSupabaseServerClient()
-    const { data: rows, error: e1 } = await sb.from('workbooks').select('slug, title, updated_at').eq('owner_id', ownerId)
+    const { data: rows, error: e1 } = await sb
+      .from('workbooks')
+      .select('slug, title, updated_at, kind, access, tier_id, file_path, file_name, file_size, mime')
+      .eq('owner_id', ownerId)
     if (e1) throw e1
     const { data: filled } = await sb.from('workbooks').select('slug').eq('owner_id', ownerId).not('html_content', 'is', null)
-    const has = new Set((filled || []).map(r => String(r.slug)))
+    const hasHtml = new Set((filled || []).map(r => String(r.slug)))
     for (const r of rows || []) {
       const slug = String(r.slug)
-      map[slug] = { ...blank(slug), title: String(r.title || 'Workbook'), hasContent: has.has(slug), updatedAt: (r.updated_at as string) || null }
+      dbSlugs.add(slug)
+      const kind: ProductKind = r.kind === 'download' ? 'download' : 'workbook'
+      const access: ProductAccess = r.access === 'free' || r.access === 'members' ? r.access : 'paid'
+      map[slug] = {
+        ...blank(slug),
+        title: String(r.title || 'Workbook'), kind, access, tierId: (r.tier_id as string) || null,
+        fileName: (r.file_name as string) || null, fileSize: r.file_size == null ? null : Number(r.file_size) || 0, mime: (r.mime as string) || null,
+        updatedAt: (r.updated_at as string) || null,
+        hasContent: kind === 'download' ? !!r.file_path : hasHtml.has(slug),
+      }
     }
     workbooksOk = true
   } catch {
     // table not migrated / no session / transient failure → list is content-only + incomplete
   }
 
-  // 2) overlay the content metadata.
+  // 2) overlay the content metadata. The DB row is authoritative for kind/access/tier when
+  // it exists; content supplies them only for a product that has no row yet (mid-create).
   const wp = (content?.workbookProducts || {}) as Record<string, WorkbookProduct>
   for (const [slug, p] of Object.entries(wp)) {
     const base = map[slug] || blank(slug)
+    const dbHas = dbSlugs.has(slug)
     map[slug] = {
       ...base,
       title: p.title || base.title,
+      kind: dbHas ? base.kind : (p.kind === 'download' ? 'download' : base.kind),
+      access: dbHas ? base.access : (p.access === 'free' || p.access === 'members' || p.access === 'paid' ? p.access : base.access),
+      tierId: dbHas ? base.tierId : (p.tierId || base.tierId),
       priceCents: Number.isInteger(p.priceCents) ? p.priceCents : base.priceCents,
+      salePriceCents: Number.isInteger(p.salePriceCents as number) ? (p.salePriceCents as number) : base.salePriceCents,
       currency: p.currency || base.currency,
       description: p.description ?? base.description,
       coverImage: p.coverImage ?? base.coverImage,
@@ -131,13 +168,20 @@ function buyButton(label: string, url: string): string {
   return `<a href="${escapeHtml(url)}" target="_top" rel="nofollow noopener" style="${BUY_STYLE}">${escapeHtml(label)}</a>`
 }
 
+// The right call-to-action for a product's landing: paid → Stripe checkout; free/members
+// → sign in to the portal to open/download it.
+function ctaButton(p: OwnerProduct, opts: { siteSlug: string }): string {
+  if (p.access === 'paid') return buyButton('If it is for you, it is here', buyUrl(opts.siteSlug, p.slug))
+  const label = p.access === 'members' ? 'Sign in to open (members)' : 'Sign in to open — free'
+  return buyButton(label, `${PORTAL}/me`)
+}
+
 // FORM MODE — render a clean, brand-consistent landing (cream/gold, Cormorant/Cinzel/
 // Jost, dark), from the product's fields. All sizing is px (no vh) so it's safe in the
 // auto-height site iframe, and there are no opacity-until-JS reveals.
 export function buildFormLanding(p: OwnerProduct, opts: { siteSlug: string; brand?: string }): string {
   const brand = opts.brand || 'Anima Temple'
-  const url = buyUrl(opts.siteSlug, p.slug)
-  const price = priceLabel(p.priceCents, p.currency)
+  const priceLine = p.access === 'free' ? 'Free' : p.access === 'members' ? 'Members only' : priceBadge(p)
   const paras = (p.landingBody || p.description || '')
     .split(/\n\s*\n/).map(s => s.trim()).filter(Boolean)
     .map(t => `<p>${escapeHtml(t).replace(/\n/g, '<br>')}</p>`).join('\n      ')
@@ -184,8 +228,8 @@ export function buildFormLanding(p: OwnerProduct, opts: { siteSlug: string; bran
   </section>
   <div class="orn">&#10022;</div>
   <section class="offer">
-    <div class="price">${escapeHtml(price)}<small>one quiet thing, made with care</small></div>
-    ${buyButton(`If it is for you, it is here`, url)}
+    <div class="price">${priceLine}<small>one quiet thing, made with care</small></div>
+    ${ctaButton(p, opts)}
   </section>
   <footer><div class="mark">${escapeHtml(brand)}</div></footer>
 </div>
@@ -197,14 +241,12 @@ export function buildFormLanding(p: OwnerProduct, opts: { siteSlug: string; bran
 // button. If the HTML has a {{BUY}} placeholder, that becomes the button; else if it
 // has no checkout link yet, a tasteful buy bar is appended.
 export function renderSafeHtml(html: string, p: OwnerProduct, opts: { siteSlug: string }): string {
-  const url = buyUrl(opts.siteSlug, p.slug)
-  const label = `${p.title} · ${priceLabel(p.priceCents, p.currency)}`
   let h = String(html || '')
   h = h.replace(/([0-9.]+)vh/g, (_m, n) => Math.max(40, Math.round(parseFloat(n) * 7)) + 'px')
-  const btn = buyButton(label, url)
+  const btn = ctaButton(p, opts)
   if (h.includes('{{BUY}}')) {
     h = h.split('{{BUY}}').join(btn)
-  } else if (!/api\/buy-workbook\//.test(h)) {
+  } else if (!/api\/buy-workbook\//.test(h) && !/\/me["'\s]/.test(h)) {
     const bar = `<div style="text-align:center;padding:3rem 1.5rem;background:#1A1108;">${btn}</div>`
     h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, `${bar}</body>`) : h + bar
   }
@@ -220,10 +262,32 @@ export function buildLanding(p: OwnerProduct, opts: { siteSlug: string; brand?: 
 
 // ─────────────────────────── library cards ───────────────────────────
 
+// A short type label from the product's kind + file mime ("eBook", "PDF", "Guided
+// meditation", "Interactive book"…), shown as the card eyebrow.
+export function kindLabel(p: { kind: ProductKind; mime: string | null }): string {
+  if (p.kind !== 'download') return 'Interactive book'
+  const m = (p.mime || '').toLowerCase()
+  if (m.startsWith('audio') || m.startsWith('video')) return 'Guided meditation'
+  if (m.includes('pdf')) return 'PDF'
+  if (m.includes('epub') || m.includes('mobi')) return 'eBook'
+  return 'Download'
+}
+
+// The price/access badge for a card or landing CTA (e.g. "€22", "€15 (was €22)", "Free",
+// "Members only"). Returns HTML.
+export function priceBadge(p: OwnerProduct): string {
+  if (p.access === 'free') return 'Free'
+  if (p.access === 'members') return 'Members only'
+  const eff = effectivePriceCents(p)
+  const onSale = !!p.salePriceCents && p.salePriceCents > 0 && p.salePriceCents < p.priceCents
+  return onSale
+    ? `${escapeHtml(priceLabel(eff, p.currency))} <span style="text-decoration:line-through;opacity:.55;">${escapeHtml(priceLabel(p.priceCents, p.currency))}</span>`
+    : escapeHtml(priceLabel(eff, p.currency))
+}
+
 // One .lib-item card for the Resources library grid (matches the classes defined in the
 // resources page). Uses the uploaded cover if present, else the gradient placeholder.
 export function buildLibraryCard(p: OwnerProduct): string {
-  const price = priceLabel(p.priceCents, p.currency)
   const cover = p.coverImage
     ? `<div class="lib-cover" style="background:url('${escapeHtml(p.coverImage)}') center/cover;"></div>`
     : `<div class="lib-cover" style="background:linear-gradient(160deg,#241307 0%,#3D2415 68%,#241307 100%);">
@@ -234,10 +298,10 @@ export function buildLibraryCard(p: OwnerProduct): string {
   return `<a class="lib-item" href="/${escapeHtml(p.slug)}">
             ${cover}
             <div class="lib-meta">
-              <p class="eyebrow">Interactive book</p>
+              <p class="eyebrow">${escapeHtml(kindLabel(p))}</p>
               <h3>${escapeHtml(p.title)}</h3>
               <p class="muted" style="margin:0;">${escapeHtml(p.description || '')}</p>
-              <span class="lib-cta">Discover &middot; ${escapeHtml(price)} <span class="ar" aria-hidden="true">&#8594;</span></span>
+              <span class="lib-cta">Discover &middot; ${priceBadge(p)} <span class="ar" aria-hidden="true">&#8594;</span></span>
             </div>
           </a>`
 }

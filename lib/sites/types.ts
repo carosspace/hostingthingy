@@ -757,7 +757,11 @@ export interface SitePage {
 // page (either a simple form the system renders, or the owner's own pasted HTML).
 export interface WorkbookProduct {
   title: string
-  priceCents: number
+  kind?: 'workbook' | 'download' // 'workbook' = interactive HTML; 'download' = a file (ebook/PDF/audio/video)
+  access?: 'free' | 'members' | 'paid' // free = any signed-in client; members = a tier; paid = à la carte
+  tierId?: string // when access='members', the membership tier that unlocks it
+  priceCents: number // the regular price (when access='paid')
+  salePriceCents?: number // optional reduced price (< priceCents); when set, buyers are charged this
   currency?: string // default 'eur'
   description?: string // short line for the Resources library card + the form-landing intro
   coverImage?: string // data URL (resized) shown on the library card + landing
