@@ -62,6 +62,13 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [open, setOpen] = useState(isNew)
+  // gift + unlock codes (existing products only)
+  const [giftEmail, setGiftEmail] = useState('')
+  const [giftMsg, setGiftMsg] = useState('')
+  const [codeCount, setCodeCount] = useState('10')
+  const [madeCodes, setMadeCodes] = useState<string[]>([])
+  const [codesMsg, setCodesMsg] = useState('')
+  const [gcBusy, setGcBusy] = useState(false)
 
   const set = (patch: Partial<ProductInput>) => setP(prev => ({ ...prev, ...patch }))
   const slug = p.slug || slugify(p.title)
@@ -145,6 +152,33 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
       if (!r.ok) { setMsg(d?.error || 'Couldn’t delete — try again.'); setBusy(false); return }
       router.refresh()
     } catch { setMsg('Couldn’t delete — try again.'); setBusy(false) }
+  }
+
+  async function gift() {
+    const email = giftEmail.trim().toLowerCase()
+    if (!email) return
+    setGcBusy(true); setGiftMsg('')
+    try {
+      const r = await fetch('/api/workbooks/access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'grant', email, slug: p.slug }) })
+      const d = await r.json().catch(() => ({}))
+      setGiftMsg(r.ok ? `✓ Gifted to ${email} — it appears when they sign in with that email.` : (d?.error || 'Couldn’t gift it.'))
+      if (r.ok) setGiftEmail('')
+    } catch { setGiftMsg('Couldn’t gift it — try again.') }
+    setGcBusy(false)
+  }
+  async function genCodes() {
+    setGcBusy(true); setCodesMsg(''); setMadeCodes([])
+    try {
+      const r = await fetch('/api/workbooks/codes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: parseInt(codeCount, 10) || 1, slug: p.slug }) })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok && Array.isArray(d.codes)) setMadeCodes(d.codes)
+      else setCodesMsg(d?.error || 'Couldn’t generate codes.')
+    } catch { setCodesMsg('Couldn’t generate codes — try again.') }
+    setGcBusy(false)
+  }
+  async function copyCodes() {
+    try { await navigator.clipboard.writeText(madeCodes.join('\n')); setCodesMsg(`Copied ${madeCodes.length} codes.`) }
+    catch { setCodesMsg('Select + copy them manually.') }
   }
 
   const accessLabel = p.access === 'free' ? 'Free' : p.access === 'members' ? 'Members only' : (p.priceCents ? `€${p.priceCents / 100}${p.salePriceCents ? ` (sale €${p.salePriceCents / 100})` : ''}` : 'no price')
@@ -252,6 +286,35 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
                 <textarea value={p.landingHtml} onChange={e => set({ landingHtml: e.target.value })} className={`${input} font-mono text-[11px]`} rows={7} placeholder="<!DOCTYPE html>…" /></label>
             )}
           </div>
+
+          {/* Gift + unlock codes (existing items only) */}
+          {p.slug && (
+            <div className="border border-gold/10 rounded-sm p-4 space-y-3">
+              <span className={label} style={{ marginBottom: 2 }}>Gift &amp; unlock codes</span>
+              <div className="flex items-end gap-2">
+                <label className="block flex-1"><span className={label}>Gift it to an email (free, no code)</span>
+                  <input type="email" value={giftEmail} onChange={e => setGiftEmail(e.target.value)} className={input} placeholder="name@email.com" /></label>
+                <button type="button" onClick={gift} disabled={gcBusy} className="font-label text-[10px] tracking-[2px] uppercase text-gold border border-gold/40 rounded-sm px-3 py-2 hover:bg-gold/10 disabled:opacity-50">Gift</button>
+              </div>
+              {giftMsg && <p className="font-body text-ash text-xs">{giftMsg}</p>}
+              <div className="flex items-end gap-2">
+                <label className="block"><span className={label}>Unlock codes (for Etsy / off-site)</span>
+                  <input type="number" min={1} max={200} value={codeCount} onChange={e => setCodeCount(e.target.value)} className={input} style={{ width: 80 }} /></label>
+                <button type="button" onClick={genCodes} disabled={gcBusy} className="font-label text-[10px] tracking-[2px] uppercase text-gold border border-gold/40 rounded-sm px-3 py-2 hover:bg-gold/10 disabled:opacity-50">Generate</button>
+              </div>
+              {madeCodes.length > 0 && (
+                <div className="border border-gold/25 bg-gold/5 rounded-sm p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-label text-[9px] tracking-[2px] uppercase text-gold">Just created — copy them now</span>
+                    <button type="button" onClick={copyCodes} className="font-label text-[9px] tracking-[1px] uppercase text-gold hover:opacity-80">Copy all</button>
+                  </div>
+                  <div className="font-mono text-parchment text-xs leading-relaxed break-all">{madeCodes.join('  ·  ')}</div>
+                </div>
+              )}
+              {codesMsg && <p className="font-body text-ash text-xs">{codesMsg}</p>}
+              <p className="font-body text-ash/40 text-[11px]">Buyers enter a code in your portal to unlock this — works for workbooks and downloads.</p>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-1.5 cursor-pointer text-xs"><input type="checkbox" checked={p.hidden} onChange={e => set({ hidden: e.target.checked })} /> <span className="text-ash">Hide from the library</span></label>

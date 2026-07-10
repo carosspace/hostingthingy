@@ -8,27 +8,38 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 // off an Etsy message or a card.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
-function genCode(): string {
+function genCode(prefix: string): string {
   const arr = new Uint32Array(6)
   globalThis.crypto.getRandomValues(arr)
   let s = ''
   for (let i = 0; i < 6; i++) s += ALPHABET[arr[i] % ALPHABET.length]
-  return `TUNED-${s}`
+  return `${prefix}-${s}`
 }
 
-// Owner-only: generate a batch of unlock codes for the workbook.
+// A short, readable code prefix per product (cosmetic — redemption matches on the whole
+// code, not the prefix). Tuned In keeps its historical TUNED- prefix.
+function prefixFor(slug: string): string {
+  if (slug === 'tuned-in') return 'TUNED'
+  const letters = slug.replace(/[^a-z]/gi, '').toUpperCase()
+  return letters.slice(0, 4) || 'CODE'
+}
+
+// Owner-only: generate a batch of unlock codes for ONE product (defaults to 'tuned-in').
+// Each code carries the product slug, so redeeming it grants THAT product.
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 })
   try {
-    const { count } = await request.json()
-    const n = Math.min(Math.max(parseInt(String(count), 10) || 0, 1), 200)
-    const codes = Array.from({ length: n }, genCode)
+    const body = await request.json()
+    const n = Math.min(Math.max(parseInt(String(body.count), 10) || 0, 1), 200)
+    const rawSlug = String(body.slug ?? 'tuned-in').toLowerCase().trim()
+    const slug = /^[a-z0-9-]{1,60}$/.test(rawSlug) ? rawSlug : 'tuned-in'
+    const codes = Array.from({ length: n }, () => genCode(prefixFor(slug)))
     const supabase = createSupabaseServerClient()
     // ignoreDuplicates: on the astronomically-rare collision, skip rather than fail the batch.
     const { error } = await supabase
       .from('redeem_codes')
-      .upsert(codes.map(code => ({ owner_id: user.id, code })), { onConflict: 'owner_id,code', ignoreDuplicates: true })
+      .upsert(codes.map(code => ({ owner_id: user.id, code, slug })), { onConflict: 'owner_id,code', ignoreDuplicates: true })
     if (error) {
       const c = (error as { code?: string }).code
       if (c === '42P01' || c === 'PGRST205') {
