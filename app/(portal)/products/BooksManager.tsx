@@ -136,7 +136,7 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
         })
         if (!upl.ok) { const e = await upl.json().catch(() => ({})); setMsg(`Saved — but the workbook file didn’t upload (${e?.error || 'try again'}). Click Save once more.`); setBusy(false); return }
       }
-      setMsg('✓ Saved — it’s live.'); setNewHtml(null); setNewFile(null); if (fileRef.current) fileRef.current.value = ''
+      setMsg(d?.warn || '✓ Saved — it’s live.'); setNewHtml(null); setNewFile(null); if (fileRef.current) fileRef.current.value = ''
       router.refresh()
     } catch { setMsg('Couldn’t save — try again.') }
     setBusy(false)

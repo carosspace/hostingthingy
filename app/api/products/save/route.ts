@@ -181,5 +181,9 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: 'Save failed: ' + String((e as Error)?.message || e) }, { status: 500 })
   }
-  return NextResponse.json({ ok: true, slug: rawSlug, cardsUpdated })
+  // A paid download with no file is safe (the buy route won't sell it) but the owner should know.
+  const warn = thisProduct.kind === 'download' && thisProduct.access === 'paid' && !thisProduct.hasContent
+    ? 'Saved — but there’s no file yet, so it can’t sell until you upload one.'
+    : undefined
+  return NextResponse.json({ ok: true, slug: rawSlug, cardsUpdated, warn })
 }
