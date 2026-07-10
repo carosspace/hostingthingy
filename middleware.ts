@@ -62,9 +62,10 @@ export async function middleware(request: NextRequest) {
   //                relative manifest/sw.js/icon links resolve under /planner/)
   //   /planner/  → rewrite to /planner/index.html (serve the file, keep the URL)
   if (path === '/planner') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/planner/'
-    return NextResponse.redirect(url, 308)
+    // Explicit relative Location — building it from nextUrl re-applies the
+    // trailingSlash:false canonicalisation and strips the slash back off, which
+    // makes /planner redirect to itself (a loop). A raw header avoids that.
+    return new NextResponse(null, { status: 308, headers: { Location: '/planner/' } })
   }
   if (path === '/planner/') {
     const url = request.nextUrl.clone()
