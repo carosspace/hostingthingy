@@ -62,7 +62,7 @@ export async function middleware(request: NextRequest) {
   //   /<app>   → 308 redirect to /<app>/  (trailing slash, so the app's relative
   //              manifest/sw.js/icon links resolve under /<app>/)
   //   /<app>/  → rewrite to /<app>/index.html (serve the file, keep the URL)
-  const STATIC_PWAS = ['planner', 'planner2']
+  const STATIC_PWAS = ['planner', 'planner2', 'planner-fr']
   for (const app of STATIC_PWAS) {
     if (path === `/${app}`) {
       // Redirect to the trailing-slash form. Build an absolute URL from the
