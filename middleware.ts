@@ -53,29 +53,33 @@ export async function middleware(request: NextRequest) {
     .split(':')[0]
   const path = request.nextUrl.pathname
 
-  // --- Static PWAs in /public (e.g. the Magalis Planner) ---------------------
-  // These are plain static apps under public/<name>/. Next serves them at their
-  // full file path (/planner/index.html) but NOT at the clean directory URL, and
-  // the custom-domain rewrite below would otherwise swallow the extension-less
-  // path into the owner's site tree (→ themed 404, "lost in the stars"). So:
-  //   /planner   → 308 redirect to /planner/  (trailing slash, so the app's
-  //                relative manifest/sw.js/icon links resolve under /planner/)
-  //   /planner/  → rewrite to /planner/index.html (serve the file, keep the URL)
-  if (path === '/planner') {
-    // Redirect to the trailing-slash form. Build an absolute URL from the
-    // forwarded host (same source used below) as a plain string, NOT from
-    // nextUrl — cloning nextUrl re-applies trailingSlash:false and strips the
-    // slash back off, so /planner would redirect to itself (a loop).
-    const proto = request.headers.get('x-forwarded-proto') || 'https'
-    const fwdHost = (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
-      .split(',')[0]
-      .trim()
-    return NextResponse.redirect(`${proto}://${fwdHost}/planner/`, 308)
-  }
-  if (path === '/planner/') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/planner/index.html'
-    return NextResponse.rewrite(url)
+  // --- Static PWAs in /public -----------------------------------------------
+  // Plain static apps under public/<name>/ (Magali's planner, the Anima Temple
+  // planner, …). Next serves them at their full file path (/planner/index.html)
+  // but NOT at the clean directory URL, and the custom-domain rewrite below would
+  // otherwise swallow the extension-less path into the owner's site tree (→ themed
+  // 404, "lost in the stars"). For each app:
+  //   /<app>   → 308 redirect to /<app>/  (trailing slash, so the app's relative
+  //              manifest/sw.js/icon links resolve under /<app>/)
+  //   /<app>/  → rewrite to /<app>/index.html (serve the file, keep the URL)
+  const STATIC_PWAS = ['planner', 'planner2']
+  for (const app of STATIC_PWAS) {
+    if (path === `/${app}`) {
+      // Redirect to the trailing-slash form. Build an absolute URL from the
+      // forwarded host (same source used below) as a plain string, NOT from
+      // nextUrl — cloning nextUrl re-applies trailingSlash:false and strips the
+      // slash back off, so /<app> would redirect to itself (a loop).
+      const proto = request.headers.get('x-forwarded-proto') || 'https'
+      const fwdHost = (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
+        .split(',')[0]
+        .trim()
+      return NextResponse.redirect(`${proto}://${fwdHost}/${app}/`, 308)
+    }
+    if (path === `/${app}/`) {
+      const url = request.nextUrl.clone()
+      url.pathname = `/${app}/index.html`
+      return NextResponse.rewrite(url)
+    }
   }
 
   // --- Custom-domain routing -------------------------------------------------
