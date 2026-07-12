@@ -3240,12 +3240,19 @@ render();
 </style>
 <div id="atsync"><span class="pill" id="atsync-pill">☁ Sign in to sync</span></div>
 <div id="atsync-ov"><div id="atsync-card">
-  <h3>Sync across your devices</h3>
-  <p>Sign in with your email and your planner is saved to your account — the same on your phone, laptop and tablet, and safely backed up.</p>
-  <input id="atsync-email" type="email" placeholder="you@email.com" autocomplete="email" inputmode="email">
-  <button class="go" id="atsync-send">Send me a sign-in link</button>
-  <div id="atsync-msg"></div>
-  <button class="x" id="atsync-close">Not now — keep it on this device</button>
+  <div id="atsync-signin">
+    <h3>Sync across your devices</h3>
+    <p>Sign in with your email and your planner is saved to your account — the same on your phone, laptop and tablet, and safely backed up.</p>
+    <input id="atsync-email" type="email" placeholder="you@email.com" autocomplete="email" inputmode="email">
+    <button class="go" id="atsync-send">Send me a sign-in link</button>
+    <div id="atsync-msg"></div>
+  </div>
+  <div id="atsync-account" style="display:none">
+    <h3>Synced &amp; backed up</h3>
+    <p id="atsync-who">Signed in.</p>
+    <button class="go" id="atsync-signout">Sign out</button>
+  </div>
+  <button class="x" id="atsync-close">Close</button>
 </div></div>
 <script>
 (function(){
@@ -3263,7 +3270,7 @@ render();
   function setPill(t,cls){ pill.textContent=t; pill.className='pill'+(cls?(' '+cls):''); }
   function status(){
     if(!signedIn){ setPill('☁ Sign in to sync',''); return; }
-    if(inFlight||unsynced()) setPill('Saving…','busy'); else setPill('✓ '+(email||'Synced'),'ok');
+    if(inFlight||unsynced()) setPill('Saving…','busy'); else setPill('✓ Synced','ok'); // email lives in the menu, not on screen
   }
   function localHasData(){ try{ return DB && typeof DB==='object' && JSON.stringify(DB).length>60; }catch(e){ return false; } }
   function adopt(data){ try{ DB=data; origPersist(); if(typeof window.render==='function') window.render(); }catch(e){} }
@@ -3319,8 +3326,18 @@ render();
     }).catch(function(){ status(); });
   }
 
-  pill.addEventListener('click',function(){ if(!signedIn){ ov.className='on'; var e=document.getElementById('atsync-email'); if(e) e.focus(); } });
+  pill.addEventListener('click',function(){
+    var si=document.getElementById('atsync-signin'), ac=document.getElementById('atsync-account');
+    if(signedIn){ si.style.display='none'; ac.style.display='block'; document.getElementById('atsync-who').textContent='Signed in as '+(email||'your account')+'.'; }
+    else { si.style.display='block'; ac.style.display='none'; }
+    ov.className='on';
+    if(!signedIn){ var e=document.getElementById('atsync-email'); if(e) e.focus(); }
+  });
   document.getElementById('atsync-close').addEventListener('click',function(){ ov.className=''; });
+  document.getElementById('atsync-signout').addEventListener('click',function(){
+    this.textContent='Signing out…';
+    fetch('/auth/signout',{method:'POST',credentials:'include'}).catch(function(){}).then(function(){ location.reload(); });
+  });
   document.getElementById('atsync-send').addEventListener('click',function(){
     var em=(document.getElementById('atsync-email').value||'').trim();
     var msg=document.getElementById('atsync-msg'); msg.textContent='Sending…';
