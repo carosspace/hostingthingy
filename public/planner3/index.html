@@ -3224,10 +3224,10 @@ render();
 </script>
 <!-- ===== Anima Temple account sync (injected) ===== -->
 <style>
-#atsync{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:10px;z-index:99999;font-family:inherit}
-#atsync .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:rgba(255,255,255,.92);color:#6b5a44;border:1px solid rgba(180,150,100,.4);border-radius:999px;padding:6px 12px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.08);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-#atsync .pill.ok{color:#3f7a52;border-color:rgba(80,150,100,.35)}
-#atsync .pill.busy{opacity:.7}
+/* the cloud button matches the planner's round .themebtn; colour reflects sync state.
+   'synced' uses --gold (the CHOSEN theme's accent), so it always matches the design. */
+#atsync-cloudbtn.saving{animation:atsyncpulse 1.1s ease-in-out infinite}
+@keyframes atsyncpulse{0%,100%{opacity:1}50%{opacity:.4}}
 #atsync-ov{position:fixed;inset:0;z-index:100000;background:rgba(30,20,10,.45);display:none;align-items:center;justify-content:center;padding:20px}
 #atsync-ov.on{display:flex}
 #atsync-card{background:#fbf6ef;color:#4a3b28;border-radius:16px;max-width:340px;width:100%;padding:26px 24px;box-shadow:0 30px 80px -20px rgba(0,0,0,.5);text-align:center;font-family:inherit}
@@ -3238,7 +3238,6 @@ render();
 #atsync-card button.x{background:none;color:#a08b6a;margin-top:10px;font-size:12px;padding:4px;border:0;cursor:pointer}
 #atsync-msg{font-size:12px;margin-top:8px;min-height:16px;color:#7a6a52}
 </style>
-<div id="atsync"><span class="pill" id="atsync-pill">☁ Sign in to sync</span></div>
 <div id="atsync-ov"><div id="atsync-card">
   <div id="atsync-signin">
     <h3>Sync across your devices</h3>
@@ -3266,24 +3265,37 @@ render();
 (function(){
   if(typeof window.persist!=='function'){return;}
   var origPersist=window.persist;
-  // Persistent sync state (survives reloads/app-close — the whole point):
-  //   UNSYNCED='1'  → local has edits not yet CONFIRMED saved to the account.
-  //   TOKEN         → the server updatedAt this device is currently in sync with (null = never synced here).
   var K_UNSYNCED='anima_planner_unsynced', K_TOKEN='anima_planner_synced_token', K_BACKUP='anima_temple_planner_v1_backup';
   function lg(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function ls(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}
   function unsynced(){return lg(K_UNSYNCED)==='1';}
   var signedIn=false, email='', timer=null, seq=0, inFlight=false;
-  var pill=document.getElementById('atsync-pill'), ov=document.getElementById('atsync-ov');
-  function setPill(t,cls){ pill.textContent=t; pill.className='pill'+(cls?(' '+cls):''); }
-  function status(){
-    if(!signedIn){ setPill('☁ Sign in to sync',''); return; }
-    if(inFlight||unsynced()) setPill('Saving…','busy'); else setPill('✓ Synced','ok'); // email lives in the menu, not on screen
+
+  // A third round button in the planner's toolbar, matching Search + Colour theme.
+  var CLOUD='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 18.5A4.2 4.2 0 0 1 7 10.1a5 5 0 0 1 9.6-1.3A3.6 3.6 0 0 1 16.5 18.5z"/></svg>';
+  var cloud=document.createElement('button');
+  cloud.id='atsync-cloudbtn'; cloud.className='themebtn'; cloud.type='button'; cloud.title='Sign in to sync'; cloud.setAttribute('aria-label','Sync'); cloud.innerHTML=CLOUD;
+  var bar=document.querySelector('.topbar-actions'); if(bar){ bar.appendChild(cloud); } else { cloud.style.cssText='position:fixed;top:12px;right:12px;z-index:99999'; document.body.appendChild(cloud); }
+  var ov=document.getElementById('atsync-ov');
+  var sibling=document.getElementById('searchbtn')||document.getElementById('themebtn');
+  // the chosen theme's accent, read from a real sibling toolbar button (matches the design
+  // exactly, and dodges CSS-var scope quirks on the JS-inserted element).
+  function accentColor(){ try{ var c=getComputedStyle(sibling).color; return (c && c!=='rgba(0, 0, 0, 0)')?c:''; }catch(e){ return ''; } }
+  function paint(state){
+    cloud.classList.toggle('saving', state==='saving');
+    if(state==='warn'){ cloud.style.color='#c0603a'; cloud.style.opacity='1'; return; }
+    var a=accentColor(); if(a) cloud.style.color=a;
+    cloud.style.opacity = state==='synced' ? '1' : state==='off' ? '0.32' : ''; // off dim, synced full, saving pulses
   }
+  function status(){
+    if(!signedIn){ paint('off'); cloud.title='Sign in to sync'; return; }
+    if(inFlight||unsynced()){ paint('saving'); cloud.title='Saving…'; }
+    else { paint('synced'); cloud.title='Synced ✓ — '+(email||'your account'); }
+  }
+  function warn(msg){ paint('warn'); cloud.title=msg; }
   function localHasData(){ try{ return DB && typeof DB==='object' && JSON.stringify(DB).length>60; }catch(e){ return false; } }
   function adopt(data){ try{ DB=data; origPersist(); if(typeof window.render==='function') window.render(); }catch(e){} }
 
-  // Every local edit: save locally, mark unsynced (persisted), schedule a push.
   window.persist=function(){ origPersist(); seq++; ls(K_UNSYNCED,'1'); if(signedIn) schedule(); status(); };
   function schedule(){ clearTimeout(timer); timer=setTimeout(push, 1000); }
 
@@ -3296,14 +3308,14 @@ render();
       .then(function(r){
         inFlight=false;
         if(r.status===401){ signedIn=false; status(); return; }
-        if(!r.ok){ setPill(r.status===413?'⚠ Too large to sync':'⚠ Sync error — will retry','busy'); return; } // keep UNSYNCED
+        if(!r.ok){ warn(r.status===413?'Too large to sync':'Sync error — will retry'); return; }
         return r.json().then(function(j){
-          if(seq===atSeq){ ls(K_UNSYNCED,null); if(j&&j.updatedAt) ls(K_TOKEN,j.updatedAt); } // clean only if no edit mid-flight
-          else { schedule(); } // newer edits arrived → push again
+          if(seq===atSeq){ ls(K_UNSYNCED,null); if(j&&j.updatedAt) ls(K_TOKEN,j.updatedAt); }
+          else { schedule(); }
           status();
         });
       })
-      .catch(function(){ inFlight=false; setPill('Offline — will sync','busy'); });
+      .catch(function(){ inFlight=false; paint('saving'); cloud.title='Offline — will sync'; });
   }
 
   function pull(){
@@ -3314,27 +3326,22 @@ render();
         var sData=(j&&j.data&&typeof j.data==='object')?j.data:null;
         var sTok=(j&&j.updatedAt)||null;
         var firstSync=!lg(K_TOKEN);
-        if(inFlight){ status(); return; } // never adopt over an in-flight push
+        if(inFlight){ status(); return; }
         if(unsynced()){
-          // This device holds edits not confirmed on the account → NEVER clobber them.
           if(firstSync && sData && localHasData()){
-            // First sign-in, but the account already has a planner AND this device has one:
-            // keep a backup of local, adopt the account copy (the account is canonical).
             try{ ls(K_BACKUP, localStorage.getItem('anima_temple_planner_v1')||''); }catch(e){}
-            adopt(sData); ls(K_UNSYNCED,null); ls(K_TOKEN,sTok);
-            setPill('✓ Account planner loaded','ok'); return;
+            adopt(sData); ls(K_UNSYNCED,null); ls(K_TOKEN,sTok); status(); return;
           }
-          schedule(); status(); return; // upload our local (empty account, or just new edits)
+          schedule(); status(); return;
         }
-        // Clean locally: adopt the account copy only if it changed on another device.
         if(sData && sTok!==lg(K_TOKEN)){ adopt(sData); ls(K_TOKEN,sTok); }
-        else if(!sData && localHasData()){ ls(K_UNSYNCED,'1'); schedule(); } // signed in, account empty → upload
+        else if(!sData && localHasData()){ ls(K_UNSYNCED,'1'); schedule(); }
         status();
       });
     }).catch(function(){ status(); });
   }
 
-  pill.addEventListener('click',function(){
+  cloud.addEventListener('click',function(){
     var si=document.getElementById('atsync-signin'), ac=document.getElementById('atsync-account');
     if(signedIn){ si.style.display='none'; ac.style.display='block'; document.getElementById('atsync-who').textContent='Signed in as '+(email||'your account')+'.'; }
     else { si.style.display='block'; ac.style.display='none'; }
@@ -3346,6 +3353,7 @@ render();
     this.textContent='Signing out…';
     fetch('/auth/signout',{method:'POST',credentials:'include'}).catch(function(){}).then(function(){ location.reload(); });
   });
+
   var loginMode='link';
   document.getElementById('atsync-togglemode').addEventListener('click',function(){
     loginMode = loginMode==='link' ? 'pin' : 'link';
@@ -3388,7 +3396,7 @@ render();
       .then(function(res){ m.textContent = res.ok ? '✓ PIN set — use it to sign in next time.' : ((res.j&&res.j.error)||'Couldn’t set it.'); if(res.ok){ document.getElementById('atsync-newpin').value=''; } })
       .catch(function(){ m.textContent='Couldn’t set it — try again.'; });
   });
-  // Retry when back online; re-pull on focus only when we have nothing unsynced to protect.
+
   window.addEventListener('online',function(){ if(signedIn && unsynced()) push(); });
   document.addEventListener('visibilitychange',function(){ if(!document.hidden && signedIn && !unsynced() && !inFlight) pull(); });
   status(); pull();
