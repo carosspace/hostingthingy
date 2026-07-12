@@ -17,6 +17,7 @@ import { getMyResources } from '@/lib/portal/resources'
 import { getMyWorkbooks } from '@/lib/portal/workbook'
 import ClientLogin from './ClientLogin'
 import PortalHeader from './PortalHeader'
+import SetPin from './SetPin'
 
 export const dynamic = 'force-dynamic'
 
@@ -238,6 +239,8 @@ export default async function ClientPortalPage({ searchParams }: { searchParams:
             {emptyText}
           </p>
         )}
+
+        <SetPin accent={accent} text={portalText} muted={portalMuted} />
       </main>
 
       <footer className="text-center py-10" style={{ borderTop: `1px solid ${accent}1f` }}>

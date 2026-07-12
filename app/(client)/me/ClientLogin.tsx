@@ -19,6 +19,8 @@ export default function ClientLogin({
   initialError?: string
 }) {
   const [email, setEmail] = useState('')
+  const [pin, setPin] = useState('')
+  const [mode, setMode] = useState<'link' | 'pin'>('link')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(initialError ?? '')
@@ -30,12 +32,19 @@ export default function ClientLogin({
     setError('')
     try {
       const supabase = createSupabaseBrowserClient()
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/me` },
-      })
-      if (error) setError(error.message)
-      else setSent(true)
+      if (mode === 'pin') {
+        if (!/^\d{6}$/.test(pin)) { setError('Your PIN is 6 digits.'); setLoading(false); return }
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pin })
+        if (error) setError('That email + PIN didn’t match. Try again, or use an email link.')
+        else window.location.href = '/me'
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/me` },
+        })
+        if (error) setError(error.message)
+        else setSent(true)
+      }
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -43,7 +52,7 @@ export default function ClientLogin({
     }
   }
 
-  const valid = email.includes('@')
+  const valid = mode === 'pin' ? (email.includes('@') && /^\d{6}$/.test(pin)) : email.includes('@')
   const inputStyle: CSSProperties = {
     background: `${theme.accent}0d`,
     border: `1px solid ${theme.accent}33`,
@@ -87,7 +96,7 @@ export default function ClientLogin({
               Your space
             </h1>
             <p className="font-body" style={{ color: theme.muted, fontSize: 14, lineHeight: 1.6 }}>
-              Sign in to {brand}. We&apos;ll email you a link, no password needed.
+              {mode === 'pin' ? `Enter your email and 6-digit PIN.` : `Sign in to ${brand}. We’ll email you a link, no password needed.`}
             </p>
           </div>
           <div>
@@ -107,6 +116,27 @@ export default function ClientLogin({
               autoFocus
             />
           </div>
+          {mode === 'pin' && (
+            <div>
+              <label
+                className="font-label block mb-2"
+                style={{ fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: `${theme.accent}b3` }}
+              >
+                Your PIN
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={6}
+                className="w-full font-body text-lg px-4 py-3 rounded-xl outline-none transition-colors tracking-[0.4em]"
+                style={inputStyle}
+                placeholder="••••••"
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+            </div>
+          )}
 
           {error && (
             <div className="px-4 py-3 rounded-xl" style={{ background: '#ef444415', border: '1px solid #ef444440' }}>
@@ -128,8 +158,19 @@ export default function ClientLogin({
               cursor: valid && !loading ? 'pointer' : 'not-allowed',
             }}
           >
-            {loading ? 'Sending…' : 'Send me a sign-in link →'}
+            {loading ? (mode === 'pin' ? 'Checking…' : 'Sending…') : (mode === 'pin' ? 'Enter →' : 'Send me a sign-in link →')}
           </button>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => { setMode(mode === 'pin' ? 'link' : 'pin'); setError('') }}
+              className="font-label transition-colors"
+              style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: theme.muted }}
+            >
+              {mode === 'pin' ? 'Email me a link instead' : 'Prefer a PIN? Sign in with your PIN →'}
+            </button>
+          </div>
         </form>
       )}
     </div>

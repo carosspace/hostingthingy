@@ -3242,15 +3242,23 @@ render();
 <div id="atsync-ov"><div id="atsync-card">
   <div id="atsync-signin">
     <h3>Sync across your devices</h3>
-    <p>Sign in with your email and your planner is saved to your account — the same on your phone, laptop and tablet, and safely backed up.</p>
+    <p id="atsync-sub">Sign in with your email — the same planner on every device, safely backed up.</p>
     <input id="atsync-email" type="email" placeholder="you@email.com" autocomplete="email" inputmode="email">
+    <input id="atsync-pin" type="password" inputmode="numeric" maxlength="6" placeholder="6-digit PIN" style="display:none;letter-spacing:.3em;text-align:center">
     <button class="go" id="atsync-send">Send me a sign-in link</button>
     <div id="atsync-msg"></div>
+    <button class="x" id="atsync-togglemode">Have a PIN? Sign in with it →</button>
   </div>
   <div id="atsync-account" style="display:none">
     <h3>Synced &amp; backed up</h3>
     <p id="atsync-who">Signed in.</p>
-    <button class="go" id="atsync-signout">Sign out</button>
+    <button class="go" id="atsync-setpin">Set a sign-in PIN</button>
+    <div id="atsync-setpinbox" style="display:none;margin-top:10px">
+      <input id="atsync-newpin" type="password" inputmode="numeric" maxlength="6" placeholder="Choose a 6-digit PIN" style="letter-spacing:.3em;text-align:center">
+      <button class="go" id="atsync-savepin" style="margin-top:10px">Save PIN</button>
+    </div>
+    <div id="atsync-acctmsg" style="font-size:12px;margin-top:6px;color:#7a6a52"></div>
+    <button class="x" id="atsync-signout">Sign out</button>
   </div>
   <button class="x" id="atsync-close">Close</button>
 </div></div>
@@ -3338,13 +3346,47 @@ render();
     this.textContent='Signing out…';
     fetch('/auth/signout',{method:'POST',credentials:'include'}).catch(function(){}).then(function(){ location.reload(); });
   });
+  var loginMode='link';
+  document.getElementById('atsync-togglemode').addEventListener('click',function(){
+    loginMode = loginMode==='link' ? 'pin' : 'link';
+    document.getElementById('atsync-pin').style.display = loginMode==='pin' ? 'block' : 'none';
+    document.getElementById('atsync-sub').textContent = loginMode==='pin' ? 'Enter your email and your 6-digit PIN.' : 'Sign in with your email — the same planner on every device, safely backed up.';
+    document.getElementById('atsync-send').textContent = loginMode==='pin' ? 'Enter' : 'Send me a sign-in link';
+    this.textContent = loginMode==='pin' ? 'Email me a link instead' : 'Have a PIN? Sign in with it →';
+    document.getElementById('atsync-msg').textContent='';
+  });
   document.getElementById('atsync-send').addEventListener('click',function(){
     var em=(document.getElementById('atsync-email').value||'').trim();
-    var msg=document.getElementById('atsync-msg'); msg.textContent='Sending…';
-    fetch('/api/planner/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})})
+    var msg=document.getElementById('atsync-msg');
+    if(loginMode==='pin'){
+      var p=(document.getElementById('atsync-pin').value||'').trim();
+      if(!/^\d{6}$/.test(p)){ msg.textContent='Your PIN is 6 digits.'; return; }
+      msg.textContent='Checking…';
+      fetch('/api/planner/pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,pin:p})})
+        .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+        .then(function(res){ if(res.ok){ ov.className=''; location.reload(); } else { msg.textContent=(res.j&&res.j.error)||'That email + PIN didn’t match.'; } })
+        .catch(function(){ msg.textContent='Couldn’t sign in — try again.'; });
+    } else {
+      msg.textContent='Sending…';
+      fetch('/api/planner/signin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})})
+        .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+        .then(function(res){ msg.textContent = res.ok ? '✓ Check your email for a sign-in link, then come back here.' : ((res.j&&res.j.error)||'Couldn’t send it.'); })
+        .catch(function(){ msg.textContent='Couldn’t send it — try again.'; });
+    }
+  });
+  document.getElementById('atsync-setpin').addEventListener('click',function(){
+    document.getElementById('atsync-setpinbox').style.display='block'; this.style.display='none';
+    var e=document.getElementById('atsync-newpin'); if(e) e.focus();
+  });
+  document.getElementById('atsync-savepin').addEventListener('click',function(){
+    var p=(document.getElementById('atsync-newpin').value||'').trim();
+    var m=document.getElementById('atsync-acctmsg');
+    if(!/^\d{6}$/.test(p)){ m.textContent='Choose a 6-digit PIN.'; return; }
+    m.textContent='Saving…';
+    fetch('/api/account/set-pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:p})})
       .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
-      .then(function(res){ msg.textContent = res.ok ? '✓ Check your email for a sign-in link, then come back here.' : ((res.j&&res.j.error)||'Couldn’t send it.'); })
-      .catch(function(){ msg.textContent='Couldn’t send it — try again.'; });
+      .then(function(res){ m.textContent = res.ok ? '✓ PIN set — use it to sign in next time.' : ((res.j&&res.j.error)||'Couldn’t set it.'); if(res.ok){ document.getElementById('atsync-newpin').value=''; } })
+      .catch(function(){ m.textContent='Couldn’t set it — try again.'; });
   });
   // Retry when back online; re-pull on focus only when we have nothing unsynced to protect.
   window.addEventListener('online',function(){ if(signedIn && unsynced()) push(); });
