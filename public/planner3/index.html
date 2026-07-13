@@ -568,6 +568,12 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .cblk{width:11px;height:3px;border-radius:2px;display:inline-block}
 .hourrow.booked input::placeholder{color:var(--ink);opacity:.75;font-style:italic}
 .hourrow.booked input{opacity:1}
+.cx-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.cx-row:last-child{border-bottom:0}
+.cx-week{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.cx-day{background:var(--card-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px}
+.cx-day b{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:6px}
+.cx-busy{font-size:12px;padding:3px 6px;margin:3px 0;border-radius:5px;background:var(--gold-wash);color:var(--ink)}
 .ch-count{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-top:8px}
 .block-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
 .block-add input[data-block-label]{flex:2;min-width:130px}
@@ -942,7 +948,8 @@ const NAV=[
   ['journal','Journal','M6 3h11a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2V5a2 2 0 0 1 2-2zM9 8h6M9 12h6'],
   ['notes','Notes','M4 4h13l3 3v13H4zM8 10h8M8 14h5'],
   ['kitchen','Meals','M5 11h14v2a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM8 8c0-1 .5-1.6 .5-2.5M12 8c0-1 .5-1.6 .5-2.5M16 8c0-1 .5-1.6 .5-2.5'],
-  ['fitness','Movement','M3 12h4l3-8 4 16 3-8h4']
+  ['fitness','Movement','M3 12h4l3-8 4 16 3-8h4'],
+  ['connected','Connected','M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20a6 6 0 0 1 12 0M16 11a3 3 0 0 0 0-6M22 20a6 6 0 0 0-6-5']
 ];
 function buildNav(){
   const nav=document.getElementById('nav');
@@ -962,9 +969,57 @@ const C=()=>document.getElementById('content');
 function render(){
   buildNav();
   const v=S.view;
-  const map={home:renderHome,today:renderDay,week:renderWeek,month:renderMonth,year:renderYear,bucket:renderBucket,challenges:renderChallenges,birthday:renderBirthdays,astro:renderAstro,journal:renderJournal,notes:renderNotes,kitchen:renderKitchen,brainstorm:renderBrainstorm,projects:renderProjects,money:renderMoney,cycle:renderCycle,fitness:renderFitness};
+  const map={home:renderHome,today:renderDay,week:renderWeek,month:renderMonth,year:renderYear,bucket:renderBucket,challenges:renderChallenges,birthday:renderBirthdays,astro:renderAstro,journal:renderJournal,notes:renderNotes,kitchen:renderKitchen,brainstorm:renderBrainstorm,projects:renderProjects,money:renderMoney,cycle:renderCycle,fitness:renderFitness,connected:renderConnected};
   (map[v]||renderHome)();
   C().querySelectorAll('[data-autoheight]').forEach(autoGrow);
+}
+
+/* ================= CONNECTED PLANNERS ================= */
+function renderConnected(){
+  C().innerHTML=
+  '<div class="view-head"><div class="eyebrow">Together</div><h1>Connected planners</h1>'+
+    '<div class="lead" style="max-width:60ch">See when the people you connect with are free. You each share only your booked times (with labels) — never your tasks, notes or anything else.</div></div>'+
+  '<div class="card"><div class="sec-title"><h3>Connect a planner</h3></div>'+
+    '<p class="ta-note" style="margin-top:0">Invite someone by email. They accept in their own planner, then you both see each other’s availability.</p>'+
+    '<div class="qadd" style="max-width:460px"><input type="email" placeholder="friend@email.com" id="cx-email"><button class="btn primary" id="cx-invite">Invite</button></div>'+
+    '<div id="cx-msg" class="ta-note"></div>'+
+  '</div>'+
+  '<div id="cx-body"><div class="card" style="margin-top:18px"><p class="ta-note">Loading…</p></div></div>';
+  var inv=document.getElementById('cx-invite');
+  inv.onclick=function(){
+    var e=(document.getElementById('cx-email').value||'').trim(); var m=document.getElementById('cx-msg'); m.textContent='Inviting…';
+    fetch('/api/planner/links',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'invite',email:e})})
+      .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+      .then(function(res){ m.textContent=res.ok?(res.j.accepted?'✓ Connected!':'✓ Invite sent — they accept in their own planner.'):(res.j.error||'Couldn’t invite.'); if(res.ok){document.getElementById('cx-email').value='';loadLinks();} })
+      .catch(function(){m.textContent='Couldn’t invite — try again.';});
+  };
+  loadLinks();
+}
+function cxAction(action,email){ return fetch('/api/planner/links',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:action,email:email})}).then(function(){loadLinks();}); }
+function loadLinks(){
+  var body=document.getElementById('cx-body'); if(!body)return;
+  fetch('/api/planner/links',{credentials:'include'}).then(function(r){ if(r.status===401){body.innerHTML='<div class="card" style="margin-top:18px"><p class="ta-note">Sign in to connect planners — tap the cloud at the top right.</p></div>';return null;} return r.json(); })
+  .then(function(j){
+    if(!j)return;
+    if(j.error==='not_ready'){body.innerHTML='<div class="card" style="margin-top:18px"><p class="ta-note">Almost ready — this needs migration 027 run in Supabase.</p></div>';return;}
+    var html='';
+    if(j.incoming&&j.incoming.length){html+='<div class="card" style="margin-top:18px"><div class="sec-title"><h3>Invites for you</h3></div>'+j.incoming.map(function(x){return '<div class="cx-row"><span>'+esc(x.email)+'</span><span><button class="btn primary small" data-cxaccept="'+esc(x.email)+'">Accept</button> <button class="btn ghost small" data-cxremove="'+esc(x.email)+'">Decline</button></span></div>';}).join('')+'</div>';}
+    html+='<div class="card" style="margin-top:18px"><div class="sec-title"><h3>Connected</h3></div>'+((j.accepted&&j.accepted.length)?j.accepted.map(function(x){return '<div class="cx-row"><span>'+esc(x.email)+'</span><span><button class="btn ghost small" data-cxview="'+esc(x.email)+'">See availability</button> <button class="btn ghost small" data-cxremove="'+esc(x.email)+'">Remove</button></span></div>';}).join(''):'<p class="ta-note">No connections yet — invite someone above.</p>')+'</div>';
+    if(j.outgoing&&j.outgoing.length){html+='<div class="card" style="margin-top:18px"><div class="sec-title"><h3>Waiting to accept</h3></div>'+j.outgoing.map(function(x){return '<div class="cx-row"><span>'+esc(x.email)+' <span class="ta-note">(pending)</span></span><button class="btn ghost small" data-cxremove="'+esc(x.email)+'">Cancel</button></div>';}).join('')+'</div>';}
+    html+='<div id="cx-avail"></div>';
+    body.innerHTML=html;
+  }).catch(function(){});
+}
+function showAvailability(email){
+  var box=document.getElementById('cx-avail'); if(!box)return;
+  box.innerHTML='<div class="card" style="margin-top:18px"><p class="ta-note">Loading '+esc(email)+'’s week…</p></div>';
+  fetch('/api/planner/availability?email='+encodeURIComponent(email),{credentials:'include'}).then(function(r){return r.json();}).then(function(j){
+    if(!j||!j.blocks){box.innerHTML='<div class="card" style="margin-top:18px"><p class="ta-note">Couldn’t load that.</p></div>';return;}
+    var ws=weekStart(S.date); var out='';
+    for(var i=0;i<7;i++){var dd=new Date(ws);dd.setDate(ws.getDate()+i);var k=keyOf(dd);var bl=(j.blocks[k]||[]).slice().sort(function(a,b){return (a.start||'').localeCompare(b.start||'');});
+      out+='<div class="cx-day"><b>'+DOW[(dd.getDay()+6)%7]+' '+dd.getDate()+'</b>'+(bl.length?bl.map(function(b){return '<div class="cx-busy">'+esc(b.start)+'–'+esc(b.end)+' '+esc(b.label||'busy')+'</div>';}).join(''):'<div class="ta-note" style="margin:4px 0 0">Free all day</div>')+'</div>';}
+    box.innerHTML='<div class="card" style="margin-top:18px"><div class="sec-title"><h3>'+esc(email)+' · this week</h3></div><div class="cx-week">'+out+'</div></div>';
+  }).catch(function(){box.innerHTML='<div class="card" style="margin-top:18px"><p class="ta-note">Couldn’t load that.</p></div>';});
 }
 
 /* ================= TASK HELPERS ================= */
@@ -2629,6 +2684,9 @@ document.addEventListener('click',e=>{
   if(t.dataset.mealweek){const base=S.mealDate?parseKey(S.mealDate):new Date(TODAY);base.setDate(base.getDate()+parseInt(t.dataset.mealweek,10)*7);S.mealDate=keyOf(base);render();return;}
   if(t.hasAttribute('data-addbucketbtn')){addBucket();return;}
   // birthdays
+  if(t.dataset.cxaccept){cxAction('accept',t.dataset.cxaccept);return;}
+  if(t.dataset.cxremove){cxAction('remove',t.dataset.cxremove);return;}
+  if(t.dataset.cxview){showAvailability(t.dataset.cxview);return;}
   if(t.hasAttribute('data-addbday')){addBirthday();return;}
   if(t.dataset.bdaydel){DB.birthdays=DB.birthdays.filter(x=>x.id!==t.dataset.bdaydel);persist();render();return;}
   if(t.dataset.addgiftbtn){addGift(t.dataset.addgiftbtn);return;}

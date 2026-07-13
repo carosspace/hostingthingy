@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   const sb = createSupabaseServerClient()
   const { error } = await sb.from('planner_data').upsert(
-    { user_id: user.id, data, updated_at: new Date().toISOString() },
+    { user_id: user.id, email: user.email ?? null, data, updated_at: new Date().toISOString() },
     { onConflict: 'user_id' },
   )
   if (error) {
