@@ -321,7 +321,8 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .wcol.today{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-wash)}
 .wcol h4{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
 .wcol .wd{font-family:'Cormorant Garamond',serif;font-size:22px;margin:2px 0 8px}
-.wcol .wd .moon{vertical-align:middle;margin-left:5px;opacity:.85}
+.wcol h4 .moon{vertical-align:middle;margin-left:6px;opacity:.85}
+.cell .n .moon{vertical-align:middle;margin-left:4px;opacity:.7}
 .wtask{font-size:12.5px;padding:5px 7px;border-radius:6px;background:var(--card-2);margin-bottom:5px;display:flex;gap:6px;align-items:center;cursor:pointer}
 .wtask .wdot{width:8px;height:8px;border-radius:50%;background:var(--clay);flex-shrink:0}
 .wtask .wdot.done{background:var(--sage)}
@@ -1586,8 +1587,8 @@ function renderWeek(){
     const k=keyOf(dd);const list=tasksOn(k);const isT=k===TODAY_KEY;
     cols+='<div class="wcol '+(isT?'today':'')+'">'+
       (bdaysOn(dd).length?'<span class="wcake" title="Birthday">🎂</span>':'')+
-      '<h4>'+DOW[(dd.getDay()+6)%7]+'</h4>'+
-      '<div class="wd">'+dd.getDate()+' '+moonSVG(moonFrac(dd),13)+'</div>'+
+      '<h4>'+DOW[(dd.getDay()+6)%7]+' '+moonSVG(moonFrac(dd),13)+'</h4>'+
+      '<div class="wd">'+dd.getDate()+'</div>'+
       blockChips(k,3)+
       list.slice(0,6).map(t=>'<div class="wtask" data-jump="'+k+'"><span class="wdot '+t.status+'"'+(catColor(t)?' style="background:'+catColor(t)+'"':'')+'></span>'+esc(t.title)+'</div>').join('')+
       (list.length>6?'<div style="font-size:11px;color:var(--ink-mute);margin-top:2px">+'+(list.length-6)+' more</div>':'')+
@@ -1652,9 +1653,9 @@ function cell(d,out){
   const k=keyOf(d);const list=tasksOn(k);const isT=k===TODAY_KEY;
   const pips=list.slice(0,5).map(t=>'<span class="pip '+t.status+'"'+(catColor(t)?' style="background:'+catColor(t)+'"':'')+'></span>').join('');
   const bd=DB.birthdays.filter(x=>x.month===d.getMonth()+1&&x.day===d.getDate());
-  const bdayLine=bd.length?'<div class="cell-bday">🎂 '+esc(bd.length>1?bd.length+' birthdays':bd[0].name)+'</div>':'';
+  const bdayLine=bd.length?'<div class="cell-bday">🎂'+(bd.length>1?' '+bd.length:'')+'</div>':'';
   return '<div class="cell '+(out?'out':'')+' '+(isT?'today':'')+'" data-jump="'+k+'">'+
-    '<div class="n">'+d.getDate()+'</div>'+
+    '<div class="n">'+d.getDate()+' '+moonSVG(moonFrac(d),11)+'</div>'+
     bdayLine+
     (list.length?'<div class="cnt">'+list.length+' task'+(list.length>1?'s':'')+'</div>':'')+
     '<div class="pips">'+pips+'</div>'+
