@@ -563,6 +563,8 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .wbday{font-size:11px;margin-top:7px;color:var(--terra);text-align:center;line-height:1.3}
 .cell-blocks{display:flex;gap:2px;flex-wrap:wrap;margin-top:3px}
 .cblk{width:11px;height:3px;border-radius:2px;display:inline-block}
+.hourrow.booked input::placeholder{color:var(--ink);opacity:.75;font-style:italic}
+.hourrow.booked input{opacity:1}
 .ch-count{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-top:8px}
 .block-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
 .block-add input[data-block-label]{flex:2;min-width:130px}
@@ -1507,11 +1509,16 @@ function renderDay(){
     const val=(DB.timeblocks[k]&&DB.timeblocks[k][h])||'';
     const hcat=(DB.hourCat[k]&&DB.hourCat[k][h])||'';
     const now=isToday&&h===nowHr;
+    // a booked block (from "Book time") covering this hour → fill the row with it
+    const blk=(DB.blocks[k]||[]).find(function(b){var s=(b.start||'').split(':'),e=(b.end||'').split(':');var bs=(+s[0])*60+(+s[1]||0),be=(+e[0])*60+(+e[1]||0);return isFinite(bs)&&isFinite(be)&&bs<(h+1)*60&&be>h*60;});
+    const bcat=blk?catOf(blk.cat):null; const bcol=bcat?bcat.color:'#b08d4f';
+    const bookedStyle=blk?' style="border-left:4px solid '+bcol+';background:'+bcol+'14"':'';
+    const ph=(blk&&!val)?esc(blk.label||(bcat?bcat.label:'Booked')):(now?'right now':'');
     const catSel='<select class="hourcat" data-hourcat="'+k+':'+h+'">'+
       '<option value=""'+(hcat?'':' selected')+'>·</option>'+
       DB.categories.map(c=>'<option value="'+c.id+'"'+(hcat===c.id?' selected':'')+'>'+c.icon+' '+esc(c.label)+'</option>').join('')+
     '</select>';
-    hours+='<div class="hourrow '+(now?'now':'')+'"><span class="hr">'+pad(h)+':00</span><input value="'+esc(val)+'" data-hour="'+k+':'+h+'" placeholder="'+(now?'right now':'')+'">'+catSel+'</div>';
+    hours+='<div class="hourrow '+(now?'now':'')+(blk?' booked':'')+'"'+bookedStyle+'><span class="hr">'+pad(h)+':00</span><input value="'+esc(val)+'" data-hour="'+k+':'+h+'" placeholder="'+ph+'">'+catSel+'</div>';
   }
   C().innerHTML=
   '<div class="view-head">'+
