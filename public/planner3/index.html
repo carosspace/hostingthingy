@@ -557,6 +557,12 @@ textarea:focus,input:focus,select:focus{outline:none;border-color:var(--gold);bo
 .gift .gx:hover{opacity:1;color:var(--terra)}
 .gift.bought .gx{color:rgba(255,255,255,.85)}
 .cell-bday{font-size:10px;color:var(--terra);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.wblock{font-size:10px;line-height:1.3;padding:2px 5px;margin:3px 0;border-radius:4px;background:var(--gold-wash);color:var(--ink);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wblock b{font-weight:600}
+.wmore{font-size:9.5px;color:var(--ink-mute);margin:1px 0 2px}
+.wbday{font-size:11px;margin-top:7px;color:var(--terra);text-align:center;line-height:1.3}
+.cell-blocks{display:flex;gap:2px;flex-wrap:wrap;margin-top:3px}
+.cblk{width:11px;height:3px;border-radius:2px;display:inline-block}
 .ch-count{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-top:8px}
 .block-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
 .block-add input[data-block-label]{flex:2;min-width:130px}
@@ -1475,6 +1481,10 @@ function blocksHTML(k){
     '</div>';
   }).join('')+'</div>';
 }
+function bdaysOn(d){return DB.birthdays.filter(function(x){return x.month===d.getMonth()+1&&x.day===d.getDate();});}
+function bdayChips(d){var bd=bdaysOn(d);return bd.length?bd.map(function(b){return '<div class="wbday">🎂 '+esc(b.name||'Birthday')+'</div>';}).join(''):'';}
+function blockChips(k,max){var bl=[...(DB.blocks[k]||[])].sort(function(a,b){return (a.start||'').localeCompare(b.start||'');});if(!bl.length)return '';var sh=max?bl.slice(0,max):bl;var h=sh.map(function(b){var c=catOf(b.cat);return '<div class="wblock" style="border-left:3px solid '+(c?c.color:'var(--gold)')+'"><b>'+esc(b.start||'')+(b.end?'–'+esc(b.end):'')+'</b> '+esc(b.label||(c?c.label:'Booked'))+'</div>';}).join('');if(max&&bl.length>max)h+='<div class="wmore">+'+(bl.length-max)+' more</div>';return h;}
+function blockBars(k){var bl=DB.blocks[k]||[];if(!bl.length)return '';return '<div class="cell-blocks">'+bl.slice(0,4).map(function(b){var c=catOf(b.cat);return '<span class="cblk" style="background:'+(c?c.color:'var(--gold)')+'"></span>';}).join('')+'</div>';}
 function addBlock(k){
   const label=document.querySelector('[data-block-label]');
   const cat=document.querySelector('[data-block-cat]');
@@ -1568,9 +1578,11 @@ function renderWeek(){
     cols+='<div class="wcol '+(isT?'today':'')+'">'+
       '<h4>'+DOW[(dd.getDay()+6)%7]+'</h4>'+
       '<div class="wd">'+dd.getDate()+'</div>'+
+      blockChips(k,3)+
       list.slice(0,6).map(t=>'<div class="wtask" data-jump="'+k+'"><span class="wdot '+t.status+'"'+(catColor(t)?' style="background:'+catColor(t)+'"':'')+'></span>'+esc(t.title)+'</div>').join('')+
       (list.length>6?'<div style="font-size:11px;color:var(--ink-mute);margin-top:2px">+'+(list.length-6)+' more</div>':'')+
       '<button class="btn small ghost" style="width:100%;margin-top:8px;justify-content:center" data-jump="'+k+'">Open</button>'+
+      bdayChips(dd)+
     '</div>';
   });
   C().innerHTML=
@@ -1612,6 +1624,7 @@ function renderMonth(){
       '<div><div class="eyebrow">'+y+'</div><h1 style="font-size:44px">'+MONTHS[m]+'</h1></div>'+
       '<div class="calnav"><button class="btn ghost small" data-mo="-1">‹</button><button class="btn ghost small" data-mo="today">Today</button><button class="btn ghost small" data-mo="1">›</button></div>'+
     '</div>'+
+    '<div class="moon-tr">'+moonChip(new Date(y,m,15),18)+'</div>'+
   '</div>'+
   '<div class="card" style="margin-bottom:18px">'+
     '<div class="eyebrow" style="margin-bottom:8px">Focus for '+MONTHS[m]+'</div>'+
@@ -1635,6 +1648,7 @@ function cell(d,out){
     bdayLine+
     (list.length?'<div class="cnt">'+list.length+' task'+(list.length>1?'s':'')+'</div>':'')+
     '<div class="pips">'+pips+'</div>'+
+    blockBars(k)+
   '</div>';
 }
 
