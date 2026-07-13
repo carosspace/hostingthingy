@@ -95,9 +95,20 @@ export async function POST(req: NextRequest) {
   if (!site) return NextResponse.json({ error: 'No website found on your account.' }, { status: 404 })
   const base = (site.content || {}) as SiteContent
 
-  // Collision guard: a product "owns" a slug only if it's already a product in content;
+  // Is this slug ALREADY one of the owner's products? The DB `workbooks` row is the real
+  // source of truth. A LEGACY product (the original Tuned In) has a workbooks row + a live
+  // sales page but no workbookProducts entry yet — without this check, editing it would trip
+  // the collision guard below ("a page with that web address already exists").
+  const sb = createSupabaseServerClient()
+  let ownsSlugDb = false
+  try {
+    const { data: existRow } = await sb.from('workbooks').select('slug').eq('owner_id', user.id).eq('slug', rawSlug).maybeSingle()
+    ownsSlugDb = !!existRow
+  } catch { /* ignore — fall back to the content check */ }
+
+  // Collision guard: a product "owns" a slug only if it's already a product (DB row or content);
   // reject a new slug that's another page (contact, about, a designed page…).
-  const ownsSlug = !!(base.workbookProducts && base.workbookProducts[rawSlug])
+  const ownsSlug = ownsSlugDb || !!(base.workbookProducts && base.workbookProducts[rawSlug])
   const existingPage = getPages(base).find(p => p.slug === rawSlug)
   if (existingPage && !ownsSlug) {
     const isDesigned = !existingPage.fullHtml && (
@@ -113,7 +124,6 @@ export async function POST(req: NextRequest) {
 
   // Write the product's DB row (the gating source of truth). Only touch what's provided so
   // an HTML upload / edit never clobbers other columns. RLS scopes it to the owner.
-  const sb = createSupabaseServerClient()
   const row: Record<string, unknown> = {
     owner_id: user.id, slug: rawSlug, title, kind, access, tier_id: tierId, hidden, updated_at: new Date().toISOString(),
   }
