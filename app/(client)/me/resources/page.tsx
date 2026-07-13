@@ -8,6 +8,7 @@ import { getMyWorkbooks } from '@/lib/portal/workbook'
 import PortalHeader from '../PortalHeader'
 import DownloadButton from './DownloadButton'
 import ProductDownloadButton from './ProductDownloadButton'
+import CompanionDownloadButton from './CompanionDownloadButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -126,28 +127,29 @@ export default async function ClientResourcesPage() {
         ) : (
           <div className="mt-12 grid gap-5 sm:grid-cols-2">
             {openItems.map(w => (
-              <a
-                key={w.slug}
-                href={`/me/workbook?w=${encodeURIComponent(w.slug)}`}
-                className="p-6 flex flex-col gap-2 transition-opacity hover:opacity-80"
-                style={cardStyle}
-              >
+              <div key={w.slug} className="p-6 flex flex-col gap-2" style={cardStyle}>
                 <div className="flex items-start justify-between gap-3">
                   <span aria-hidden="true" style={{ color: accent, fontSize: 22, lineHeight: 1 }}>❋</span>
                   <span className="font-label" style={{ fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: accent }}>
-                    Interactive
+                    Interactive{w.hasCompanion ? ' + PDF' : ''}
                   </span>
                 </div>
-                <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
-                  {w.title}
-                </h2>
-                <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
-                  Open it any time — everything you write is saved to your account.
-                </p>
-                <span className="font-label" style={{ marginTop: 6, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}>
-                  Open workbook →
-                </span>
-              </a>
+                <a
+                  href={`/me/workbook?w=${encodeURIComponent(w.slug)}`}
+                  className="flex flex-col gap-2 transition-opacity hover:opacity-80"
+                >
+                  <h2 className="font-display" style={{ color: portalText, fontSize: 21, lineHeight: 1.2 }}>
+                    {w.title}
+                  </h2>
+                  <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
+                    Open it any time — everything you write is saved to your account.
+                  </p>
+                  <span className="font-label" style={{ marginTop: 6, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}>
+                    Open workbook →
+                  </span>
+                </a>
+                {w.hasCompanion && <CompanionDownloadButton workbookSlug={w.slug} accent={accent} label="Download printable PDF" />}
+              </div>
             ))}
             {downloadItems.map(w => (
               <div key={w.slug} className="p-6 flex flex-col gap-2" style={cardStyle}>

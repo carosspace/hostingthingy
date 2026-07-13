@@ -25,6 +25,10 @@ export interface OwnerProduct {
   fileName: string | null
   fileSize: number | null
   mime: string | null
+  // companion download attached to an INTERACTIVE workbook (e.g. a printable PDF): buyers
+  // get both. Only meaningful when kind='workbook'.
+  companionFileName: string | null
+  hasCompanion: boolean
   order: number
   hidden: boolean
   hasContent: boolean // an interactive HTML file OR a download file exists for this slug
@@ -72,7 +76,7 @@ export async function listOwnerProducts(ownerId: string, content: SiteContent | 
   const blank = (slug: string): OwnerProduct => ({
     slug, title: slug, kind: 'workbook', access: 'paid', tierId: null, priceCents: 0, salePriceCents: null,
     currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'html', landingBody: '', landingHtml: '',
-    fileName: null, fileSize: null, mime: null, order: 0, hidden: false, hasContent: false, updatedAt: null,
+    fileName: null, fileSize: null, mime: null, companionFileName: null, hasCompanion: false, order: 0, hidden: false, hasContent: false, updatedAt: null,
   })
 
   // 1) workbook/product rows — the source of truth for which products exist, their kind/
@@ -82,10 +86,20 @@ export async function listOwnerProducts(ownerId: string, content: SiteContent | 
   let workbooksOk = false
   try {
     const sb = createSupabaseServerClient()
-    const { data: rows, error: e1 } = await sb
-      .from('workbooks')
-      .select('slug, title, updated_at, kind, access, tier_id, file_path, file_name, file_size, mime')
-      .eq('owner_id', ownerId)
+    const COLS = 'slug, title, updated_at, kind, access, tier_id, file_path, file_name, file_size, mime, companion_file_path, companion_file_name'
+    const LEGACY_COLS = 'slug, title, updated_at, kind, access, tier_id, file_path, file_name, file_size, mime'
+    let rows: Record<string, unknown>[] | null = null
+    let e1: { code?: string } | null = null
+    {
+      const res = await sb.from('workbooks').select(COLS).eq('owner_id', ownerId)
+      rows = res.data as Record<string, unknown>[] | null; e1 = res.error
+    }
+    // Transitional: before migration 028 the companion_* columns don't exist (42703). Retry
+    // without them so the manager keeps working in the gap between deploy and migration.
+    if (e1 && e1.code === '42703') {
+      const retry = await sb.from('workbooks').select(LEGACY_COLS).eq('owner_id', ownerId)
+      rows = retry.data as Record<string, unknown>[] | null; e1 = retry.error
+    }
     if (e1) throw e1
     const { data: filled } = await sb.from('workbooks').select('slug').eq('owner_id', ownerId).not('html_content', 'is', null)
     const hasHtml = new Set((filled || []).map(r => String(r.slug)))
@@ -98,6 +112,7 @@ export async function listOwnerProducts(ownerId: string, content: SiteContent | 
         ...blank(slug),
         title: String(r.title || 'Workbook'), kind, access, tierId: (r.tier_id as string) || null,
         fileName: (r.file_name as string) || null, fileSize: r.file_size == null ? null : Number(r.file_size) || 0, mime: (r.mime as string) || null,
+        companionFileName: (r.companion_file_name as string) || null, hasCompanion: !!r.companion_file_path,
         updatedAt: (r.updated_at as string) || null,
         hasContent: kind === 'download' ? !!r.file_path : hasHtml.has(slug),
       }

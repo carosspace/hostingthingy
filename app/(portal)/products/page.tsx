@@ -22,7 +22,8 @@ export default async function ResourcesManagerPage() {
     priceCents: p.priceCents, salePriceCents: p.salePriceCents, currency: p.currency,
     description: p.description, coverImage: p.coverImage, tagline: p.tagline,
     landingMode: p.landingMode, landingBody: p.landingBody, landingHtml: p.landingHtml,
-    fileName: p.fileName, mime: p.mime, hidden: p.hidden, hasContent: p.hasContent, updatedAt: p.updatedAt,
+    fileName: p.fileName, mime: p.mime, companionFileName: p.companionFileName, hasCompanion: p.hasCompanion,
+    hidden: p.hidden, hasContent: p.hasContent, updatedAt: p.updatedAt,
   }))
 
   const siteBase = site?.domain ? `https://${site.domain}` : 'https://animatemple.com'

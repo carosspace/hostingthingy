@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { getPortalSite } from '@/lib/portal/site'
 import { portalRootStyle, portalTextColors } from '@/lib/portal/look'
-import { getMyWorkbook } from '@/lib/portal/workbook'
+import { getMyWorkbook, getMyWorkbookCompanion } from '@/lib/portal/workbook'
 import PortalHeader from '../PortalHeader'
+import CompanionDownloadButton from '../resources/CompanionDownloadButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,17 +30,24 @@ export default async function ClientWorkbookPage({ searchParams }: { searchParam
   // Entitled + ready → the immersive, full-height workbook in an iframe. The
   // gated /api/client/workbook route re-checks entitlement before serving the HTML.
   if (ready && entitled) {
+    // Does this workbook carry a companion printable? (Returns meta only when entitled.)
+    const companion = await getMyWorkbookCompanion(slug, workbookSlug)
     return (
       <div className="min-h-screen flex flex-col" style={{ background: '#1A1108' }}>
         <div
-          className="flex items-center justify-between px-4 py-2"
+          className="flex items-center justify-between gap-3 px-4 py-2"
           style={{ borderBottom: `1px solid ${accent}22` }}
         >
-          <Link href="/me" className="font-body text-xs hover:opacity-80" style={{ color: accent }}>
+          <Link href="/me" className="font-body text-xs hover:opacity-80 flex-shrink-0" style={{ color: accent }}>
             ← {brand}
           </Link>
-          <span className="font-body text-xs" style={{ color: `${accent}99` }}>
+          <span className="font-body text-xs truncate" style={{ color: `${accent}99` }}>
             {workbook!.title}
+          </span>
+          <span className="flex-shrink-0">
+            {companion
+              ? <CompanionDownloadButton workbookSlug={workbookSlug} accent={accent} label="Printable PDF" />
+              : <span aria-hidden="true" />}
           </span>
         </div>
         <iframe

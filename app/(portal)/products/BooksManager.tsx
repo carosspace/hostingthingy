@@ -23,6 +23,8 @@ export interface ProductInput {
   landingHtml: string
   fileName: string | null
   mime: string | null
+  companionFileName: string | null
+  hasCompanion: boolean
   hidden: boolean
   hasContent: boolean
   updatedAt: string | null
@@ -47,7 +49,7 @@ function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
 }
 function blank(): ProductInput {
-  return { slug: '', title: '', kind: 'workbook', access: 'paid', tierId: null, priceCents: 2200, salePriceCents: null, currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'form', landingBody: '', landingHtml: '', fileName: null, mime: null, hidden: false, hasContent: false, updatedAt: null }
+  return { slug: '', title: '', kind: 'workbook', access: 'paid', tierId: null, priceCents: 2200, salePriceCents: null, currency: 'eur', description: '', coverImage: '', tagline: '', landingMode: 'form', landingBody: '', landingHtml: '', fileName: null, mime: null, companionFileName: null, hasCompanion: false, hidden: false, hasContent: false, updatedAt: null }
 }
 
 function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBase: string; tiers: { id: string; name: string }[] }) {
@@ -58,7 +60,10 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
   const [saleStr, setSaleStr] = useState(initial.salePriceCents ? String(initial.salePriceCents / 100) : '')
   const [newHtml, setNewHtml] = useState<string | null>(null)
   const [newFile, setNewFile] = useState<File | null>(null)
+  const [newCompanion, setNewCompanion] = useState<File | null>(null)
+  const [removeCompanion, setRemoveCompanion] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const companionRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [open, setOpen] = useState(isNew)
@@ -83,6 +88,10 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
   }
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     setNewFile(e.target.files?.[0] || null)
+  }
+  function onCompanion(e: React.ChangeEvent<HTMLInputElement>) {
+    setNewCompanion(e.target.files?.[0] || null)
+    if (e.target.files?.[0]) setRemoveCompanion(false)
   }
 
   async function save() {
@@ -116,6 +125,21 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
         filePath = up.path; fileName = newFile.name; fileSize = newFile.size; mime = contentType
       }
 
+      // Companion printable for an interactive workbook (buyers get both) — upload before save.
+      let companionFilePath: string | undefined, companionFileName: string | undefined, companionFileSize: number | undefined, companionMime: string | undefined
+      if (p.kind === 'workbook' && newCompanion) {
+        const ext = (newCompanion.name.split('.').pop() || '').toLowerCase()
+        if (!FILE_EXTS.includes(ext)) { setMsg('The companion must be a PDF, ebook, doc, audio, video or zip file.'); setBusy(false); return }
+        if (newCompanion.size > MAX_FILE_BYTES) { setMsg('That companion file is over 100 MB.'); setBusy(false); return }
+        const up = await createResourceUploadUrl(ext)
+        if (!up.ok) { setMsg(up.error); setBusy(false); return }
+        const supabase = createSupabaseBrowserClient()
+        const contentType = CONTENT_TYPES[ext] || newCompanion.type || 'application/octet-stream'
+        const put = await supabase.storage.from('site-resources').uploadToSignedUrl(up.path, up.token, newCompanion, { contentType })
+        if (put.error) { setMsg('The companion file didn’t upload — try again.'); setBusy(false); return }
+        companionFilePath = up.path; companionFileName = newCompanion.name; companionFileSize = newCompanion.size; companionMime = contentType
+      }
+
       const r = await fetch('/api/products/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,6 +147,8 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
           currency: p.currency, title: p.title.trim(), description: p.description, tagline: p.tagline,
           coverImage: p.coverImage, landingMode: p.landingMode, landingBody: p.landingBody, landingHtml: p.landingHtml,
           hidden: p.hidden, filePath, fileName, fileSize, mime,
+          companionFilePath, companionFileName, companionFileSize, companionMime,
+          removeCompanion: p.kind === 'workbook' && removeCompanion && !newCompanion,
         }),
       })
       const d = await r.json().catch(() => ({}))
@@ -136,7 +162,8 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
         })
         if (!upl.ok) { const e = await upl.json().catch(() => ({})); setMsg(`Saved — but the workbook file didn’t upload (${e?.error || 'try again'}). Click Save once more.`); setBusy(false); return }
       }
-      setMsg(d?.warn || '✓ Saved — it’s live.'); setNewHtml(null); setNewFile(null); if (fileRef.current) fileRef.current.value = ''
+      setMsg(d?.warn || '✓ Saved — it’s live.'); setNewHtml(null); setNewFile(null); setNewCompanion(null); setRemoveCompanion(false)
+      if (fileRef.current) fileRef.current.value = ''; if (companionRef.current) companionRef.current.value = ''
       router.refresh()
     } catch { setMsg('Couldn’t save — try again.') }
     setBusy(false)
@@ -255,10 +282,22 @@ function ItemCard({ initial, siteBase, tiers }: { initial: ProductInput; siteBas
 
           {/* Content */}
           {p.kind === 'workbook' ? (
-            <label className="block"><span className={label}>{p.hasContent ? 'Replace the workbook file (optional)' : 'Upload the workbook file (the interactive .html)'}</span>
-              <input type="file" accept=".html,text/html" onChange={onWorkbook} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
-              {newHtml && <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready — click Save to publish it.</span>}
-            </label>
+            <div className="space-y-4">
+              <label className="block"><span className={label}>{p.hasContent ? 'Replace the workbook file (optional)' : 'Upload the workbook file (the interactive .html)'}</span>
+                <input type="file" accept=".html,text/html" onChange={onWorkbook} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
+                {newHtml && <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready — click Save to publish it.</span>}
+              </label>
+              <label className="block"><span className={label}>Companion printable (optional) — a PDF buyers also get</span>
+                <input ref={companionRef} type="file" accept=".pdf,.epub,.zip" onChange={onCompanion} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />
+                {newCompanion
+                  ? <span className="font-body text-emerald-400/80 text-[11px] mt-1 block">Ready: {newCompanion.name} — click Save.</span>
+                  : p.hasCompanion && !removeCompanion
+                    ? <span className="font-body text-ash/40 text-[11px] mt-1 block">Current: {p.companionFileName || 'attached'} · <button type="button" onClick={() => setRemoveCompanion(true)} className="text-red-400/80 hover:text-red-400 uppercase tracking-wider">Remove</button></span>
+                    : removeCompanion
+                      ? <span className="font-body text-red-400/70 text-[11px] mt-1 block">Will be removed on Save. · <button type="button" onClick={() => setRemoveCompanion(false)} className="text-ash hover:text-gold uppercase tracking-wider">Keep</button></span>
+                      : <span className="font-body text-ash/40 text-[11px] mt-1 block">Everyone who owns this gets the interactive book plus this file.</span>}
+              </label>
+            </div>
           ) : (
             <label className="block"><span className={label}>{p.hasContent ? 'Replace the file (optional)' : 'Upload the file (PDF, ebook, audio, video…)'}</span>
               <input ref={fileRef} type="file" accept={FILE_EXTS.map(e => `.${e}`).join(',')} onChange={onFile} className="font-body text-sm text-ash file:mr-3 file:py-1.5 file:px-3 file:rounded-sm file:border-0 file:bg-gold file:text-background file:font-label file:text-[10px] file:uppercase file:tracking-wider file:cursor-pointer" />

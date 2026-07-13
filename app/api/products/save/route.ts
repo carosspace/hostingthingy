@@ -80,6 +80,14 @@ export async function POST(req: NextRequest) {
   const fileSize = Number.isInteger(body.fileSize as number) ? (body.fileSize as number) : undefined
   const mime = typeof body.mime === 'string' ? body.mime.slice(0, 100) : undefined
 
+  // companion printable attached to an interactive workbook (buyers get both). Same shape as
+  // a download file, uploaded to the same private bucket. Absent = keep whatever's there.
+  const companionPath = typeof body.companionFilePath === 'string' && body.companionFilePath.trim() ? body.companionFilePath.trim().slice(0, 400) : undefined
+  const companionName = typeof body.companionFileName === 'string' ? body.companionFileName.slice(0, 200) : undefined
+  const companionSize = Number.isInteger(body.companionFileSize as number) ? (body.companionFileSize as number) : undefined
+  const companionMime = typeof body.companionMime === 'string' ? body.companionMime.slice(0, 100) : undefined
+  const removeCompanion = body.removeCompanion === true
+
   // Resolve the owner's public site.
   const sites = await listSites().catch(() => null)
   if (!sites) return NextResponse.json({ error: 'Could not load your site.' }, { status: 500 })
@@ -117,15 +125,26 @@ export async function POST(req: NextRequest) {
       row.file_size = fileSize ?? null
       row.mime = mime ?? null
     }
+    // a download product carries its own file, not a companion — clear any stale one.
+    row.companion_file_path = null; row.companion_file_name = null; row.companion_file_size = null; row.companion_mime = null
   } else {
     // interactive workbook: clear any stale download file (the HTML is uploaded separately + untouched here)
     row.file_path = null; row.file_name = null; row.file_size = null; row.mime = null
+    // companion printable: set it when a new one was uploaded, remove it on request, else leave untouched.
+    if (companionPath !== undefined) {
+      row.companion_file_path = companionPath
+      row.companion_file_name = companionName ?? null
+      row.companion_file_size = companionSize ?? null
+      row.companion_mime = companionMime ?? null
+    } else if (removeCompanion) {
+      row.companion_file_path = null; row.companion_file_name = null; row.companion_file_size = null; row.companion_mime = null
+    }
   }
   const { error: upErr } = await sb.from('workbooks').upsert(row, { onConflict: 'owner_id,slug' })
   if (upErr) {
     const code = (upErr as { code?: string }).code
     if (code === '42P01' || code === 'PGRST205' || code === '42703') {
-      return NextResponse.json({ error: 'The products table isn’t upgraded yet. Run migration 025 in Supabase.' }, { status: 400 })
+      return NextResponse.json({ error: 'The products table isn’t fully upgraded yet. Run the latest migrations (025 and 028) in Supabase.' }, { status: 400 })
     }
     return NextResponse.json({ error: 'Save failed: ' + upErr.message }, { status: 500 })
   }

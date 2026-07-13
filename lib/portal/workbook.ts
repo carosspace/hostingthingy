@@ -48,6 +48,7 @@ export interface MyWorkbookListItem extends MyWorkbook {
   kind: 'workbook' | 'download'
   access: 'free' | 'members' | 'paid'
   hidden: boolean
+  hasCompanion: boolean // an interactive workbook that also carries a printable companion file
 }
 
 export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]> {
@@ -58,7 +59,7 @@ export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]
       // Transitional: before migration 024/025 there may be no get_my_workbooks / no kind
       // column. Fall back to the single 'tuned-in' workbook so Resources keeps working.
       const one = await getMyWorkbook(slug, 'tuned-in')
-      if (one) return [{ slug: 'tuned-in', kind: 'workbook', access: 'paid', hidden: false, ...one }]
+      if (one) return [{ slug: 'tuned-in', kind: 'workbook', access: 'paid', hidden: false, hasCompanion: false, ...one }]
       console.error('[workbook] get_my_workbooks failed (migration 024/025 applied?):', error.message)
       return []
     }
@@ -72,6 +73,7 @@ export async function getMyWorkbooks(slug: string): Promise<MyWorkbookListItem[]
         hidden: !!r.hidden,
         hasContent: !!r.has_content,
         entitled: !!r.entitled,
+        hasCompanion: !!r.has_companion,
       }))
       .filter(r => r.slug)
   } catch (e) {
@@ -99,6 +101,23 @@ export async function getMyDownload(slug: string, workbookSlug: string): Promise
     return { filePath: String(row.file_path), fileName: (row.file_name as string) ?? null, mime: (row.mime as string) ?? null }
   } catch (e) {
     console.error('[workbook] get_my_download_path threw:', e)
+    return null
+  }
+}
+
+// The gated COMPANION file for an interactive workbook (e.g. a printable PDF) — returned by
+// the RPC ONLY when the caller is entitled to the workbook, else null. Same delivery path as
+// getMyDownload: the caller mints a short-lived signed URL from the private bucket.
+export async function getMyWorkbookCompanion(slug: string, workbookSlug: string): Promise<MyDownload | null> {
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data, error } = await supabase.rpc('get_my_workbook_companion', { p_site_slug: slug, p_workbook_slug: workbookSlug })
+    if (error) { console.error('[workbook] get_my_workbook_companion failed:', error.message); return null }
+    const row = Array.isArray(data) ? data[0] : data
+    if (!row || !row.file_path) return null
+    return { filePath: String(row.file_path), fileName: (row.file_name as string) ?? null, mime: (row.mime as string) ?? null }
+  } catch (e) {
+    console.error('[workbook] get_my_workbook_companion threw:', e)
     return null
   }
 }

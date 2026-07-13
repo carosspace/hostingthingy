@@ -3,7 +3,7 @@
 import { getCurrentUser } from '@/lib/auth'
 import { getPortalSite } from '@/lib/portal/site'
 import { getMyResourcePath } from '@/lib/portal/resources'
-import { getMyDownload } from '@/lib/portal/workbook'
+import { getMyDownload, getMyWorkbookCompanion } from '@/lib/portal/workbook'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 const RESOURCES_BUCKET = 'site-resources'
@@ -61,6 +61,32 @@ export async function getProductDownloadUrl(
   if (!/^[a-z0-9-]{1,60}$/.test(ps)) return { ok: false, error: 'That download is unavailable.' }
 
   const d = await getMyDownload(portalSlug, ps)
+  if (!d) return { ok: false, error: 'You don’t have access to that download yet.' }
+
+  const admin = getSupabaseAdmin()
+  if (!admin) return { ok: false, error: 'Downloads aren’t available right now.' }
+  try {
+    const { data, error } = await admin.storage.from(RESOURCES_BUCKET).createSignedUrl(d.filePath, 60, { download: d.fileName || true })
+    if (error || !data?.signedUrl) return { ok: false, error: 'Couldn’t prepare that download. Try again.' }
+    return { ok: true, url: data.signedUrl }
+  } catch {
+    return { ok: false, error: 'Couldn’t prepare that download. Try again.' }
+  }
+}
+
+// Mint a short-lived signed URL for an interactive workbook's COMPANION file (the printable
+// PDF a buyer also gets). Same layered gate: entitlement comes from get_my_workbook_companion,
+// which returns a path ONLY when the caller owns the workbook. Never exposes bucket/path.
+export async function getWorkbookCompanionUrl(
+  workbookSlug: string,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { ok: false, error: 'Please sign in again.' }
+  const { slug: portalSlug } = await getPortalSite()
+  const ws = String(workbookSlug ?? '').toLowerCase().trim()
+  if (!/^[a-z0-9-]{1,60}$/.test(ws)) return { ok: false, error: 'That download is unavailable.' }
+
+  const d = await getMyWorkbookCompanion(portalSlug, ws)
   if (!d) return { ok: false, error: 'You don’t have access to that download yet.' }
 
   const admin = getSupabaseAdmin()
