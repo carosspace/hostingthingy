@@ -142,7 +142,7 @@ export default async function ClientResourcesPage() {
                     {w.title}
                   </h2>
                   <p className="font-body" style={{ color: portalMuted, fontSize: 13, lineHeight: 1.55 }}>
-                    Open it any time — everything you write is saved to your account.
+                    Open it any time — everything you write is saved to your account, on every device.
                   </p>
                   <span className="font-label" style={{ marginTop: 6, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: accent }}>
                     Open workbook →
