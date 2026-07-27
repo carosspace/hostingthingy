@@ -4,6 +4,7 @@ import { listTiers } from '@/lib/memberships/repo'
 import { PORTAL_SITE_SLUG } from '@/lib/portal/site'
 import { listOwnerProducts } from '@/lib/workbooks/products'
 import BooksManager, { type ProductInput } from './BooksManager'
+import PlannerAccess from './PlannerAccess'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export default async function ResourcesManagerPage() {
   }))
 
   const siteBase = site?.domain ? `https://${site.domain}` : 'https://animatemple.com'
+  const plannerUrl = `${(process.env.NEXT_PUBLIC_PORTAL_URL || 'https://app.animatemple.com').replace(/\/+$/, '')}/aligned/`
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -43,7 +45,10 @@ export default async function ResourcesManagerPage() {
       {!site ? (
         <p className="font-body text-ash/60 text-sm">No website found on your account yet.</p>
       ) : (
-        <BooksManager products={products} siteBase={siteBase} tiers={tiers.map(t => ({ id: t.id, name: t.name }))} />
+        <>
+          <BooksManager products={products} siteBase={siteBase} tiers={tiers.map(t => ({ id: t.id, name: t.name }))} />
+          <PlannerAccess plannerUrl={plannerUrl} />
+        </>
       )}
     </div>
   )
