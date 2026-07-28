@@ -268,6 +268,13 @@ input,textarea,select{font-family:inherit;color:var(--espresso)}
 .nl-item{display:block;width:100%;text-align:left;padding:7px 11px;border-radius:9px;background:var(--card-2);margin-bottom:6px;cursor:pointer;font-size:13px;color:var(--espresso);border:1px solid transparent;font-family:inherit}
 .nl-item:hover{border-color:var(--gold)}
 @media(max-width:640px){.note-links{grid-template-columns:1fr}.note-title-in{font-size:25px}}
+.note-graph-wrap{position:relative;height:64vh;min-height:340px;border:1px solid var(--line);border-radius:16px;background:var(--card);overflow:hidden;touch-action:none;box-shadow:var(--shadow)}
+#note-graph{display:block;width:100%;height:100%;cursor:grab}
+#note-graph:active{cursor:grabbing}
+.ng-tools{position:absolute;right:12px;bottom:12px;display:flex;gap:6px}
+.ng-tools button{width:34px;height:34px;padding:0;border-radius:9px;border:1px solid var(--line);background:var(--card-2);color:var(--espresso);font-size:15px;cursor:pointer}
+.ng-tools button:hover{border-color:var(--gold)}
+.ng-tools button.wide{width:auto;padding:0 12px;font-size:12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
 .card.flat{box-shadow:none;background:var(--card-2)}
 .grid{display:grid;gap:18px}
@@ -1451,13 +1458,15 @@ function noteOutLinks(n){const set=[];const rx=/\[\[([^\]|#\n]+)/g;let m;while((
 function noteRepoint(from,to){const rx=new RegExp('\\[\\[\\s*'+from.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*(\\|[^\\]\\n]*)?\\]\\]','gi');DB.notes.forEach(o=>{if(rx.test(o.text||'')){o.text=o.text.replace(rx,(m,al)=>'[['+to+(al||'')+']]');}rx.lastIndex=0;});}
 
 function renderNotes(){
+  if(window.__noteGraphRAF){cancelAnimationFrame(window.__noteGraphRAF);window.__noteGraphRAF=null;}
   if(S.note){const n=DB.notes.find(x=>x.id===S.note);if(n)return renderNoteEditor(n);S.note=null;}
+  if(S.noteView==='graph')return renderNotesGraph();
   const q=(S.noteQ||'').toLowerCase().trim();
   let notes=[...DB.notes].sort((a,b)=>(b.updated||b.created||0)-(a.updated||a.created||0));
   if(q)notes=notes.filter(n=>noteTitle(n).toLowerCase().includes(q)||(n.text||'').toLowerCase().includes(q));
   C().innerHTML=
   '<div class="view-head"><div class="eyebrow">Your second brain</div><h1>Notes</h1><div class="lead">Linked notes. Type [[ to connect one to another. Dated reflections go in Journal.</div></div>'+
-  '<div class="notes-bar"><input id="noteq" class="note-search" placeholder="Search your notes" value="'+esc(S.noteQ||'')+'" autocomplete="off"><button class="btn primary" data-addnotebtn>+ New note</button></div>'+
+  '<div class="notes-bar"><input id="noteq" class="note-search" placeholder="Search your notes" value="'+esc(S.noteQ||'')+'" autocomplete="off"><button class="btn ghost" data-noteview="graph" title="See the map of your notes">✦ Map</button><button class="btn primary" data-addnotebtn>+ New note</button></div>'+
   (notes.length?'<div class="note-list">'+notes.map(function(n){
     const bl=noteBacklinks(n).length;
     return '<button class="note-row" data-noteopen="'+n.id+'"><span class="nr-star">✦</span><span class="nr-main"><span class="nr-title">'+esc(noteTitle(n))+'</span>'+(noteSnippet(n)?'<span class="nr-snip">'+esc(noteSnippet(n))+'</span>':'')+'</span>'+(bl?'<span class="nr-bl">'+bl+' ↩</span>':'')+'</button>';
@@ -1488,6 +1497,63 @@ function renderNoteEditor(n){
 }
 function addNote(){const id=uid();DB.notes.unshift({id:id,title:'',text:'',tint:NOTE_TINTS[DB.notes.length%NOTE_TINTS.length],created:Date.now(),updated:Date.now()});S.note=id;S.noteEdit=true;persist();render();}
 function openNoteByName(name){const r=noteResolve(name);if(r){S.note=r.id;S.noteEdit=false;render();return;}const id=uid();DB.notes.unshift({id:id,title:String(name).trim(),text:'',tint:NOTE_TINTS[DB.notes.length%NOTE_TINTS.length],created:Date.now(),updated:Date.now()});S.note=id;S.noteEdit=true;persist();render();}
+
+/* the constellation: every note a star, joined where they link. Works with touch. */
+function renderNotesGraph(){
+  if(window.__noteGraphRAF){cancelAnimationFrame(window.__noteGraphRAF);window.__noteGraphRAF=null;}
+  const notes=DB.notes;
+  C().innerHTML=
+   '<div class="view-head"><div class="eyebrow">Your second brain</div><h1>Notes</h1><div class="lead">Every note is a star. Lines are the links between them. Tap a star to open it, drag to explore.</div></div>'+
+   '<div class="notes-bar"><button class="btn ghost" data-noteview="list">← Back to list</button><div style="flex:1"></div><button class="btn primary" data-addnotebtn>+ New note</button></div>'+
+   (notes.length
+     ? '<div class="note-graph-wrap"><canvas id="note-graph"></canvas><div class="ng-tools"><button id="ng-out" title="Zoom out">−</button><button id="ng-in" title="Zoom in">+</button><button id="ng-fit" class="wide" title="Recentre">Recentre</button></div></div>'
+     : '<div class="empty"><div class="e-star">✦</div><p>No notes yet to map. Make a few and link them with [[ ]].</p></div>');
+  if(!notes.length)return;
+
+  const cv=document.getElementById('note-graph'),ctx=cv.getContext('2d');
+  const nodes=notes.map(function(n,i){return{id:n.id,t:noteTitle(n),x:Math.cos(i/notes.length*6.283)*140+(i%7)*8,y:Math.sin(i/notes.length*6.283)*140+(i%5)*8,vx:0,vy:0,deg:0};});
+  const idx=new Map(nodes.map((n,i)=>[n.id,i]));
+  const edges=[];
+  notes.forEach(function(n){noteOutLinks(n).forEach(function(o){if(idx.has(n.id)&&idx.has(o.id)){edges.push([idx.get(n.id),idx.get(o.id)]);nodes[idx.get(n.id)].deg++;nodes[idx.get(o.id)].deg++;}});});
+  let cam={x:0,y:0,z:1},drag=null,hover=-1,alpha=1;
+  const css=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+  const bodyFont=getComputedStyle(document.body).fontFamily||'sans-serif';
+  function size(){const r=cv.parentElement.getBoundingClientRect(),dpr=window.devicePixelRatio||1;cv.width=r.width*dpr;cv.height=r.height*dpr;cv.style.width=r.width+'px';cv.style.height=r.height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);return r;}
+  let R=size();
+  function step(){
+    if(!cv.isConnected){window.__noteGraphRAF=null;return;}
+    if(alpha>0.004){
+      for(let i=0;i<nodes.length;i++){const a=nodes[i];
+        for(let j=i+1;j<nodes.length;j++){const b=nodes[j];let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy||.01;if(d2>90000)continue;const f=1200/d2,d=Math.sqrt(d2),fx=dx/d*f,fy=dy/d*f;a.vx-=fx;a.vy-=fy;b.vx+=fx;b.vy+=fy;}
+        a.vx-=a.x*.002;a.vy-=a.y*.002;}
+      edges.forEach(function(e){const a=nodes[e[0]],b=nodes[e[1]],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||.01,f=(d-110)*.011,fx=dx/d*f,fy=dy/d*f;a.vx+=fx;a.vy+=fy;b.vx-=fx;b.vy-=fy;});
+      nodes.forEach(function(n,i){if(drag&&drag.i===i)return;n.vx*=.82;n.vy*=.82;n.x+=n.vx*alpha;n.y+=n.vy*alpha;});
+      alpha*=.994;
+    }
+    draw();window.__noteGraphRAF=requestAnimationFrame(step);
+  }
+  function draw(){
+    ctx.clearRect(0,0,R.width,R.height);ctx.save();ctx.translate(R.width/2+cam.x,R.height/2+cam.y);ctx.scale(cam.z,cam.z);
+    const line=css('--line')||'rgba(60,40,30,.14)',gold=css('--gold')||'#B08D4F',ink=css('--espresso')||'#3E2C23',terra=css('--terra')||'#B5654A',mute=css('--ink-mute')||'#8A7A66';
+    edges.forEach(function(e){const a=nodes[e[0]],b=nodes[e[1]],lit=hover===e[0]||hover===e[1];ctx.globalAlpha=lit?.9:.38;ctx.strokeStyle=lit?gold:line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();});
+    ctx.globalAlpha=1;
+    nodes.forEach(function(n,i){const rad=Math.min(5+n.deg*1.6,15),hov=i===hover;ctx.beginPath();ctx.arc(n.x,n.y,rad+(hov?2:0),0,6.284);ctx.fillStyle=hov?gold:(n.deg?ink:terra);ctx.globalAlpha=hov?1:.85;ctx.fill();ctx.globalAlpha=1;
+      if(cam.z>.5||hov){ctx.font=(hov?'600 ':'400 ')+(12/Math.max(cam.z,.8))+'px '+bodyFont;ctx.fillStyle=hov?ink:mute;ctx.textAlign='center';const lbl=n.t.length>24?n.t.slice(0,22)+'…':n.t;ctx.fillText(lbl,n.x,n.y+rad+13);}});
+    ctx.restore();
+  }
+  function pick(clientX,clientY){const r=cv.getBoundingClientRect();const x=(clientX-r.left-R.width/2-cam.x)/cam.z,y=(clientY-r.top-R.height/2-cam.y)/cam.z;for(let i=nodes.length-1;i>=0;i--){const n=nodes[i],rad=Math.min(5+n.deg*1.6,15)+8;if((n.x-x)*(n.x-x)+(n.y-y)*(n.y-y)<rad*rad)return{i:i,x:x,y:y};}return{i:-1,x:x,y:y};}
+  cv.addEventListener('pointerdown',function(ev){try{cv.setPointerCapture(ev.pointerId);}catch(e){}const h=pick(ev.clientX,ev.clientY);drag=h.i>=0?{i:h.i,node:true,moved:false,sx:ev.clientX,sy:ev.clientY}:{pan:true,sx:ev.clientX-cam.x,sy:ev.clientY-cam.y};});
+  cv.addEventListener('pointermove',function(ev){if(!drag){const h=pick(ev.clientX,ev.clientY);hover=h.i;cv.style.cursor=h.i>=0?'pointer':'grab';return;}if(drag.node){const h=pick(ev.clientX,ev.clientY);nodes[drag.i].x=h.x;nodes[drag.i].y=h.y;nodes[drag.i].vx=nodes[drag.i].vy=0;alpha=Math.max(alpha,.3);if(Math.abs(ev.clientX-drag.sx)+Math.abs(ev.clientY-drag.sy)>4)drag.moved=true;}else if(drag.pan){cam.x=ev.clientX-drag.sx;cam.y=ev.clientY-drag.sy;}});
+  cv.addEventListener('pointerup',function(ev){if(drag&&drag.node&&!drag.moved){S.note=nodes[drag.i].id;S.noteEdit=false;if(window.__noteGraphRAF){cancelAnimationFrame(window.__noteGraphRAF);window.__noteGraphRAF=null;}render();return;}drag=null;});
+  cv.addEventListener('pointercancel',function(){drag=null;});
+  cv.addEventListener('wheel',function(ev){ev.preventDefault();cam.z=Math.max(.3,Math.min(2.5,cam.z*(ev.deltaY>0?.9:1.1)));},{passive:false});
+  const zi=document.getElementById('ng-in'),zo=document.getElementById('ng-out'),zf=document.getElementById('ng-fit');
+  if(zi)zi.onclick=()=>{cam.z=Math.min(2.5,cam.z*1.25);};
+  if(zo)zo.onclick=()=>{cam.z=Math.max(.3,cam.z*.8);};
+  if(zf)zf.onclick=()=>{cam={x:0,y:0,z:1};alpha=1;};
+  window.addEventListener('resize',()=>{if(cv.isConnected)R=size();});
+  step();
+}
 
 /* ================= CHALLENGES ================= */
 function renderChallenges(){
@@ -2679,7 +2745,7 @@ function autoGrow(el){el.style.height='auto';el.style.height=Math.max(el.scrollH
 function touchProject(id){const p=DB.projects.find(p=>p.id===id);if(p)p.updated=keyOf(new Date());}
 
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-nav],[data-cycle],[data-del],[data-addbtn],[data-jump],[data-day],[data-week],[data-mo],[data-yr],[data-openmonth],[data-editdue],[data-pri],[data-pmove],[data-pdel],[data-addprojectbtn],[data-addbill],[data-billpaid],[data-billdel],[data-addmoneybtn],[data-mdel],[data-bmo],[data-addgoalbtn],[data-goaltoggle],[data-goaldel],[data-settings],[data-perioddel],[data-periodtoday],[data-perioddate],[data-flow],[data-cenergy],[data-symptom],[data-addwo],[data-wodel],[data-wo-feel],[data-nodeadd],[data-nodeedit],[data-nodedel],[data-boardswitch],[data-newboard],[data-boarddel],[data-addidea],[data-genplan],[data-planstep],[data-saveplanproject],[data-zoom],[data-ritualtoggle],[data-ritualdel],[data-addritualbtn],[data-catdel],[data-caticon],[data-addcatbtn],[data-mtab],[data-mexpicon],[data-mexpdel],[data-addexpbtn],[data-sgicon],[data-sgdel],[data-addsgbtn],[data-lnicon],[data-lndel],[data-addlnbtn],[data-addweightbtn],[data-weightdel],[data-fitfocus],[data-addplanbtn],[data-plandel],[data-addex],[data-exdel],[data-iconpick],[data-iconchoose],[data-datechoose],[data-datemonth],[data-dateclear],[data-dateclose],[data-astromo],[data-buckettoggle],[data-bucketdel],[data-addbucketbtn],[data-grocerytoggle],[data-grocerydel],[data-addgrocerybtn],[data-clearbought],[data-ktab],[data-mealweek],[data-invdel],[data-addinvbtn],[data-addbday],[data-bdaydel],[data-addgiftbtn],[data-giftbought],[data-giftdel],[data-addchal],[data-chdel],[data-addentry],[data-entdel],[data-addblock],[data-bldel],[data-savejournal],[data-journaldel],[data-addnotebtn],[data-notedel],[data-noteopen],[data-noteopenname],[data-noteback],[data-noteedit],[data-notedelopen],[data-notetag],[data-repeat]');
+  const t=e.target.closest('[data-nav],[data-cycle],[data-del],[data-addbtn],[data-jump],[data-day],[data-week],[data-mo],[data-yr],[data-openmonth],[data-editdue],[data-pri],[data-pmove],[data-pdel],[data-addprojectbtn],[data-addbill],[data-billpaid],[data-billdel],[data-addmoneybtn],[data-mdel],[data-bmo],[data-addgoalbtn],[data-goaltoggle],[data-goaldel],[data-settings],[data-perioddel],[data-periodtoday],[data-perioddate],[data-flow],[data-cenergy],[data-symptom],[data-addwo],[data-wodel],[data-wo-feel],[data-nodeadd],[data-nodeedit],[data-nodedel],[data-boardswitch],[data-newboard],[data-boarddel],[data-addidea],[data-genplan],[data-planstep],[data-saveplanproject],[data-zoom],[data-ritualtoggle],[data-ritualdel],[data-addritualbtn],[data-catdel],[data-caticon],[data-addcatbtn],[data-mtab],[data-mexpicon],[data-mexpdel],[data-addexpbtn],[data-sgicon],[data-sgdel],[data-addsgbtn],[data-lnicon],[data-lndel],[data-addlnbtn],[data-addweightbtn],[data-weightdel],[data-fitfocus],[data-addplanbtn],[data-plandel],[data-addex],[data-exdel],[data-iconpick],[data-iconchoose],[data-datechoose],[data-datemonth],[data-dateclear],[data-dateclose],[data-astromo],[data-buckettoggle],[data-bucketdel],[data-addbucketbtn],[data-grocerytoggle],[data-grocerydel],[data-addgrocerybtn],[data-clearbought],[data-ktab],[data-mealweek],[data-invdel],[data-addinvbtn],[data-addbday],[data-bdaydel],[data-addgiftbtn],[data-giftbought],[data-giftdel],[data-addchal],[data-chdel],[data-addentry],[data-entdel],[data-addblock],[data-bldel],[data-savejournal],[data-journaldel],[data-addnotebtn],[data-notedel],[data-noteopen],[data-noteopenname],[data-noteback],[data-noteedit],[data-notedelopen],[data-notetag],[data-noteview],[data-repeat]');
   if(!t)return;
   // nav
   if(t.dataset.nav){S.view=t.dataset.nav;S.note=null;S.noteEdit=false;pendingFeel=null;setNav(false);render();return;}
@@ -2689,7 +2755,8 @@ document.addEventListener('click',e=>{
   if(t.hasAttribute('data-noteback')){S.note=null;S.noteEdit=false;S.noteQ='';render();return;}
   if(t.hasAttribute('data-noteedit')){S.noteEdit=!S.noteEdit;render();return;}
   if(t.dataset.notedelopen){if(confirm('Delete this note?')){DB.notes=DB.notes.filter(x=>x.id!==t.dataset.notedelopen);S.note=null;S.noteEdit=false;persist();render();}return;}
-  if(t.dataset.notetag){S.view='notes';S.note=null;S.noteQ='#'+t.dataset.notetag;render();return;}
+  if(t.dataset.notetag){S.view='notes';S.note=null;S.noteView='list';S.noteQ='#'+t.dataset.notetag;render();return;}
+  if(t.dataset.noteview){S.noteView=t.dataset.noteview;S.note=null;render();return;}
   // icon picker
   if(t.dataset.iconpick){openIconPicker(t.dataset.iconpick);return;}
   if(t.dataset.iconchoose){if(iconTarget){setIcon(iconTarget,t.dataset.iconchoose);iconTarget=null;}document.getElementById('iconmodal').classList.remove('on');render();return;}
