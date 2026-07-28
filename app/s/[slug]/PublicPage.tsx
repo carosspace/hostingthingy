@@ -7,7 +7,7 @@ import { embedSrc } from '@/lib/sites/embed'
 import { CanvasView } from '@/lib/sites/CanvasView'
 import { PageTransition } from './PageTransition'
 import Reveal from './Reveal'
-import FullPageHtml from '@/lib/sites/FullPageHtml'
+import InlineFullPage from '@/lib/sites/InlineFullPage'
 
 // Only allow safe link schemes (or a same-origin relative path) — blocks javascript:, data:, etc.
 function safeHref(href: string): string | null {
@@ -51,11 +51,11 @@ export default function PublicPage({
   currentSlug: string
 }) {
   // FULL-PAGE HTML: render the owner's complete pasted design as the whole page,
-  // with NO platform chrome (their design brings its own nav/footer/styling). Strip
-  // the outer document wrapper so their <link> fonts + <style> + markup inline
-  // cleanly. Reversible — clearing fullHtml restores the normal render below.
+  // with NO platform chrome (their design brings its own nav/footer/styling). Rendered
+  // INLINE (not framed) so the copy, headings and links are indexable — a srcDoc iframe
+  // is invisible to crawlers. Reversible — clearing fullHtml restores the normal render.
   if (page.fullHtml && page.fullHtml.trim()) {
-    return <FullPageHtml html={page.fullHtml} />
+    return <InlineFullPage html={page.fullHtml} />
   }
 
   const theme = THEMES[(content?.theme as SiteTheme) ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME]
