@@ -26,6 +26,10 @@ const STEPS = [
   { n: "3", title: "Go live", body: "Connect a domain and share it with the world." },
 ];
 
+// The portal + platform pages are private working areas, not marketing. Keep them out of
+// search results so they never compete with the public site at animatemple.com.
+export const metadata = { robots: { index: false, follow: false } }
+
 export default function Home() {
   return (
     <main className="min-h-screen">

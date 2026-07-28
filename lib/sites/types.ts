@@ -827,6 +827,7 @@ export interface SiteContent {
   footerItems?: SectionItem[] // a hand-composed footer row; falls back to the footer text when empty
   seoTitle?: string
   seoDescription?: string
+  seoImage?: string // site-wide social share image (a public https URL), used when a page sets none
   // The home page's fields live at the top level (legacy + mirror of pages[0]).
   headline: string
   subheadline: string

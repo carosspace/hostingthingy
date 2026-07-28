@@ -12,6 +12,10 @@ import { googleHref } from '@/lib/sites/googleFonts'
 // families the owner's role fonts use, so those fonts load across every /me/*
 // page (exactly like CanvasView emits its per-page Google <link>). Crash-safe:
 // when there are no Google role fonts (or no custom look) it renders nothing.
+// The portal + platform pages are private working areas, not marketing. Keep them out of
+// search results so they never compete with the public site at animatemple.com.
+export const metadata = { robots: { index: false, follow: false } }
+
 export default async function ClientAreaLayout({ children }: { children: React.ReactNode }) {
   const portal = await getPortalSite()
   const families = portalGoogleFamilies(portal)

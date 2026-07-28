@@ -5,6 +5,10 @@ import { unreadMessageCount } from '@/lib/sites/messages'
 import PortalNav from './PortalNav'
 
 // Every page inside the (portal) group is gated here: no session → /login.
+// The portal + platform pages are private working areas, not marketing. Keep them out of
+// search results so they never compete with the public site at animatemple.com.
+export const metadata = { robots: { index: false, follow: false } }
+
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   if (!user) redirect('/login')

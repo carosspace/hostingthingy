@@ -53,6 +53,14 @@ export async function middleware(request: NextRequest) {
     .split(':')[0]
   const path = request.nextUrl.pathname
 
+  // --- Canonical host --------------------------------------------------------
+  // www resolves to the same site as the apex, so search engines can see two copies
+  // of every page. Send www to the apex permanently — one address for the whole site.
+  if (host.startsWith('www.')) {
+    const proto = request.headers.get('x-forwarded-proto') || 'https'
+    return NextResponse.redirect(`${proto}://${host.slice(4)}${path}${request.nextUrl.search}`, 301)
+  }
+
   // --- Static PWAs in /public -----------------------------------------------
   // Plain static apps under public/<name>/ (Magali's planner, the Anima Temple
   // planner, …). Next serves them at their full file path (/planner/index.html)
