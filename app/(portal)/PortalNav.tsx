@@ -11,6 +11,7 @@ const PRIMARY = [
   { href: '/bookings', label: 'Bookings' },
 ]
 const MORE = [
+  { href: '/stats', label: 'Visitors' },
   { href: '/courses', label: 'Courses' },
   { href: '/memberships', label: 'Memberships' },
   { href: '/resources', label: 'Gift & codes' },

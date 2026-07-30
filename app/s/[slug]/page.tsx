@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { getPublicSite } from '@/lib/sites/public'
 import { getPages } from '@/lib/sites/types'
 import { jsonLd } from '@/lib/sites/jsonld'
+import PageViewTracker from '@/lib/sites/PageViewTracker'
 import { siteBaseUrl } from '@/lib/sites/baseurl'
 import PublicPage from './PublicPage'
 
@@ -41,6 +42,7 @@ export default async function HomePage({ params }: { params: { slug: string } })
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(site, home, siteBaseUrl()) }} />
+      <PageViewTracker slug={site.slug} path={'/'} />
       <PublicPage
         siteSlug={site.slug}
         siteName={site.name}
