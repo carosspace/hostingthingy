@@ -34,7 +34,7 @@ export default function InlineFullPage({ html }: { html: string }) {
         <link key={`fpl-${i}`} rel={l.rel} href={l.href} crossOrigin={l.crossOrigin as '' | 'anonymous' | 'use-credentials' | undefined} />
       ))}
       <style dangerouslySetInnerHTML={{ __html: fullPageCss(parsed) }} />
-      <div id="fp-root" ref={rootRef} dangerouslySetInnerHTML={{ __html: parsed.body }} />
+      <div id="fp-root" lang={parsed.lang} ref={rootRef} dangerouslySetInnerHTML={{ __html: parsed.body }} />
     </>
   )
 }

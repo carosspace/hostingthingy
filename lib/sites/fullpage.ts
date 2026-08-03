@@ -11,6 +11,7 @@ export interface ParsedFullPage {
   cssLinks: { rel: string; href: string; crossOrigin?: string }[]
   body: string
   scripts: { src?: string; code?: string }[]
+  lang?: string
 }
 
 const tag = (html: string, name: string): string[] => {
@@ -62,7 +63,13 @@ export function parseFullPage(html: string): ParsedFullPage {
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<base\b[^>]*>/gi, '')
 
-  return { css, cssLinks, body, scripts }
+  // A design written in another language declares it on its own <html>. Inline, the layout's
+  // <html lang="en"> is what ships, so carry the design's language onto its container instead
+  // — otherwise a French page tells search engines and screen readers that it is English.
+  const declared = html.match(/<html\b[^>]*\blang\s*=\s*["']([a-zA-Z-]{2,10})["']/i)?.[1]
+  const lang = declared && declared.toLowerCase() !== 'en' ? declared : undefined
+
+  return { css, cssLinks, body, scripts, lang }
 }
 
 // Remove at-rule blocks (@media, @supports…) so body rules are only read from the top level —
