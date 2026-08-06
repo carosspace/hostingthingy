@@ -83,7 +83,8 @@ nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 84%,
 .mobpanel{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 97%,transparent);backdrop-filter:blur(20px);z-index:90;padding:5rem 2.4rem 2.4rem;display:flex;flex-direction:column;gap:.7rem;opacity:0;pointer-events:none;transition:opacity .3s ease}
 .mobpanel.open{opacity:1;pointer-events:auto}
 .mobpanel button{background:none;border:1px solid var(--linesoft);border-radius:14px;text-align:left;font-size:.78rem;font-weight:400;text-transform:uppercase;letter-spacing:2px;color:var(--ink);padding:.95rem 1.2rem}
-.mob-langrow{display:flex;align-items:center;gap:.6rem;margin-top:.2rem}
+.mob-langrow{display:flex;align-items:center;justify-content:center;gap:.6rem;margin-top:.2rem}
+.mob-langrow .langsel{margin-right:0}
 .mobpanel .mob-langrow>button.themetoggle{width:36px;height:36px;min-width:36px;flex:0 0 auto;padding:0;border-radius:999px;border:1px solid var(--line);text-transform:none;letter-spacing:0;color:var(--ink2)}
 .mobclose{position:absolute;top:1.2rem;right:1.2rem;width:40px;height:40px;border-radius:50%;background:rgba(56,42,30,.05);border:1px solid var(--linesoft)!important;color:var(--ink)!important;font-size:1.15rem!important;display:flex;align-items:center;justify-content:center;padding:0!important;text-align:center!important;letter-spacing:0!important}
 .scrim{position:fixed;inset:0;background:rgba(30,22,14,.32);z-index:80;opacity:0;pointer-events:none;transition:opacity .3s}
