@@ -83,6 +83,8 @@ nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 84%,
 .mobpanel{position:fixed;inset:0;background:color-mix(in srgb,var(--bg) 97%,transparent);backdrop-filter:blur(20px);z-index:90;padding:5rem 2.4rem 2.4rem;display:flex;flex-direction:column;gap:.7rem;opacity:0;pointer-events:none;transition:opacity .3s ease}
 .mobpanel.open{opacity:1;pointer-events:auto}
 .mobpanel button{background:none;border:1px solid var(--linesoft);border-radius:14px;text-align:left;font-size:.78rem;font-weight:400;text-transform:uppercase;letter-spacing:2px;color:var(--ink);padding:.95rem 1.2rem}
+.mob-langrow{display:flex;align-items:center;gap:.6rem;margin-top:.2rem}
+.mobpanel .mob-langrow>button.themetoggle{width:36px;height:36px;min-width:36px;flex:0 0 auto;padding:0;border-radius:999px;border:1px solid var(--line);text-transform:none;letter-spacing:0;color:var(--ink2)}
 .mobclose{position:absolute;top:1.2rem;right:1.2rem;width:40px;height:40px;border-radius:50%;background:rgba(56,42,30,.05);border:1px solid var(--linesoft)!important;color:var(--ink)!important;font-size:1.15rem!important;display:flex;align-items:center;justify-content:center;padding:0!important;text-align:center!important;letter-spacing:0!important}
 .scrim{position:fixed;inset:0;background:rgba(30,22,14,.32);z-index:80;opacity:0;pointer-events:none;transition:opacity .3s}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -318,7 +320,7 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
 .linkbtn{background:none;border:none;padding:0;color:var(--brass);font-size:.8rem;text-decoration:underline;cursor:pointer}.linkbtn:hover{color:var(--clay)}</style>
 </head>
 <body>
-<div class="banner"><div class="banner-in"><p data-i18n="banner">Some things loosen only when the body feels safe enough to let them.</p><div class="banner-ctrl"><div class="langsel"><button class="langopt" data-l="en" onclick="setLangGlobal('en')">EN</button><button class="langopt" data-l="de" onclick="setLangGlobal('de')">DE</button><button class="langopt" data-l="fr" onclick="setLangGlobal('fr')">FR</button></div><button class="iconbtn" id="themeBtn" onclick="toggleTheme()" aria-label="Switch between day and evening mode"></button></div></div></div>
+<div class="banner"><div class="banner-in"><p data-i18n="banner">Some things loosen only when the body feels safe enough to let them.</p><div class="banner-ctrl"><div class="langsel"><button class="langopt" data-l="en" onclick="setLangGlobal('en')">EN</button><button class="langopt" data-l="de" onclick="setLangGlobal('de')">DE</button><button class="langopt" data-l="fr" onclick="setLangGlobal('fr')">FR</button></div><button class="iconbtn themetoggle" id="themeBtn" onclick="toggleTheme()" aria-label="Switch between day and evening mode"></button></div></div></div>
 
 <nav>
   <div class="navin">
@@ -351,8 +353,7 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
   <button onclick="mobGo('log')" data-i18n="nav_log">My log</button>
   <button onclick="mobGo('journal')" data-i18n="nav_journal">Journal</button>
   <button onclick="toggleMob(false);openReset()" data-i18n="nav_reset">3-minute reset</button>
-  <button onclick="toggleTheme()" data-i18n="nav_dayeve">Day / evening</button>
-  <div class="langsel langsel-mob"><button class="langopt" data-l="en" onclick="setLangGlobal('en')">EN</button><button class="langopt" data-l="de" onclick="setLangGlobal('de')">DE</button><button class="langopt" data-l="fr" onclick="setLangGlobal('fr')">FR</button></div>
+  <div class="mob-langrow"><button class="iconbtn themetoggle" onclick="toggleTheme()" aria-label="Switch between day and evening mode"></button><div class="langsel langsel-mob"><button class="langopt" data-l="en" onclick="setLangGlobal('en')">EN</button><button class="langopt" data-l="de" onclick="setLangGlobal('de')">DE</button><button class="langopt" data-l="fr" onclick="setLangGlobal('fr')">FR</button></div></div>
 </div>
 
 <main>
@@ -1713,9 +1714,10 @@ function trDur(v){if(LANG==='de')return String(v).replace('min','Min.');return v
 /* ---------------- theme ---------------- */
 function applyTheme(){
   document.documentElement.dataset.theme=state.theme;
-  $('#themeBtn').innerHTML=state.theme==='day'
+  var icon=state.theme==='day'
     ?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
     :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4m0-14.2l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>';
+  $$('.themetoggle').forEach(function(b){b.innerHTML=icon;});
 }
 function updateStreak(){
   const b=$('#streakBadge'); if(!b)return;
