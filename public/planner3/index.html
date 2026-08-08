@@ -876,7 +876,7 @@ if(!DB){
     tasks:[],
     timeblocks:{},
     projects:[
-      {id:uid(),name:'Launch Tuned In on Etsy',notes:'The workbook is finished. This is the one that just needs a listing and a price.',status:'started',created:TODAY_KEY,updated:TODAY_KEY}
+      {id:uid(),name:'Something you’re quietly working towards',notes:'This is an example — rename it, or delete it and add your own. Projects are for the bigger things that live across many days.',status:'started',created:TODAY_KEY,updated:TODAY_KEY}
     ],
     bills:[],
     budget:{},
@@ -1071,7 +1071,7 @@ function taskListHTML(list,emptyMsg){
 function catColor(t){const c=catOf(t.cat);return c?c.color:null;}
 
 /* ================= HOME ================= */
-const OWNER='Caro';
+const OWNER='friend';
 function ownerName(){return (DB.name&&DB.name.trim())?DB.name.trim():OWNER;}
 function greetingText(){const h=new Date().getHours();return h<5?'Still awake':h<12?'Good morning':h<18?'Good afternoon':'Good evening';}
 function nowTime(){const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());}
