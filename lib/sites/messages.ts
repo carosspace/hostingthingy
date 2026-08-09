@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export interface SiteMessage {
   id: string
@@ -101,9 +102,74 @@ export async function deleteMessages(ids: string[]): Promise<void> {
   await supabase.from('messages').delete().in('id', ids)
 }
 
+// ── Spam defence ──────────────────────────────────────────────────────────────
+// The contact form is public and bots POST straight to the endpoint, skipping the
+// on-page honeypot — so the real filtering has to live here, at the one insert path.
+// Both guards below "absorb" a rejected message (pretend success, store nothing) so a
+// bot can't tell it was blocked and keep probing.
+
+// Heuristics tuned to the gibberish blasts actually seen (random 40–55-char tokens as
+// name + body), with rules narrow enough that a real human message never matches.
+export function looksLikeSpam(name: string, _email: string, body: string): boolean {
+  const b = (body || '').trim()
+  if (!b) return false
+  const words = b.split(/\s+/).filter(Boolean)
+  const longest = words.reduce((m, w) => Math.max(m, w.length), 0)
+
+  // Random-token body: long, essentially no spaces, no sentence punctuation. A real
+  // 20+ char message has more than two words and some punctuation; this does not.
+  if (b.length >= 20 && words.length <= 2 && longest >= 20 && !/[.!?,;:'"]/.test(b)) return true
+
+  // Any absurdly long unbroken token — no real word runs 40 characters.
+  if (longest >= 40) return true
+
+  // Link flood — genuine enquiries rarely carry three or more links; spam does.
+  if (((b.match(/https?:\/\/|www\.|\[url|<a\s/gi) || []).length) >= 3) return true
+
+  // A random-looking sender handle (mixed-case run like "IRddHMqThJ", or letters+digits)
+  // paired with a short or tokenish body.
+  const nameTok = (name || '').replace(/\s+/g, '')
+  let caseFlips = 0
+  for (let i = 1; i < nameTok.length; i++) {
+    const p = nameTok[i - 1], c = nameTok[i]
+    if (/[a-zA-Z]/.test(p) && /[a-zA-Z]/.test(c) && (p === p.toLowerCase()) !== (c === c.toLowerCase())) caseFlips++
+  }
+  const nameRandom = nameTok.length >= 8 && /^[A-Za-z0-9]+$/.test(nameTok) &&
+    (caseFlips >= 4 || (/\d/.test(nameTok) && /[a-z]/i.test(nameTok)))
+  if (nameRandom && (words.length <= 4 || longest >= 15)) return true
+
+  return false
+}
+
+// Volume cap: at most a handful of visitor messages per site per hour. Catches a
+// blast even from a bot clever enough to write real-looking words. Fails open (never
+// blocks a genuine message) if the count can't be read.
+const MAX_MESSAGES_PER_SITE_PER_HOUR = 5
+async function overRateLimit(slug: string): Promise<boolean> {
+  try {
+    const admin = getSupabaseAdmin()
+    if (!admin) return false
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count, error } = await admin
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_slug', slug)
+      .neq('sender', 'owner')
+      .gte('created_at', since)
+    if (error) return false
+    return (count ?? 0) >= MAX_MESSAGES_PER_SITE_PER_HOUR
+  } catch {
+    return false
+  }
+}
+
 // Public: a visitor submits a contact message. The SECURITY DEFINER RPC resolves the
 // owner from the site slug server-side, so a visitor can't target anyone else or read.
 export async function submitMessage(slug: string, name: string, email: string, body: string): Promise<boolean> {
+  // Silently absorb spam + floods: report success, insert nothing, so bots don't learn.
+  if (looksLikeSpam(name, email, body)) return true
+  if (await overRateLimit(slug)) return true
+
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.rpc('submit_message', { p_slug: slug, p_name: name, p_email: email, p_body: body })
   return !error
