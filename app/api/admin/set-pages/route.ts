@@ -1,7 +1,9 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { PUBLIC_SITE_TAG } from '@/lib/sites/public'
 
 // TEMP (active site build): upsert pages onto the animatemple-com site + read/set a little
 // site config. Token-gated. REMOVE when the site is finalised.
@@ -206,6 +208,7 @@ export async function POST(req: NextRequest) {
 
     const { error: e2 } = await admin.from('sites').update({ content, updated_at: new Date().toISOString() }).eq('id', site.id)
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+    revalidateTag(PUBLIC_SITE_TAG) // publish must show immediately, not after the 60s window
     return NextResponse.json({ ok: true, results, pageCount: pages.length })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

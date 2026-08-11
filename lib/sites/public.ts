@@ -1,6 +1,11 @@
+import { createClient } from '@supabase/supabase-js'
+import { unstable_cache } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import type { SiteContent } from './types'
+
+// Cache tag every public-site read shares, so a publish can drop the whole cache at once.
+export const PUBLIC_SITE_TAG = 'public-site'
 
 export interface PublicSite {
   name: string
@@ -43,20 +48,34 @@ export async function getCheckoutSite(slug: string): Promise<CheckoutSite | null
   }
 }
 
-// Fetches the public, safe view of a LIVE site by slug (via a SECURITY DEFINER
-// RPC — see migration 003). Returns null if the site isn't live or doesn't exist.
-export async function getPublicSite(slug: string): Promise<PublicSite | null> {
-  const supabase = createSupabaseServerClient()
-  const { data, error } = await supabase.rpc('get_public_site', { p_slug: slug })
+// The raw read: the public, safe view of a LIVE site (SECURITY DEFINER RPC, migration 003).
+// Uses a plain anon client — no cookies — so the result can be cached (unstable_cache runs
+// outside the request, where cookies aren't available). `savedDesigns` is the owner's editor
+// drafts and is stripped here: it's ~half the row and a visitor never needs it, so dropping it
+// this early keeps it out of the cache and out of every downstream render.
+async function fetchPublicSite(slug: string): Promise<PublicSite | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  const anon = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { data, error } = await anon.rpc('get_public_site', { p_slug: slug })
   if (error) return null
   const row = Array.isArray(data) ? data[0] : data
   if (!row) return null
-  return {
-    name: row.name,
-    slug: row.slug,
-    template: row.template,
-    content: (row.content ?? null) as SiteContent | null,
-  }
+  const content = (row.content ?? null) as (SiteContent & { savedDesigns?: unknown }) | null
+  if (content && 'savedDesigns' in content) delete content.savedDesigns
+  return { name: row.name, slug: row.slug, template: row.template, content }
+}
+
+// Cached read of a live site by slug. The 2.4 MB content blob used to be pulled fresh on
+// every page view (and twice — page + metadata); now it's served from cache and only
+// re-read at most once a minute per site, or immediately after a publish (which calls
+// revalidateTag(PUBLIC_SITE_TAG)). This is the main cut to Supabase egress.
+export async function getPublicSite(slug: string): Promise<PublicSite | null> {
+  return unstable_cache(() => fetchPublicSite(slug), ['public-site', slug], {
+    revalidate: 60,
+    tags: [PUBLIC_SITE_TAG],
+  })()
 }
 
 // Which live site (slug) currently owns a domain, if any — used to stop one site

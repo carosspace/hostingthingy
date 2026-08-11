@@ -1,10 +1,12 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { listSites, saveSiteContent } from '@/lib/sites/store'
+import { PUBLIC_SITE_TAG } from '@/lib/sites/public'
 import { PORTAL_SITE_SLUG } from '@/lib/portal/site'
 import { getPages } from '@/lib/sites/types'
 import type { SiteContent, WorkbookProduct } from '@/lib/sites/types'
@@ -59,5 +61,6 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: 'Delete failed: ' + String((e as Error)?.message || e) }, { status: 500 })
   }
+  revalidateTag(PUBLIC_SITE_TAG)
   return NextResponse.json({ ok: true })
 }
