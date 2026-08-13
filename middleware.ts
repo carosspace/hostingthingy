@@ -61,6 +61,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`${proto}://${host.slice(4)}${path}${request.nextUrl.search}`, 301)
   }
 
+  // --- Bot & probe shield ----------------------------------------------------
+  // Cheap refusals before any DB read: endless exploit scanners hammering paths this
+  // stack never has, and the aggressive commercial scrapers that crawl small sites hard
+  // while sending zero real visitors. Genuine search engines (Google/Bing/…) and normal
+  // browsers are untouched, and /api is skipped so Stripe webhooks + the contact form work.
+  if (!path.startsWith('/api')) {
+    if (/(?:\/wp-|\/xmlrpc\.php|\/phpmyadmin|\/\.env|\/\.git|\/vendor\/|\.php(?:$|[/?])|\.aspx?(?:$|[/?]))/i.test(path)) {
+      return new NextResponse(null, { status: 404 })
+    }
+    const ua = request.headers.get('user-agent') || ''
+    if (/(AhrefsBot|SemrushBot|MJ12bot|DotBot|Bytespider|PetalBot|DataForSeoBot|BLEXBot|SeekportBot|serpstatbot|MegaIndex|ZoominfoBot|Barkrowler|MauiBot)/i.test(ua)) {
+      return new NextResponse(null, { status: 403 })
+    }
+  }
+
   // --- Static PWAs in /public -----------------------------------------------
   // Plain static apps under public/<name>/ (Magali's planner, the Anima Temple
   // planner, …). Next serves them at their full file path (/planner/index.html)
