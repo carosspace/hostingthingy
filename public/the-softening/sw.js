@@ -2,7 +2,7 @@
 // installs as a PWA and opens offline. All state lives in the browser's localStorage;
 // this only caches the static files. Google Fonts are cached opportunistically; any
 // other cross-origin request is left to the network.
-const CACHE = 'softening-v3'
+const CACHE = 'softening-v4'
 const ASSETS = ['index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']
 
 self.addEventListener('install', e => {

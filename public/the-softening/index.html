@@ -410,7 +410,7 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
 
   <div id="lib">
     <div class="libhead">
-      <h2>The library</h2>
+      <h2 data-i18n="lib_title">The library</h2>
       <p class="libsub" data-i18n="lib_sub">Each script meets one particular moment: the memory that still makes you flinch, the apology that is never coming, the anger you swallowed, the invoice you keep not sending.</p>
     </div>
     <div class="searchwrap">
@@ -428,7 +428,7 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
     <div class="libhead">
       <span class="label" style="color:var(--brass);display:block;margin-bottom:.6rem" data-i18n="cb_eyebrow">Build your own tap</span>
       <h2><span data-i18n="cb_title_a">A tap in </span><em class="q" data-i18n="cb_title_em">your exact words</em></h2>
-      <p class="libsub">The work moves fastest in your own language, not a stranger's. Name it the way you would say it to a friend, and a script is written around your words, in the same honest shape as everything here.</p>
+      <p class="libsub" data-i18n="cb_sub">The work moves fastest in your own language, not a stranger's. Name it the way you would say it to a friend, and a script is written around your words, in the same honest shape as everything here.</p>
     </div>
     <div class="card frm" style="padding:1.9rem 2.1rem;max-width:640px;margin:0 auto">
       <label class="label" data-i18n="cb_mode_label">What are we working with?</label>
@@ -566,20 +566,20 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
     <p id="soFy" style="color:var(--ink2);margin-top:.4rem"></p>
     <div class="smeta" id="soMeta"></div>
     <div class="togglerow">
-      <span class="label">Wording</span>
-      <span class="seg"><button class="segtab on" id="soSp" onclick="setLang('spiritual')">Spiritual</button><button class="segtab" id="soGr" onclick="setLang('grounded')">Grounded</button></span>
+      <span class="label" data-i18n="so_wording">Wording</span>
+      <span class="seg"><button class="segtab on" id="soSp" onclick="setLang('spiritual')" data-i18n="so_spiritual">Spiritual</button><button class="segtab" id="soGr" onclick="setLang('grounded')" data-i18n="so_grounded">Grounded</button></span>
       <span style="flex:1"></span>
-      <button class="pill" id="soClient" onclick="toggleClient()">With client</button>
+      <button class="pill" id="soClient" onclick="toggleClient()" data-i18n="so_client">With client</button>
     </div>
-    <span class="label">The setup ✦ tap the side of your hand</span>
+    <span class="label" data-i18n="so_setup_label">The setup ✦ tap the side of your hand</span>
     <div class="setupbox" id="soSetup"></div>
-    <span class="label">The rounds</span>
+    <span class="label" data-i18n="so_rounds_label">The rounds</span>
     <ul class="roundlist" id="soRounds"></ul>
     <div class="actions">
       <button class="btn" onclick="beginSession()" data-i18n="so_begin">Begin tapping</button>
       <button class="btn ghost" id="soFav" onclick="toggleFavCurrent()">✦ Favorite</button>
-      <button class="btn ghost" onclick="printScript()">Print</button>
-      <button class="btn ghost" onclick="emailScript()">Email</button>
+      <button class="btn ghost" onclick="printScript()" data-i18n="so_print">Print</button>
+      <button class="btn ghost" onclick="emailScript()" data-i18n="so_email">Email</button>
     </div>
   </div>
 </div>
@@ -601,8 +601,8 @@ footer .fb{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--
     <div class="breath" id="breathCircle" data-i18n="breathe_word">breathe</div>
     <p class="resetline" id="resetLine"></p>
     <div class="actions" style="justify-content:center">
-      <button class="btn ghost small" id="resetNext" onclick="resetNext()">Next</button>
-      <button class="btn ghost small" onclick="closeReset()">Return</button>
+      <button class="btn ghost small" id="resetNext" onclick="resetNext()" data-i18n="reset_next">Next</button>
+      <button class="btn ghost small" onclick="closeReset()" data-i18n="sess_back">Return</button>
     </div>
   </div>
 </div>
